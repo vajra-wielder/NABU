@@ -40,26 +40,39 @@
   var printBtn = document.querySelector('[data-print]');
   if (printBtn) printBtn.addEventListener('click', function () { window.print(); });
 
-  // Contents sidebar: highlight the section being read.
+  // Contents sidebar: highlight the section being read, i.e. the last
+  // heading above the top of the window (works however far one scrolls).
   var side = document.querySelector('.side-toc');
-  if (side && window.IntersectionObserver) {
-    var links = {}, as = side.querySelectorAll('a'), current = null;
-    for (var j = 0; j < as.length; j++) links[decodeURIComponent(as[j].getAttribute('href').slice(1))] = as[j];
+  if (side) {
+    var links = {}, as = side.querySelectorAll('a'), current = null, pending = false;
+    for (var j = 0; j < as.length; j++) {
+      try { links[decodeURIComponent(as[j].getAttribute('href').slice(1))] = as[j]; } catch (e) { /* odd id */ }
+    }
     var heads = document.querySelectorAll('.mw-body h2[id], .mw-body h3[id], .mw-body h4[id]');
-    var io = new IntersectionObserver(function (entries) {
-      for (var k = 0; k < entries.length; k++) {
-        if (!entries[k].isIntersecting) continue;
-        var a = links[entries[k].target.id];
-        if (!a) continue;
-        if (current) current.className = '';
-        a.className = 'here';
-        current = a;
-        if (a.scrollIntoView && (a.offsetTop < side.parentNode.scrollTop || a.offsetTop > side.parentNode.scrollTop + side.parentNode.clientHeight - 60)) {
-          side.parentNode.scrollTop = a.offsetTop - 80;
-        }
+    var spy = function () {
+      pending = false;
+      var here = null;
+      var atEnd = window.innerHeight + window.pageYOffset >= document.documentElement.scrollHeight - 4;
+      var line = atEnd ? window.innerHeight : 120; // at the very end, short last sections count
+      for (var h = 0; h < heads.length; h++) {
+        if (heads[h].getBoundingClientRect().top < line) here = heads[h];
+        else break;
       }
-    }, { rootMargin: '-70px 0px -70% 0px' });
-    for (var h = 0; h < heads.length; h++) io.observe(heads[h]);
+      var a = here ? links[here.id] : null;
+      if (a === current) return;
+      if (current) current.className = '';
+      current = a;
+      if (!a) return;
+      a.className = 'here';
+      var box = side.parentNode;
+      if (a.offsetTop < box.scrollTop + 40 || a.offsetTop > box.scrollTop + box.clientHeight - 60) {
+        box.scrollTop = a.offsetTop - 80;
+      }
+    };
+    window.addEventListener('scroll', function () {
+      if (!pending) { pending = true; setTimeout(spy, 80); }
+    });
+    spy();
   }
 
   // Link previews: hover an article link for a moment to see how it begins.

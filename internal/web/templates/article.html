@@ -9,7 +9,7 @@
 <script src="/nabu/static/reader.js" defer></script>
 </head>
 <body class="wiki" data-book="{{.Book.ID}}" data-title="{{.Page.Title}}">
-<div dir="ltr">{{template "bar" .}}</div>
+{{template "bar" .}}
 <div class="reader">
   <aside class="side" aria-label="Contents and tools" dir="ltr">
     {{if .Side}}<h2>Contents</h2>

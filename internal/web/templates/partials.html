@@ -36,7 +36,7 @@
 
 {{define "bar"}}
 <a class="skip" href="#main">Skip to content</a>
-<header id="nabu-bar" role="banner">
+<header id="nabu-bar" role="banner" dir="ltr">
   <a class="brand" href="/" title="NABU library"><img src="/nabu/static/nabu.svg" alt="" width="28" height="28"><span class="label">NABU</span></a>
   {{with .BarBook}}<a class="wiki-name" href="/{{.ID}}/" title="Main page">{{wikiname .Files.DB}}</a>{{end}}
   <form class="nabu-search" action="{{if .BarBook}}/{{.BarBook.ID}}/search{{else}}/search{{end}}" method="get" role="search">
