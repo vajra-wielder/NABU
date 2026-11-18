@@ -1,0 +1,29 @@
+offline_wikipedia_app/
+│
+├── data/                   # Directory for storing Wikipedia dump files and database
+│   ├── enwiki-latest-pages-articles-multistream.xml.bz2  # Wikipedia dump file
+│   ├── enwiki-latest-pages-articles-multistream-index.xml.bz2  # Multistream index
+│   └── wikipedia.db        # SQLite database (will be created by the parser)
+│
+├── scripts/                # Python scripts for processing and GUI
+│   ├── parser.py           # Script to parse Wikipedia dump and populate the database
+│   ├── gui.py              # Script for the custom GUI
+│   ├── search.py           # Script for search functionality
+│   ├── index_handler.py    # Script to handle multistream index
+│   └── utils.py            # Utility functions for parsing and rendering
+│
+├── python/                 # Portable Python interpreter
+│   ├── python.exe          # Python executable
+│   ├── Lib/                # Python standard library
+│   └── Scripts/            # Pip-installed libraries
+│
+├── run.bat                 # Batch file to launch the app
+├── requirements.txt        # Python dependencies
+└── README.md               # Project documentation
+
+
+Works off multistream dumps of Wikipedia (last dump on 13.03.2025).
+
+In case of any dump/code update or data corruption, rebuild the database with bash command
+
+run.bat --rebuild
