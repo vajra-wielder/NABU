@@ -1,0 +1,8 @@
+/dist/
+/requisites/downloads/
+/requisites/toolchains/
+/library/
+*.zim
+*.zima?
+!/testdata/*.zim
+.DS_Store

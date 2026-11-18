@@ -1,0 +1,62 @@
+NABU - Wikipedia, anywhere, offline
+===================================
+
+Named after Nabu, the Babylonian god of scribes and keeper of tablets.
+This drive holds a copy of Wikipedia and a small program that shows it
+in your web browser. No internet and no installation needed.
+
+
+START
+-----
+
+  Windows ......... double-click  "Start NABU (Windows).bat"
+  Mac ............. double-click  "Start NABU (Mac).command"
+                    (first time: right-click it, choose Open, then Open)
+  Linux ........... run  sh start-nabu-linux.sh
+                    (or double-click it and choose "Run in Terminal")
+
+Your browser opens on the NABU library. A small window stays open while
+NABU runs: keep it open while you read, and close it when you are done.
+You can also click "Turn off NABU" at the bottom of any NABU page. Then
+it is safe to remove the drive.
+
+If the browser does not open by itself, go to:  http://localhost:8080
+
+
+GETTING OR UPDATING WIKIPEDIA
+-----------------------------
+
+Wikipedia lives in the "library" folder as .zim files. When the
+computer is online, NABU checks for a newer edition each time it starts
+and offers to download it ("Get & update" page). Downloads resume where
+they left off if the connection drops, and are verified when complete.
+
+Sizes (English, approximate):
+  complete, with pictures (maxi) ....... about 110 GB
+  complete, no pictures (nopic) ........ about  50 GB
+  introductions only (mini) ............ about  12 GB
+Other languages are smaller. Big files are saved in 4 GB pieces
+(.zimaa, .zimab, ...) so they work on any drive format.
+
+You can also copy any Kiwix .zim file into the library folder yourself.
+They are listed at  https://download.kiwix.org/zim/
+
+
+SHARE WITH A ROOM
+-----------------
+
+Start NABU from a terminal with  --lan  and other phones and computers
+on the same Wi-Fi can read it too, at the address NABU shows.
+
+
+WHICH COMPUTERS
+---------------
+
+Windows 7 or newer, macOS 10.13 or newer, and Linux, on Intel/AMD
+(32- and 64-bit) and ARM processors (including Raspberry Pi and Apple
+silicon). Any modern web browser.
+
+
+Wikipedia content: CC BY-SA, by Wikipedia's volunteer authors.
+NABU: MIT licence. Typeface: Libertinus Serif, SIL Open Font License.
+Source code and help: https://github.com/vajra-wielder/nabu

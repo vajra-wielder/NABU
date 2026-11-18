@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>NABU</title>
+  <!-- A clay tablet with a single cuneiform wedge: the stylus of Nabu. -->
+  <rect x="9" y="5" width="46" height="54" rx="9" fill="#c98f55"/>
+  <rect x="13" y="9" width="38" height="46" rx="6" fill="#dcaa72"/>
+  <path d="M22 18h20l-10 9z" fill="#1d3a8a"/>
+  <rect x="30" y="25" width="4" height="25" rx="2" fill="#1d3a8a"/>
+  <path d="M19 40h7l-3.5 3.5z M38 40h7l-3.5 3.5z" fill="#1d3a8a" opacity=".55"/>
+</svg>

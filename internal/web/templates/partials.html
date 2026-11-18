@@ -1,0 +1,44 @@
+{{define "head"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{if .PageTitle}}{{.PageTitle}} · {{end}}NABU</title>
+<link rel="icon" href="/nabu/static/nabu.svg">
+<link rel="stylesheet" href="/nabu/static/fonts.css">
+<link rel="stylesheet" href="/nabu/static/nabu.css">
+<script src="/nabu/static/bar.js" defer></script>
+<script src="/nabu/static/nabu.js" defer></script>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="/"><img src="/nabu/static/nabu.svg" alt="" width="30" height="30">NABU</a>
+  <nav>
+    <a href="/"{{if eq .Nav "home"}} aria-current="page"{{end}}>Library</a>
+    <a href="/nabu/updates"{{if eq .Nav "updates"}} aria-current="page"{{end}}>Get &amp; update</a>
+    <a href="/nabu/about"{{if eq .Nav "about"}} aria-current="page"{{end}}>About</a>
+  </nav>
+</div></header>
+<main class="wrap">
+{{end}}
+
+{{define "foot"}}
+<footer class="foot">
+  <span class="grow">NABU {{.Version}} · Wikipedia content is CC BY-SA, by its volunteer authors.</span>
+  {{if .Local}}<a href="#" data-action="shutdown" data-confirm="Stop NABU? Pages will stop loading until you start it again.">Turn off NABU</a>{{end}}
+</footer>
+</main>
+</body>
+</html>
+{{end}}
+
+{{define "searchbox"}}
+<div class="searchbox">
+  <form action="/search" method="get" role="search">
+    {{if gt (len .Books) 1}}<select name="book" aria-label="Book">{{range .Books}}<option value="{{.ID}}"{{if eq .ID $.Default.ID}} selected{{end}}>{{.Title}}</option>{{end}}</select>
+    {{else}}<input type="hidden" name="book" value="{{.Default.ID}}">{{end}}
+    <input type="search" name="q" placeholder="Search {{.Default.Title}}" aria-label="Search" autocomplete="off" spellcheck="false" autofocus>
+    <button type="submit">Search</button>
+  </form>
+</div>
+{{end}}

@@ -1,0 +1,28 @@
+@echo off
+rem  NABU - offline Wikipedia. Double-click this file to start.
+setlocal
+title NABU - offline Wikipedia
+cd /d "%~dp0"
+
+rem Pick the program that matches this processor.
+set "ARCH=amd64"
+if /i "%PROCESSOR_ARCHITECTURE%"=="x86" if not defined PROCESSOR_ARCHITEW6432 set "ARCH=386"
+if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "ARCH=arm64"
+if /i "%PROCESSOR_ARCHITEW6432%"=="ARM64" set "ARCH=arm64"
+set "BIN=%~dp0nabu\nabu-windows-%ARCH%.exe"
+
+rem Windows 7, 8 and 8.1 need the legacy build.
+set "WINMAJOR="
+for /f "tokens=4 delims=. []" %%i in ('ver') do set "WINMAJOR=%%i"
+if defined WINMAJOR if %WINMAJOR% LSS 10 set "BIN=%~dp0nabu\nabu-windows-386-legacy.exe"
+
+if not exist "%BIN%" (
+  echo NABU could not find its program file:
+  echo   %BIN%
+  echo The drive may be incomplete. Copy the whole NABU folder again.
+  pause
+  exit /b 1
+)
+
+"%BIN%" --library "%~dp0library" %*
+if errorlevel 1 pause

@@ -1,0 +1,22 @@
+{{define "about.html"}}{{template "head" .}}
+<div class="prose">
+<h1 style="margin-top:32px">About NABU</h1>
+<p><em>Nabu</em> was the Babylonian god of scribes, writing and wisdom. His symbol was a single wedge pressed into clay, the stylus that wrote the world's first libraries. His temples kept tablets and his priests copied them, so that knowledge outlived the people who wrote it down.</p>
+<p>This NABU does the same for Wikipedia. Carry it on a pen drive, plug it into almost any computer, and the whole encyclopedia opens in the browser: every article, link, picture and table, without an internet connection.</p>
+
+<h2>How it works</h2>
+<p>NABU is a small program (about 10 MB) with versions for Windows, macOS and Linux on Intel, AMD and ARM processors. It reads Wikipedia from <code>.zim</code> files in the library folder and shows the pages to your browser at a private address on this computer. Nothing is installed and nothing is written to the computer you plug into.</p>
+<p>When it starts and the computer is online, NABU asks the Kiwix catalogue whether a newer Wikipedia snapshot exists, and offers to download it onto the drive.</p>
+
+<h2>This session</h2>
+<p>Library folder: <code>{{.Dir}}</code><br>
+Running for: {{.Uptime}}<br>
+{{if .LAN}}Shared on your network at: {{range $i, $a := .Addrs}}{{if $i}}, {{end}}<code>{{$a}}</code>{{end}}{{else}}Only this computer can open the library. To share it with other devices on your Wi-Fi, start NABU with <code>--lan</code>.{{end}}<br>
+Catalogue: <code>{{.Catalog}}</code></p>
+
+<h2>Credits &amp; licences</h2>
+<p>Wikipedia articles are written by volunteers and shared under the <a href="https://creativecommons.org/licenses/by-sa/4.0/">Creative Commons Attribution-ShareAlike</a> licence. Images carry their own licences, listed on each image's description page.</p>
+<p>The ZIM files are built by <a href="https://www.kiwix.org/">Kiwix</a> and <a href="https://openzim.org/">openZIM</a>. NABU uses the Go libraries <code>klauspost/compress</code> (BSD 3-Clause and others) and <code>ulikunitz/xz</code> (BSD 3-Clause), and ships the Libertinus Serif typeface (SIL Open Font License 1.1). NABU itself is MIT-licensed.</p>
+{{if .Local}}<p><button class="btn danger" data-action="shutdown" data-confirm="Stop NABU? You can then safely remove the drive.">Turn off NABU</button></p>{{end}}
+</div>
+{{template "foot" .}}{{end}}

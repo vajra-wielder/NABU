@@ -1,0 +1,7 @@
+{{define "error.html"}}{{template "head" .}}
+<div class="empty" style="margin-top:36px">
+  <h2>{{.Heading}}</h2>
+  <p class="muted">{{.Message}}</p>
+  <p><a class="btn primary" href="/">Back to the library</a></p>
+</div>
+{{template "foot" .}}{{end}}

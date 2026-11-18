@@ -1,0 +1,19 @@
+{{define "search.html"}}{{template "head" .}}
+<div style="margin-top:28px">{{template "searchbox" .}}</div>
+<h2>Results for “{{.Query}}”</h2>
+<p class="muted small">Searching titles in {{.Book.Title}}.</p>
+{{if .Error}}<div class="notice bad"><p>{{.Error}}</p></div>{{end}}
+{{if .Results}}
+<ul class="results">
+{{range .Results}}<li><a href="{{.URL}}">{{.Title}}</a>{{if .Via}}<small>redirected from “{{.Via}}”</small>{{end}}</li>{{end}}
+</ul>
+{{else}}
+<div class="empty">
+  <h2>No article title starts with “{{.Query}}”</h2>
+  <p class="muted">NABU searches article titles. Try fewer words, the main word first, or another spelling.</p>
+  {{if .Related}}<h3>Articles matching single words</h3>
+  <ul class="results" style="text-align:left;max-width:520px;margin:0 auto">{{range .Related}}<li><a href="{{.URL}}">{{.Title}}</a></li>{{end}}</ul>{{end}}
+  {{if .Online}}<p class="small">Online? <a href="{{.Online}}" rel="noopener">Search Wikipedia on the web</a>.</p>{{end}}
+</div>
+{{end}}
+{{template "foot" .}}{{end}}

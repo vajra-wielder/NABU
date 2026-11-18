@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        go: ["1.24.7", "1.20.14"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+      - name: Test (offline, vendored libraries)
+        env:
+          GOFLAGS: -mod=vendor
+          GOTOOLCHAIN: local
+        run: go test ./...
+
+  pen-drive:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch pinned toolchains
+        run: scripts/fetch-requisites.sh
+      - name: Build every platform
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then export VERSION="${GITHUB_REF#refs/tags/v}"; fi
+          scripts/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NABU-pen-drive
+          path: dist/NABU
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/NABU-*.zip --title "NABU $GITHUB_REF_NAME" --notes "Unzip onto a pen drive, add a Wikipedia .zim file to library/, and double-click the Start file for your computer."

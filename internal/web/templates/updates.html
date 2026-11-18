@@ -1,0 +1,73 @@
+{{define "updates.html"}}{{template "head" .}}
+<h1 style="margin-top:32px">Get &amp; update Wikipedia</h1>
+<p class="muted prose">Wikimedia publishes a fresh snapshot of Wikipedia regularly. The Kiwix project turns each one into a single
+<code>.zim</code> file with every page, picture and link included. NABU checks the Kiwix catalogue each time it starts and offers newer editions here.</p>
+
+<div class="notice" id="dl"{{if eq .Download.State "idle"}} hidden{{end}}>
+  <p><strong data-file>{{.Download.File}}</strong></p>
+  <div class="progress"><div style="width:{{pct .Download.Done .Download.Total}}%"></div></div>
+  <p class="small" data-line></p>
+  <p class="small" data-error style="color:var(--bad)"></p>
+  <p><button class="btn" data-action="cancel" data-cancel hidden>Pause download</button></p>
+  <p class="small muted">You can keep reading while this runs. If the connection drops or you close NABU, the download continues from the same point next time.</p>
+</div>
+
+{{if .Updates}}<h2>Updates for your library</h2>
+{{range .Updates}}
+<div class="notice">
+  <p><strong>{{.Newer.Describe}}</strong>: {{month .Newer.Date}} edition, {{bytes .Newer.Size}}. You have {{month .Current}}.</p>
+  {{if $.Local}}<p><button class="btn primary" data-action="download" data-file="{{.Newer.File}}">Download</button></p>{{end}}
+</div>
+{{end}}{{end}}
+
+{{if .Paused}}<h2>Paused downloads</h2>
+{{range .Paused}}
+<div class="notice"><p><code>{{.}}</code></p>
+{{if $.Local}}<p><button class="btn primary" data-action="resume" data-file="{{.}}">Resume</button>
+<button class="btn danger" data-action="discard" data-file="{{.}}" data-confirm="Delete the partly downloaded {{.}}?">Discard</button></p>{{end}}</div>
+{{end}}{{end}}
+
+{{if .Superseded}}<h2>Old editions</h2>
+<p class="muted">You have a newer edition of each of these, so they can be removed to free space.</p>
+{{range .Superseded}}
+<div class="notice"><p><strong>{{.Title}}</strong>, {{month .Date}} · {{bytes .Size}}</p>
+{{if $.Local}}<p><button class="btn danger" data-action="remove" data-book="{{.ID}}" data-confirm="Permanently delete {{.Title}} ({{month .Date}}) from the drive?">Delete old edition</button></p>{{end}}</div>
+{{end}}{{end}}
+
+<h2 id="catalogue">Catalogue</h2>
+<div class="toolbar">
+  {{if .Langs}}<label for="lang" class="small muted">Language</label>
+  <select id="lang">
+    <option value="*"{{if eq .Lang "*"}} selected{{end}}>All languages</option>
+    {{range .Langs}}<option value="{{.}}"{{if eq . $.Lang}} selected{{end}}>{{langname .}}</option>{{end}}
+  </select>{{end}}
+  {{if .Local}}{{if not .Offline}}<button class="btn" data-action="check">Check for new editions</button>{{end}}{{end}}
+  <span class="small muted" data-checking{{if not .Checking}} hidden{{end}}>Checking the catalogue…</span>
+  <span class="small muted">Last checked: {{since .CheckedAt}}{{if ge .Free 0}} · Free space on this drive: {{bytes .Free}}{{end}}</span>
+</div>
+{{if .Offline}}<div class="notice"><p>NABU was started with <code>--offline</code>, so it does not contact the catalogue.</p></div>
+{{else if .LastErr}}<div class="notice bad"><p><strong>Could not reach the catalogue.</strong> {{.LastErr}}</p><p class="small muted">This computer may be offline. Everything already on the drive still works.</p></div>{{end}}
+
+{{if .Rows}}
+<div class="scroll-x"><table class="table">
+<thead><tr><th>Edition</th><th class="hide-sm">Language</th><th>Date</th><th>Size</th><th></th></tr></thead>
+<tbody>
+{{range .Rows}}<tr>
+  <td>{{.Desc}}<br><code class="small">{{.File}}</code></td>
+  <td class="hide-sm">{{langname .Lang}}</td>
+  <td class="num">{{month .Date}}</td>
+  <td class="num">{{if .Size}}{{bytes .Size}}{{else}}?{{end}}</td>
+  <td>{{if .Installed}}{{if .Newer}}<span class="badge new">newer than yours</span>{{else}}<span class="badge">on this drive</span>{{end}}{{end}}
+      {{if $.Local}}{{if or (not .Installed) .Newer}}<button class="btn{{if .Newer}} primary{{end}}" data-action="download" data-file="{{.File}}"{{if and (ge $.Free 0) (gt .Size $.Free)}} disabled title="Not enough free space on this drive"{{end}}>Download</button>{{if and (ge $.Free 0) (gt .Size $.Free)}}<br><small class="muted">too big for the free space</small>{{end}}{{end}}{{end}}</td>
+</tr>{{end}}
+</tbody></table></div>
+<p class="small muted"><strong>maxi</strong> = full articles with pictures · <strong>nopic</strong> = full articles, no pictures (about half the size) · <strong>mini</strong> = just the introduction of each article (smallest).</p>
+{{else if not .LastErr}}<p class="muted">No catalogue yet. {{if not .Offline}}Click “Check for new editions” while connected to the internet.{{end}}</p>{{end}}
+
+<h2>Settings</h2>
+{{if .Local}}
+<label class="switch"><input type="checkbox" data-setting="check_on_start"{{if .Settings.CheckOnStart}} checked{{end}}> Check for new editions each time NABU starts</label>
+<label class="switch"><input type="checkbox" data-setting="auto_download"{{if .Settings.AutoDownload}} checked{{end}}> Download a newer edition automatically when one appears (only if it fits on the drive)</label>
+{{else}}<p class="muted">Settings can be changed on the computer running NABU.</p>{{end}}
+<p class="small muted">Catalogue: <code>{{.Catalog}}</code>. Files over 4 GB are saved in 4 GB parts (<code>.zimaa</code>, <code>.zimab</code>, …), so even FAT32-formatted drives can hold a full Wikipedia.</p>
+{{template "foot" .}}{{end}}

@@ -1,0 +1,69 @@
+{{define "home.html"}}{{template "head" .}}
+<section class="hero">
+  <img src="/nabu/static/nabu.svg" alt="">
+  <h1>NABU</h1>
+  <p class="tag">All of Wikipedia, on any computer, no internet required.</p>
+  {{if .Default}}{{template "searchbox" .}}
+  <p class="hint muted small">Tip: press <kbd>/</kbd> on any page to search.</p>{{end}}
+</section>
+
+{{if .Download.File}}{{if ne .Download.State "idle"}}
+<div class="notice" id="dl">
+  <p><strong data-file>{{.Download.File}}</strong></p>
+  <div class="progress"><div style="width:{{pct .Download.Done .Download.Total}}%"></div></div>
+  <p class="small" data-line></p><p class="small" data-error style="color:var(--bad)"></p>
+  <p><a class="btn" href="/nabu/updates">Details</a> <button class="btn" data-action="cancel" data-cancel hidden>Pause</button></p>
+</div>{{end}}{{end}}
+
+{{range .Updates}}
+<div class="notice">
+  <p><strong>A newer Wikipedia is out.</strong> The {{month .Newer.Date}} edition of <em>{{.Newer.Describe}}</em> ({{bytes .Newer.Size}}) replaces your {{month .Current}} copy.</p>
+  <p>{{if $.Local}}<button class="btn primary" data-action="download" data-file="{{.Newer.File}}">Download update</button> {{end}}<a class="btn" href="/nabu/updates">More options</a></p>
+</div>
+{{end}}
+
+{{range .Errors}}<div class="notice bad"><p><strong>Could not open a file:</strong> {{.}}</p><p class="small muted">If it is still downloading or was copied only partly, finish copying it and click “Look for new files”.</p></div>{{end}}
+
+{{if .Cards}}
+<h2>Your library</h2>
+<div class="books">
+{{range .Cards}}
+  <article class="card">
+    <header>
+      <img src="/nabu/icon/{{.ID}}" alt="" width="40" height="40">
+      <div><h3><a href="/content/{{.ID}}/">{{.Title}}</a></h3>
+      <span class="muted small">{{if .Lang}}{{langname .Lang}}{{else}}{{.Language}}{{end}}</span></div>
+    </header>
+    {{if .Description}}<p>{{.Description}}</p>{{end}}
+    <div class="meta">
+      {{if .Articles}}<span>{{count .Articles}} articles</span>{{end}}
+      {{if .Date}}<span>{{month .Date}}</span>{{end}}
+      <span>{{bytes .Size}}</span>
+      {{if .Flavour}}<span class="badge">{{.Flavour}}</span>{{end}}
+      {{if .Update}}<span class="badge new">update available</span>{{end}}
+    </div>
+    <div class="actions">
+      <a class="btn primary" href="/content/{{.ID}}/">Open</a>
+      <a class="btn" href="/random?book={{.ID}}">Random article</a>
+    </div>
+  </article>
+{{end}}
+</div>
+{{else}}
+<div class="empty">
+  <h2>Your library is empty</h2>
+  <p>NABU reads Wikipedia from <code>.zim</code> files in the <code>library</code> folder on this drive.</p>
+  <p>If this computer is online, you can get one now. A sampler edition to try NABU out is a few megabytes. The complete English Wikipedia with pictures is about 110 GB.</p>
+  <p><a class="btn primary" href="/nabu/updates#catalogue">Choose a Wikipedia to download</a></p>
+  <p class="small muted">Already have a <code>.zim</code> file? Copy it into <code>{{.Dir}}</code> and <a href="#" data-action="rescan">look for new files</a>.</p>
+</div>
+{{end}}
+
+{{if .LAN}}{{if .Addrs}}
+<div class="notice ok">
+  <p><strong>Sharing with your network.</strong> Phones, tablets and other computers on the same Wi-Fi can read this library at
+  {{range $i, $a := .Addrs}}{{if $i}}, {{end}}<code>{{$a}}</code>{{end}}.</p>
+</div>{{end}}{{end}}
+
+<p class="small muted" style="margin-top:28px">{{if .Cards}}<a href="#" data-action="rescan">Look for new files</a> in the library folder.{{end}}</p>
+{{template "foot" .}}{{end}}

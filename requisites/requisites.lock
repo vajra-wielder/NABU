@@ -1,0 +1,27 @@
+# NABU requisites: every input needed to build NABU, pinned.
+# Format: kind  name  version  platform  sha256  source
+#
+# Go toolchains (zips from the official Go module proxy; each one is a
+# complete Go installation). go1.24.7 builds the modern binaries; go1.20.14
+# is the last release that runs on Windows 7/8 and macOS 10.13-10.15 and
+# builds the "-legacy" binaries.
+toolchain go 1.24.7  linux-amd64   4c2a63c008dbb90112f22ff9e47eb6fb487b17da1c70ecc7b9fad77577b8031e https://proxy.golang.org/golang.org/toolchain/@v/v0.0.1-go1.24.7.linux-amd64.zip
+toolchain go 1.24.7  linux-arm64   67d836d2f0e17ce538757ba43439fa8f77eb00fe9798e0b0920d94925184e7a6 https://proxy.golang.org/golang.org/toolchain/@v/v0.0.1-go1.24.7.linux-arm64.zip
+toolchain go 1.24.7  darwin-amd64  c25f2a9069b5471d4daaccfe9a1eb5646c9340ef0d216ebe13ae125d56269170 https://proxy.golang.org/golang.org/toolchain/@v/v0.0.1-go1.24.7.darwin-amd64.zip
+toolchain go 1.24.7  darwin-arm64  b529787fe1ee7c4a1e5b9635e97ff0840d1206b7cccc958ec1f8296fac604f63 https://proxy.golang.org/golang.org/toolchain/@v/v0.0.1-go1.24.7.darwin-arm64.zip
+toolchain go 1.24.7  windows-amd64 615b342308b2ce49b2c1198070c39edbb897c02c943d573c2a88ae02ddfae337 https://proxy.golang.org/golang.org/toolchain/@v/v0.0.1-go1.24.7.windows-amd64.zip
+toolchain go 1.20.14 linux-amd64   725ca02721c6f4705865550dd7f3051c81cbe29347b84fb1bc8fc76554e7d26d https://proxy.golang.org/golang.org/toolchain/@v/v0.0.1-go1.20.14.linux-amd64.zip
+toolchain go 1.20.14 linux-arm64   843184e96a06d3fbc094dec292df21fdab27a690cabb0920f739160df18ff0fd https://proxy.golang.org/golang.org/toolchain/@v/v0.0.1-go1.20.14.linux-arm64.zip
+toolchain go 1.20.14 darwin-amd64  dc783f5b218347b0603dd39e1e04974a6abd96d140b386e9523d4f8806fb0930 https://proxy.golang.org/golang.org/toolchain/@v/v0.0.1-go1.20.14.darwin-amd64.zip
+toolchain go 1.20.14 darwin-arm64  597bb4d358e93c105bae00b188d62f55ed77eda1c22db4f610a7e43e9925967b https://proxy.golang.org/golang.org/toolchain/@v/v0.0.1-go1.20.14.darwin-arm64.zip
+toolchain go 1.20.14 windows-amd64 50b3d7821d15780b45273c3e7648a808fb4d4e9f7cd1459d809495f5f0a58e02 https://proxy.golang.org/golang.org/toolchain/@v/v0.0.1-go1.20.14.windows-amd64.zip
+#
+# Go libraries: committed in vendor/ (checksums in go.sum).
+module github.com/klauspost/compress v1.17.9  any - vendor/github.com/klauspost/compress
+module github.com/ulikunitz/xz       v0.5.17  any - vendor/github.com/ulikunitz/xz
+#
+# Typeface: committed in internal/web/assets/fonts/.
+font @fontsource/libertinus-serif 5.3.0 any sha512-re9MYtKfLFxZxlcfV127IqG87wM7kYF9o//xfZufzsr2z22+tfKu5xRJwS9oMksI1fuyh5H9OWQFtVYM8ypiDg== https://registry.npmjs.org/@fontsource/libertinus-serif/-/libertinus-serif-5.3.0.tgz
+#
+# Test fixture generator only (not needed to build or run NABU).
+python libzim 4.1.0 any - https://pypi.org/project/libzim/4.1.0/
