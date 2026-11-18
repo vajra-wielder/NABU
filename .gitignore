@@ -2,7 +2,6 @@
 /requisites/downloads/
 /requisites/toolchains/
 /library/
-*.zim
-*.zima?
-!/testdata/*.zim
+.nabu/
+*.nidx
 .DS_Store

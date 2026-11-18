@@ -3,7 +3,7 @@
 #
 # Uses the pinned toolchains from requisites/toolchains/ when present
 # (scripts/fetch-requisites.sh), otherwise the `go` on your PATH. Builds
-# offline: all libraries come from vendor/.
+# offline: NABU uses only the Go standard library.
 #
 #   scripts/build.sh                 build every platform into dist/NABU
 #   VERSION=1.0.0 scripts/build.sh   stamp a version
@@ -20,7 +20,7 @@ GO_LEGACY="${GO_LEGACY:-}"
 if [ -z "$GO_LEGACY" ] && [ -x requisites/toolchains/go1.20.14/bin/go ]; then
   GO_LEGACY="$PWD/requisites/toolchains/go1.20.14/bin/go"
 fi
-export CGO_ENABLED=0 GOFLAGS=-mod=vendor GOTOOLCHAIN=local
+export CGO_ENABLED=0 GOTOOLCHAIN=local
 
 OUT=dist/NABU
 rm -rf dist
@@ -61,8 +61,6 @@ cp launchers/"Start NABU (Windows).bat" launchers/"Start NABU (Mac).command" \
    launchers/start-nabu-linux.sh launchers/"READ ME FIRST.txt" "$OUT/"
 chmod +x "$OUT/Start NABU (Mac).command" "$OUT/start-nabu-linux.sh" "$OUT"/nabu/nabu-darwin-* "$OUT"/nabu/nabu-linux-*
 cp LICENSE "$OUT/licenses/NABU-MIT.txt"
-cp vendor/github.com/klauspost/compress/LICENSE "$OUT/licenses/klauspost-compress.txt"
-cp vendor/github.com/ulikunitz/xz/LICENSE "$OUT/licenses/ulikunitz-xz.txt"
 cp internal/web/assets/fonts/OFL-LICENSE.txt "$OUT/licenses/Libertinus-OFL.txt"
 
 if command -v zip >/dev/null; then
@@ -71,5 +69,6 @@ if command -v zip >/dev/null; then
 fi
 echo
 echo "Done. Copy everything inside dist/NABU/ to the root of your pen drive,"
-echo "then put Wikipedia .zim files in its library/ folder (or download them"
-echo "from NABU's \"Get & update\" page)."
+echo "then download a Wikipedia from NABU's \"Get & update\" page, or copy a"
+echo "Wikimedia dump (…-pages-articles-multistream.xml.bz2 + its -index.txt.bz2)"
+echo "into its library/ folder."

@@ -6,8 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,11 +19,11 @@ import (
 // browser says where it comes from, come from NABU's own pages.
 func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(r.URL.Path, "/nabu/api/")
-	if name == "ping" {
+	switch name {
+	case "ping":
 		writeJSON(w, map[string]string{"app": "nabu", "version": Version, "library": s.Lib.Dir})
 		return
-	}
-	if name == "status" {
+	case "status":
 		writeJSON(w, s.status())
 		return
 	}
@@ -42,10 +40,12 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		File         string `json:"file"`
+		Wiki         string `json:"wiki"`
 		Book         string `json:"book"`
+		Key          string `json:"key"`
 		CheckOnStart *bool  `json:"check_on_start"`
 		AutoDownload *bool  `json:"auto_download"`
+		Pictures     *bool  `json:"pictures"`
 	}
 	if r.ContentLength != 0 {
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&body); err != nil {
@@ -60,34 +60,37 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 			err = errors.New("NABU was started in offline mode")
 			break
 		}
-		go s.Checker.Check(context.Background())
-		time.Sleep(150 * time.Millisecond) // lets the page show "checking"
+		wikis := []string{body.Wiki}
+		if body.Wiki == "" {
+			wikis = s.wikisToCheck()
+		}
+		for _, wk := range wikis {
+			go s.Checker.Check(context.Background(), wk)
+		}
+		time.Sleep(150 * time.Millisecond)
 	case "download":
-		ed, ok := s.Checker.Find(body.File)
-		if !ok {
-			err = errors.New("that edition is not in the catalogue; check for updates first")
+		c := s.Checker.Get(body.Wiki)
+		if c == nil || c.Release == nil {
+			err = errors.New("check for the newest dump first")
 			break
 		}
-		err = s.Downloads.Start(ed)
+		err = s.Downloads.Start(c.Release)
 	case "resume":
-		ed, ok := s.Checker.Find(body.File)
-		if !ok {
-			// The catalogue moved on (or we are offline): resume from the
-			// URL saved when the download began.
-			ed, ok = update.ParseName(body.File)
-			ed.URL = savedURL(s.Lib.Dir, body.File)
-			if !ok || ed.URL == "" {
-				err = errors.New("cannot resume: this edition is no longer offered")
+		for _, rel := range s.Downloads.Paused() {
+			if rel.Key() == body.Key {
+				rel := rel
+				err = s.Downloads.Start(&rel)
 				break
 			}
 		}
-		err = s.Downloads.Start(ed)
 	case "cancel":
 		s.Downloads.Cancel()
 	case "discard":
-		err = s.Downloads.Discard(body.File)
+		err = s.Downloads.Discard(body.Key)
 	case "remove":
-		err = s.removeBook(body.Book)
+		err = s.removeOld(body.Book)
+	case "retry":
+		s.Lib.Retry(body.Book)
 	case "settings":
 		s.settingsMu.Lock()
 		st := update.LoadSettings(s.Lib.Dir)
@@ -96,6 +99,9 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		if body.AutoDownload != nil {
 			st.AutoDownload = *body.AutoDownload
+		}
+		if body.Pictures != nil {
+			st.Pictures = *body.Pictures
 		}
 		err = update.SaveSettings(s.Lib.Dir, st)
 		s.settingsMu.Unlock()
@@ -123,6 +129,25 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.status())
 }
 
+// wikisToCheck: the wikis on the drive plus the offered languages.
+func (s *Server) wikisToCheck() []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, b := range s.Lib.Books() {
+		if !seen[b.Files.DB] {
+			seen[b.Files.DB] = true
+			out = append(out, b.Files.DB)
+		}
+	}
+	for _, l := range update.Languages {
+		if !seen[l.Wiki] {
+			seen[l.Wiki] = true
+			out = append(out, l.Wiki)
+		}
+	}
+	return out
+}
+
 func sameOrigin(r *http.Request) bool {
 	o := r.Header.Get("Origin")
 	if o == "" {
@@ -132,63 +157,45 @@ func sameOrigin(r *http.Request) bool {
 	return err == nil && u.Host == r.Host
 }
 
-// removeBook deletes an edition that a newer one of the same series has
-// replaced. Only superseded editions can be removed from the interface,
-// so a misclick can never leave the drive without its Wikipedia.
-func (s *Server) removeBook(id string) error {
+// removeOld deletes an edition only when a newer edition of the same
+// wiki is on the drive, so a misclick never leaves the drive empty.
+func (s *Server) removeOld(id string) error {
 	b := s.Lib.Get(id)
 	if b == nil {
 		return errors.New("no such book")
 	}
-	newer := false
 	for _, o := range s.Lib.Books() {
-		if o.ID != b.ID && o.Series() == b.Series() && o.Edition() > b.Edition() {
-			newer = true
+		if o != b && o.Files.DB == b.Files.DB && o.Files.Date > b.Files.Date {
+			return s.Lib.Remove(id)
 		}
 	}
-	if !newer {
-		return errors.New("only editions replaced by a newer one can be removed here")
-	}
-	files := append([]string(nil), b.Files...)
-	b.Archive.Close()
-	for _, f := range files {
-		if err := os.Remove(f); err != nil {
-			s.Lib.Rescan()
-			return err
-		}
-	}
-	return s.Lib.Rescan()
+	return errors.New("only editions replaced by a newer one can be removed here")
 }
 
-func savedURL(dir, file string) string {
-	b, err := os.ReadFile(filepath.Join(dir, ".nabu", "incoming", strings.TrimSuffix(file, ".zim"), "meta.json"))
-	if err != nil {
-		return ""
-	}
-	var m struct {
-		URL string `json:"url"`
-	}
-	json.Unmarshal(b, &m)
-	return m.URL
+type bookStatus struct {
+	ID    string `json:"id"`
+	State string `json:"state"`
+	Done  int64  `json:"done"`
+	Total int64  `json:"total"`
+	Err   string `json:"error,omitempty"`
 }
 
 type apiStatus struct {
-	Download  update.Status `json:"download"`
-	Updates   int           `json:"updates"`
-	Checking  bool          `json:"checking"`
-	CheckedAt time.Time     `json:"checked_at"`
-	CheckErr  string        `json:"check_error,omitempty"`
-	Books     int           `json:"books"`
+	Download update.Status `json:"download"`
+	Books    []bookStatus  `json:"books"`
+	Checking bool          `json:"checking"`
 }
 
 func (s *Server) status() apiStatus {
-	_, at, cerr, checking := s.Checker.Snapshot()
-	return apiStatus{
-		Download:  s.Downloads.Status(),
-		Updates:   len(s.availableUpdates()),
-		Checking:  checking,
-		CheckedAt: at,
-		CheckErr:  cerr,
-		Books:     len(s.Lib.Books()),
+	st := apiStatus{Download: s.Downloads.Status()}
+	for _, b := range s.Lib.Books() {
+		x := b.Status()
+		st.Books = append(st.Books, bookStatus{ID: b.ID, State: x.State, Done: x.Done, Total: x.Total, Err: x.Err})
 	}
+	for _, wk := range s.wikisToCheck() {
+		if s.Checker.Checking(wk) {
+			st.Checking = true
+		}
+	}
+	return st
 }

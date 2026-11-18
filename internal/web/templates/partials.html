@@ -24,7 +24,7 @@
 
 {{define "foot"}}
 <footer class="foot">
-  <span class="grow">NABU {{.Version}} · Wikipedia content is CC BY-SA, by its volunteer authors.</span>
+  <span class="grow">NABU {{.Version}} · Wikipedia content is CC BY-SA 4.0, by its volunteer authors.</span>
   {{if .Local}}<a href="#" data-action="shutdown" data-confirm="Stop NABU? Pages will stop loading until you start it again.">Turn off NABU</a>{{end}}
 </footer>
 </main>
@@ -33,12 +33,25 @@
 {{end}}
 
 {{define "searchbox"}}
+{{if .Default}}
 <div class="searchbox">
   <form action="/search" method="get" role="search">
-    {{if gt (len .Books) 1}}<select name="book" aria-label="Book">{{range .Books}}<option value="{{.ID}}"{{if eq .ID $.Default.ID}} selected{{end}}>{{.Title}}</option>{{end}}</select>
-    {{else}}<input type="hidden" name="book" value="{{.Default.ID}}">{{end}}
-    <input type="search" name="q" placeholder="Search {{.Default.Title}}" aria-label="Search" autocomplete="off" spellcheck="false" autofocus>
+    {{$def := .Default}}
+    {{if gt (len .Books) 1}}<select name="book" aria-label="Wiki">{{range .Books}}{{if .Reader}}<option value="{{.ID}}"{{if eq .ID $def.ID}} selected{{end}}>{{wikiname .Files.DB}}</option>{{end}}{{end}}</select>
+    {{else}}<input type="hidden" name="book" value="{{$def.ID}}">{{end}}
+    <input type="search" name="q" placeholder="Search Wikipedia" aria-label="Search" autocomplete="off" spellcheck="false" autofocus>
     <button type="submit">Search</button>
   </form>
+</div>
+{{end}}
+{{end}}
+
+{{define "dlbox"}}
+<div class="notice" id="dl"{{if eq .Download.State "idle"}} hidden{{end}}>
+  <p><strong data-file>{{.Download.Release}}</strong> <span class="muted small" data-part>{{.Download.File}}</span></p>
+  <div class="progress"><div style="width:{{pct .Download.Done .Download.Total}}%"></div></div>
+  <p class="small" data-line></p>
+  <p class="small" data-error style="color:var(--bad)"></p>
+  <p><button class="btn" data-action="cancel" data-cancel hidden>Pause download</button></p>
 </div>
 {{end}}

@@ -3,7 +3,7 @@ package update
 import (
 	"bufio"
 	"context"
-	"crypto/sha256"
+	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,9 +23,9 @@ import (
 	"github.com/vajra-wielder/nabu/internal/sysutil"
 )
 
-// PartSize is the largest piece a download is written in. Anything bigger
-// is split into name.zimaa, name.zimab, ... so the result fits on FAT32
-// pen drives (4 GiB file limit). Kiwix tools read split files too.
+// PartSize is the largest piece a file is written in. Bigger files are
+// saved as name.bz2aa, name.bz2ab, ... so they fit on FAT32 drives (4 GiB
+// file limit). NABU reads the pieces as one file.
 var PartSize int64 = 4_000_000_000
 
 // Job states.
@@ -36,38 +35,36 @@ const (
 	StateChecking    = "checking"    // re-hashing a partial download before resuming
 	StateDownloading = "downloading" // receiving bytes
 	StateRetrying    = "retrying"    // network hiccup, will resume
-	StateFinishing   = "finishing"   // verifying checksum and installing
+	StateFinishing   = "finishing"   // installing
 	StateDone        = "done"
 	StateFailed      = "failed"
 	StateCancelled   = "cancelled"
 )
 
-// Status is a snapshot of the current download for the UI.
+// Status is a snapshot of the current download.
 type Status struct {
 	State    string  `json:"state"`
-	File     string  `json:"file,omitempty"`
-	Done     int64   `json:"done"`
+	Release  string  `json:"release,omitempty"` // e.g. enwiki-20261101
+	File     string  `json:"file,omitempty"`    // file being fetched
+	Done     int64   `json:"done"`              // bytes, all files
 	Total    int64   `json:"total"`
-	Speed    float64 `json:"speed"` // bytes per second
-	ETA      int64   `json:"eta"`   // seconds, 0 when unknown
+	Speed    float64 `json:"speed"`
+	ETA      int64   `json:"eta"`
 	Error    string  `json:"error,omitempty"`
 	Verified bool    `json:"verified,omitempty"`
 }
 
 // Manager runs one download at a time into a library directory.
 type Manager struct {
-	Dir      string
-	Client   *http.Client
-	OnFinish func(file string) // called after a successful install
-	// RetryDelay is the first pause after a network error; it doubles
-	// on each further failure, up to two minutes.
+	Dir        string
+	Client     *http.Client
+	OnFinish   func(rel *Release)
 	RetryDelay time.Duration
 
 	mu     sync.Mutex
 	status Status
 	cancel context.CancelFunc
 	done   atomic.Int64
-	total  atomic.Int64
 	speed  atomic.Int64
 }
 
@@ -76,8 +73,8 @@ func NewManager(dir string, client *http.Client) *Manager {
 	return &Manager{Dir: dir, Client: client, RetryDelay: 2 * time.Second, status: Status{State: StateIdle}}
 }
 
-func (m *Manager) incomingDir(file string) string {
-	return filepath.Join(m.Dir, ".nabu", "incoming", strings.TrimSuffix(file, ".zim"))
+func (m *Manager) incoming(key string) string {
+	return filepath.Join(m.Dir, ".nabu", "incoming", key)
 }
 
 // Status returns the current progress.
@@ -86,50 +83,57 @@ func (m *Manager) Status() Status {
 	s := m.status
 	m.mu.Unlock()
 	s.Done = m.done.Load()
-	if t := m.total.Load(); t > 0 {
-		s.Total = t
-	}
 	s.Speed = float64(m.speed.Load())
-	if s.Speed > 0 && s.Total > s.Done && (s.State == StateDownloading) {
+	if s.State == StateDownloading && s.Speed > 0 && s.Total > s.Done {
 		s.ETA = int64(float64(s.Total-s.Done) / s.Speed)
 	}
 	return s
 }
 
-// Busy reports whether a download is in progress.
+// Busy reports whether a download is running.
 func (m *Manager) Busy() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.cancel != nil
 }
 
-// Paused lists partial downloads that can be resumed.
-func (m *Manager) Paused() []string {
+// Paused lists partial downloads, with the release saved for resuming.
+func (m *Manager) Paused() []Release {
 	ents, _ := os.ReadDir(filepath.Join(m.Dir, ".nabu", "incoming"))
-	var out []string
+	var out []Release
 	for _, e := range ents {
-		if e.IsDir() {
-			out = append(out, e.Name()+".zim")
+		if !e.IsDir() {
+			continue
+		}
+		var rel Release
+		b, err := os.ReadFile(filepath.Join(m.incoming(e.Name()), "release.json"))
+		if err == nil && json.Unmarshal(b, &rel) == nil && rel.Wiki != "" {
+			out = append(out, rel)
 		}
 	}
 	return out
 }
 
 // Discard deletes a partial download.
-func (m *Manager) Discard(file string) error {
-	if m.Busy() && m.Status().File == file {
-		return errors.New("that download is running; cancel it first")
+func (m *Manager) Discard(key string) error {
+	if strings.ContainsAny(key, `/\.`) || key == "" {
+		return errors.New("bad name")
 	}
-	if !nameRe.MatchString(file) {
-		return errors.New("not a Wikipedia edition file name")
+	if m.Busy() && m.Status().Release == key {
+		return errors.New("that download is running; pause it first")
 	}
-	return os.RemoveAll(m.incomingDir(file))
+	return os.RemoveAll(m.incoming(key))
 }
 
-// Start begins (or resumes) downloading ed in the background.
-func (m *Manager) Start(ed Edition) error {
-	if ed.URL == "" || !nameRe.MatchString(ed.File) {
-		return errors.New("invalid edition")
+// Start begins (or resumes) downloading rel in the background.
+func (m *Manager) Start(rel *Release) error {
+	if rel == nil || len(rel.Files) == 0 || !wikiRe.MatchString(rel.Wiki) {
+		return errors.New("invalid release")
+	}
+	for _, f := range rel.Files {
+		if strings.ContainsAny(f.Name, `/\`) || !strings.HasPrefix(f.Name, rel.Wiki+"-") {
+			return errors.New("invalid file name in release")
+		}
 	}
 	m.mu.Lock()
 	if m.cancel != nil {
@@ -138,14 +142,13 @@ func (m *Manager) Start(ed Edition) error {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	m.status = Status{State: StateStarting, File: ed.File}
+	m.status = Status{State: StateStarting, Release: rel.Key(), Total: rel.Size()}
 	m.done.Store(0)
-	m.total.Store(ed.Size)
 	m.speed.Store(0)
 	m.mu.Unlock()
 
 	go func() {
-		err := m.run(ctx, ed)
+		err := m.run(ctx, rel)
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		m.cancel = nil
@@ -162,8 +165,7 @@ func (m *Manager) Start(ed Edition) error {
 	return nil
 }
 
-// Cancel stops the running download. The partial file is kept so the
-// download can resume later.
+// Cancel pauses the running download; what was received is kept.
 func (m *Manager) Cancel() {
 	m.mu.Lock()
 	if m.cancel != nil {
@@ -172,48 +174,86 @@ func (m *Manager) Cancel() {
 	m.mu.Unlock()
 }
 
-func (m *Manager) setState(s string) {
+func (m *Manager) set(f func(s *Status)) {
 	m.mu.Lock()
-	m.status.State = s
+	f(&m.status)
 	m.mu.Unlock()
 }
 
-type meta struct {
-	URL   string `json:"url"`
-	Total int64  `json:"total"`
-}
-
-func (m *Manager) run(ctx context.Context, ed Edition) error {
-	dir := m.incomingDir(ed.File)
+func (m *Manager) run(ctx context.Context, rel *Release) error {
+	dir := m.incoming(rel.Key())
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	want, algo := m.fetchChecksum(ctx, ed.URL)
+	rj, _ := json.Marshal(rel)
+	os.WriteFile(filepath.Join(dir, "release.json"), rj, 0o644)
 
-	// Hash whatever we already have so the final checksum covers it.
-	var h hash.Hash
-	if algo == "sha256" {
-		h = sha256.New()
+	// Room on the drive for what is still missing (+ the index NABU
+	// builds afterwards, ~2% of the dump).
+	var have int64
+	for _, f := range rel.Files {
+		have += partsSize(filepath.Join(dir, f.Name))
 	}
-	m.setState(StateChecking)
-	have, err := hashExisting(ctx, dir, h, &m.done)
+	if free, err := sysutil.FreeSpace(m.Dir); err == nil {
+		need := rel.Size() - have + rel.Size()/50 + 64<<20
+		if free < need {
+			return fmt.Errorf("not enough space on the drive: %s needed, %s free", HumanBytes(need), HumanBytes(free))
+		}
+	}
+
+	var before int64 // bytes of earlier files, for overall progress
+	for _, f := range rel.Files {
+		f := f
+		m.set(func(s *Status) { s.File = f.Name })
+		if err := m.fetchFile(ctx, f, filepath.Join(dir, f.Name), before); err != nil {
+			return err
+		}
+		before += f.Size
+	}
+	m.set(func(s *Status) { s.State = StateFinishing })
+	for _, f := range rel.Files {
+		if err := m.install(filepath.Join(dir, f.Name), f.Name); err != nil {
+			return err
+		}
+	}
+	os.RemoveAll(dir)
+	m.set(func(s *Status) { s.Verified = true; s.Error = "" })
+	if m.OnFinish != nil {
+		m.OnFinish(rel)
+	}
+	return nil
+}
+
+// fetchFile downloads one file (resuming), then checks its SHA-1.
+func (m *Manager) fetchFile(ctx context.Context, f RemoteFile, base string, before int64) error {
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		return err
+	}
+	if b, err := os.ReadFile(filepath.Join(base, "ok")); err == nil && string(b) == f.SHA1 {
+		m.done.Store(before + f.Size)
+		return nil // finished in an earlier session
+	}
+	h := sha1.New()
+	m.set(func(s *Status) { s.State = StateChecking })
+	have, err := hashExisting(ctx, base, h, func(n int64) { m.done.Store(before + n) })
 	if err != nil {
 		return err
 	}
-
+	if have > f.Size {
+		clearParts(base)
+		have = 0
+		h.Reset()
+	}
 	backoff := m.RetryDelay
-	for attempt := 0; ; attempt++ {
-		err = m.fetch(ctx, ed, dir, &have, h)
+	for attempt := 0; have < f.Size; attempt++ {
+		err := m.fetch(ctx, f, base, &have, h, before)
 		if err == nil {
 			break
 		}
-		if errors.Is(err, context.Canceled) || errors.Is(err, errFatal) || attempt >= 50 {
+		if errors.Is(err, context.Canceled) || errors.Is(err, errFatal) || attempt >= 60 {
 			return err
 		}
-		m.mu.Lock()
-		m.status.State = StateRetrying
-		m.status.Error = err.Error()
-		m.mu.Unlock()
+		m.set(func(s *Status) { s.State = StateRetrying; s.Error = err.Error() })
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -223,28 +263,13 @@ func (m *Manager) run(ctx context.Context, ed Edition) error {
 			backoff *= 2
 		}
 	}
-
-	m.setState(StateFinishing)
-	verified := false
-	if h != nil && want != "" {
-		got := hex.EncodeToString(h.Sum(nil))
-		if got != want {
-			// Corrupt data: throw it away so a retry starts clean.
-			os.RemoveAll(dir)
-			return fmt.Errorf("checksum mismatch, the download was corrupted (got %s…, expected %s…); it has been deleted, please try again", got[:12], want[:12])
+	if f.SHA1 != "" {
+		if got := hex.EncodeToString(h.Sum(nil)); got != f.SHA1 {
+			clearParts(base)
+			return fmt.Errorf("%s arrived damaged (checksum mismatch) and was deleted; please try again", f.Name)
 		}
-		verified = true
 	}
-	if err := m.install(dir, ed.File); err != nil {
-		return err
-	}
-	m.mu.Lock()
-	m.status.Verified = verified
-	m.status.Error = ""
-	m.mu.Unlock()
-	if m.OnFinish != nil {
-		m.OnFinish(ed.File)
-	}
+	os.WriteFile(filepath.Join(base, "ok"), []byte(f.SHA1), 0o644)
 	return nil
 }
 
@@ -255,9 +280,8 @@ type fatalErr struct{ error }
 func (f fatalErr) Is(t error) bool { return t == errFatal }
 func (f fatalErr) Unwrap() error   { return f.error }
 
-// fetch downloads from offset *have to the end, appending to part files.
-func (m *Manager) fetch(ctx context.Context, ed Edition, dir string, have *int64, h hash.Hash) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", ed.URL, nil)
+func (m *Manager) fetch(ctx context.Context, f RemoteFile, base string, have *int64, h hash.Hash, before int64) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", f.URL, nil)
 	if err != nil {
 		return fatalErr{err}
 	}
@@ -270,60 +294,33 @@ func (m *Manager) fetch(ctx context.Context, ed Edition, dir string, have *int64
 		return err
 	}
 	defer resp.Body.Close()
-
-	var total int64
 	switch resp.StatusCode {
 	case http.StatusPartialContent:
-		total = parseContentRangeTotal(resp.Header.Get("Content-Range"))
 	case http.StatusOK:
-		if *have > 0 {
-			// Server ignored the range: start over.
-			if err := clearParts(dir); err != nil {
+		if *have > 0 { // the server ignored the range: start again
+			if err := clearParts(base); err != nil {
 				return fatalErr{err}
 			}
 			*have = 0
-			m.done.Store(0)
-			if h != nil {
-				h.Reset()
-			}
-		}
-		total = resp.ContentLength
-	case http.StatusRequestedRangeNotSatisfiable:
-		if t := readMeta(dir).Total; t > 0 && *have == t {
-			return nil // already complete
-		}
-		clearParts(dir)
-		*have = 0
-		m.done.Store(0)
-		if h != nil {
 			h.Reset()
 		}
-		return errors.New("server rejected resume point; restarting")
 	case http.StatusNotFound, http.StatusGone:
-		return fatalErr{fmt.Errorf("%s is no longer offered (%s); refresh the catalogue", ed.File, resp.Status)}
+		return fatalErr{fmt.Errorf("%s is no longer on the server; check for a newer dump", f.Name)}
+	case http.StatusTooManyRequests, http.StatusServiceUnavailable:
+		return fmt.Errorf("the server is busy (%s)", resp.Status)
 	default:
 		return fmt.Errorf("server answered %s", resp.Status)
 	}
-	if total > 0 {
-		m.total.Store(total)
-		writeMeta(dir, meta{URL: ed.URL, Total: total})
-		if need := total - *have; need > 0 {
-			if free, err := sysutil.FreeSpace(m.Dir); err == nil && free < need+64<<20 {
-				return fatalErr{fmt.Errorf("not enough space on the drive: need %s more, only %s free",
-					HumanBytes(need), HumanBytes(free))}
-			}
-		}
-	}
-	m.setState(StateDownloading)
+	m.set(func(s *Status) { s.State = StateDownloading; s.Error = "" })
 
 	buf := make([]byte, 1<<20)
-	var f *os.File
+	var out *os.File
 	defer func() {
-		if f != nil {
-			f.Close()
+		if out != nil {
+			out.Close()
 		}
 	}()
-	lastTick, lastBytes := time.Now(), *have
+	tick, tickBytes := time.Now(), *have
 	for {
 		n, rerr := resp.Body.Read(buf)
 		data := buf[:n]
@@ -334,40 +331,37 @@ func (m *Manager) fetch(ctx context.Context, ed Edition, dir string, have *int64
 			if int64(len(chunk)) > room {
 				chunk = chunk[:room]
 			}
-			if f == nil || *have%PartSize == 0 {
-				if f != nil {
-					f.Close()
+			if out == nil || *have%PartSize == 0 {
+				if out != nil {
+					out.Close()
 				}
-				f, err = os.OpenFile(partName(dir, idx), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+				out, err = os.OpenFile(partName(base, idx), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 				if err != nil {
 					return fatalErr{err}
 				}
 			}
-			if _, err := f.Write(chunk); err != nil {
+			if _, err := out.Write(chunk); err != nil {
 				return fatalErr{friendlyWriteErr(err)}
 			}
-			if h != nil {
-				h.Write(chunk)
-			}
+			h.Write(chunk)
 			*have += int64(len(chunk))
-			m.done.Store(*have)
+			m.done.Store(before + *have)
 			data = data[len(chunk):]
 		}
-		if now := time.Now(); now.Sub(lastTick) >= time.Second {
-			rate := float64(*have-lastBytes) / now.Sub(lastTick).Seconds()
-			old := float64(m.speed.Load())
-			if old > 0 {
+		if now := time.Now(); now.Sub(tick) >= time.Second {
+			rate := float64(*have-tickBytes) / now.Sub(tick).Seconds()
+			if old := float64(m.speed.Load()); old > 0 {
 				rate = 0.7*old + 0.3*rate
 			}
 			m.speed.Store(int64(rate))
-			lastTick, lastBytes = now, *have
+			tick, tickBytes = now, *have
 		}
 		if rerr == io.EOF {
-			if total > 0 && *have < total {
+			if *have < f.Size {
 				return io.ErrUnexpectedEOF
 			}
-			if f != nil {
-				if err := f.Sync(); err != nil {
+			if out != nil {
+				if err := out.Sync(); err != nil {
 					return fatalErr{friendlyWriteErr(err)}
 				}
 			}
@@ -385,26 +379,35 @@ func friendlyWriteErr(err error) error {
 	case strings.Contains(msg, "no space"):
 		return errors.New("the drive is full")
 	case strings.Contains(msg, "too large"):
-		return errors.New("the drive's file system cannot hold files this large; reformat it as exFAT")
+		return errors.New("the drive's file system cannot hold files this large")
 	case strings.Contains(msg, "read-only"):
 		return errors.New("the drive is read-only (check its lock switch)")
 	}
 	return err
 }
 
-func partName(dir string, idx int64) string {
-	return filepath.Join(dir, fmt.Sprintf("part-%c%c", 'a'+byte(idx/26), 'a'+byte(idx%26)))
+func partName(base string, idx int64) string {
+	return filepath.Join(base, fmt.Sprintf("part-%c%c", 'a'+byte(idx/26), 'a'+byte(idx%26)))
 }
 
-func listParts(dir string) ([]string, error) {
-	matches, err := filepath.Glob(filepath.Join(dir, "part-[a-z][a-z]"))
-	sort.Strings(matches)
-	return matches, err
+func listParts(base string) []string {
+	m, _ := filepath.Glob(filepath.Join(base, "part-[a-z][a-z]"))
+	sort.Strings(m)
+	return m
 }
 
-func clearParts(dir string) error {
-	parts, _ := listParts(dir)
-	for _, p := range parts {
+func partsSize(base string) int64 {
+	var n int64
+	for _, p := range listParts(base) {
+		if st, err := os.Stat(p); err == nil {
+			n += st.Size()
+		}
+	}
+	return n
+}
+
+func clearParts(base string) error {
+	for _, p := range listParts(base) {
 		if err := os.Remove(p); err != nil {
 			return err
 		}
@@ -412,18 +415,14 @@ func clearParts(dir string) error {
 	return nil
 }
 
-// hashExisting feeds the parts already on disk into h and returns their
-// combined length. A partial last part is fine; a short middle part is
-// not, so everything after it is dropped.
-func hashExisting(ctx context.Context, dir string, h hash.Hash, progress *atomic.Int64) (int64, error) {
-	parts, err := listParts(dir)
-	if err != nil {
-		return 0, err
-	}
+// hashExisting feeds the parts already on disk into h. A short part can
+// only be the last one; anything after it is dropped.
+func hashExisting(ctx context.Context, base string, h hash.Hash, progress func(int64)) (int64, error) {
 	var have int64
 	buf := make([]byte, 1<<20)
+	parts := listParts(base)
 	for i, p := range parts {
-		if p != partName(dir, int64(i)) {
+		if p != partName(base, int64(i)) {
 			for _, q := range parts[i:] {
 				os.Remove(q)
 			}
@@ -433,32 +432,24 @@ func hashExisting(ctx context.Context, dir string, h hash.Hash, progress *atomic
 		if err != nil {
 			return 0, err
 		}
-		st, _ := f.Stat()
-		size := st.Size()
-		if size > PartSize {
-			f.Close()
-			return 0, fmt.Errorf("%s is larger than expected; discard the download and retry", p)
-		}
-		if h != nil {
-			r := bufio.NewReaderSize(f, 1<<20)
-			for {
-				if ctx.Err() != nil {
-					f.Close()
-					return 0, ctx.Err()
-				}
-				n, err := r.Read(buf)
-				h.Write(buf[:n])
-				progress.Add(int64(n))
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					f.Close()
-					return 0, err
-				}
+		r := bufio.NewReaderSize(f, 1<<20)
+		var size int64
+		for {
+			if ctx.Err() != nil {
+				f.Close()
+				return 0, ctx.Err()
 			}
-		} else {
-			progress.Add(size)
+			n, err := r.Read(buf)
+			h.Write(buf[:n])
+			size += int64(n)
+			progress(have + size)
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				f.Close()
+				return 0, err
+			}
 		}
 		f.Close()
 		have += size
@@ -472,90 +463,33 @@ func hashExisting(ctx context.Context, dir string, h hash.Hash, progress *atomic
 	return have, nil
 }
 
-// install moves finished parts into the library under their final names.
-func (m *Manager) install(dir, file string) error {
-	parts, err := listParts(dir)
-	if err != nil || len(parts) == 0 {
-		return errors.New("download finished but no data was found")
-	}
-	base := strings.TrimSuffix(file, ".zim")
-	var targets []string
-	if len(parts) == 1 {
-		targets = []string{filepath.Join(m.Dir, file)}
-	} else {
-		for i := range parts {
-			targets = append(targets, filepath.Join(m.Dir, fmt.Sprintf("%s.zim%c%c", base, 'a'+byte(i/26), 'a'+byte(i%26))))
-		}
+// install moves a finished file into the library under its real name
+// (pieces get the suffixes aa, ab, ...).
+func (m *Manager) install(base, name string) error {
+	parts := listParts(base)
+	if len(parts) == 0 {
+		return fmt.Errorf("%s: no data", name)
 	}
 	for i, p := range parts {
-		if err := os.Rename(p, targets[i]); err != nil {
-			return fmt.Errorf("installing %s: %w", filepath.Base(targets[i]), err)
+		target := filepath.Join(m.Dir, name)
+		if len(parts) > 1 {
+			target += fmt.Sprintf("%c%c", 'a'+byte(i/26), 'a'+byte(i%26))
+		}
+		if err := os.Rename(p, target); err != nil {
+			return fmt.Errorf("installing %s: %w", filepath.Base(target), err)
 		}
 	}
-	return os.RemoveAll(dir)
+	return nil
 }
 
-func (m *Manager) fetchChecksum(ctx context.Context, fileURL string) (sum, algo string) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "GET", fileURL+".sha256", nil)
-	if err != nil {
-		return "", ""
-	}
-	req.Header.Set("User-Agent", UserAgent)
-	resp, err := m.Client.Do(req)
-	if err != nil {
-		return "", ""
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", ""
-	}
-	b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-	if s := sha256Re.FindString(strings.ToLower(string(b))); s != "" {
-		return s, "sha256"
-	}
-	return "", ""
-}
-
-var sha256Re = regexp.MustCompile(`\b[0-9a-f]{64}\b`)
-
-func parseContentRangeTotal(v string) int64 {
-	i := strings.LastIndexByte(v, '/')
-	if i < 0 {
-		return 0
-	}
-	n, err := strconv.ParseInt(strings.TrimSpace(v[i+1:]), 10, 64)
-	if err != nil {
-		return 0
-	}
-	return n
-}
-
-func readMeta(dir string) meta {
-	var mt meta
-	b, err := os.ReadFile(filepath.Join(dir, "meta.json"))
-	if err == nil {
-		json.Unmarshal(b, &mt)
-	}
-	return mt
-}
-
-func writeMeta(dir string, mt meta) {
-	b, _ := json.Marshal(mt)
-	os.WriteFile(filepath.Join(dir, "meta.json"), b, 0o644)
-}
-
-// HumanBytes formats a byte count for people: 1.4 GB, 980 MB. It counts
-// in 1024s, like Windows and the Kiwix download listing, so the sizes
-// people see in NABU match the ones they see there.
+// HumanBytes formats a size in 1024s, as Windows and most file managers do.
 func HumanBytes(n int64) string {
 	const unit = 1024
 	if n < unit {
 		return fmt.Sprintf("%d B", n)
 	}
 	div, exp := int64(unit), 0
-	for m := n / unit; m >= unit; m /= unit {
+	for x := n / unit; x >= unit; x /= unit {
 		div *= unit
 		exp++
 	}

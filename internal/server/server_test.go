@@ -8,159 +8,152 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vajra-wielder/nabu/internal/library"
 	"github.com/vajra-wielder/nabu/internal/update"
 )
 
-const book = "wikipedia_en_test_maxi_2026-10"
-
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
-	data, err := os.ReadFile("../../testdata/" + book + ".zim")
-	if err != nil {
-		t.Fatal(err)
-	}
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, book+".zim"), data, 0o644)
+	for _, n := range []string{"testwiki", "fawiki"} {
+		for _, suf := range []string{".xml.bz2", "-index.txt.bz2"} {
+			name := n + "-20261101-pages-articles-multistream" + suf
+			b, err := os.ReadFile(filepath.Join("../../testdata", name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			os.WriteFile(filepath.Join(dir, name), b, 0o644)
+		}
+	}
 	lib, err := library.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(lib.Close)
-	c := &update.Checker{Dir: dir, CatalogURL: "http://127.0.0.1:1/", Client: http.DefaultClient}
+	deadline := time.Now().Add(10 * time.Second)
+	for _, b := range lib.Books() {
+		for b.Reader() == nil && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
+		}
+		if b.Reader() == nil {
+			t.Fatalf("%s never became ready: %+v", b.ID, b.Status())
+		}
+	}
+	c := &update.Checker{Dir: dir, Mirror: "http://127.0.0.1:1", Client: http.DefaultClient}
 	s, err := New(lib, c, update.NewManager(dir, http.DefaultClient))
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.Offline = true
 	return s
 }
 
-func get(t *testing.T, s *Server, path string, hdr ...string) *http.Response {
-	t.Helper()
-	req := httptest.NewRequest("GET", path, nil)
+func do(s *Server, method, path, remote string, hdr map[string]string) *http.Response {
+	req := httptest.NewRequest(method, path, strings.NewReader("{}"))
 	req.Host = "localhost:8080"
-	req.RemoteAddr = "127.0.0.1:5000"
-	for i := 0; i+1 < len(hdr); i += 2 {
-		req.Header.Set(hdr[i], hdr[i+1])
+	req.RemoteAddr = remote
+	for k, v := range hdr {
+		req.Header.Set(k, v)
 	}
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, req)
 	return w.Result()
 }
 
-func body(r *http.Response) string {
+func get(s *Server, path string) (*http.Response, string) {
+	r := do(s, "GET", path, "127.0.0.1:5000", nil)
 	b, _ := io.ReadAll(r.Body)
-	return string(b)
+	return r, string(b)
 }
 
 func TestPages(t *testing.T) {
 	s := newTestServer(t)
 	cases := []struct {
-		path, want string
-		code       int
+		path string
+		code int
+		want string
 	}{
-		{"/", "Your library", 200},
-		{"/nabu/updates", "Catalogue", 200},
-		{"/nabu/about", "god of scribes", 200},
-		{"/content/" + book + "/Nabu", `id="nabu-bar"`, 200},
-		{"/content/" + book + "/_assets_/style.css", "Linux Libertine", 200},
-		{"/content/" + book + "/Nineveh_Palace", "is not in this edition", 404},
-		{"/search?list=1&q=bab", "Babylon", 200},
-		{"/search?list=1&q=qqqq", "No article title", 200},
-		{"/suggest?q=cune", `"title":"Cuneiform"`, 200},
-		{"/content/nope/Nabu", "not on this drive", 404},
-		{"/nabu/static/fonts.css", "Libertinus", 200},
-		{"/nabu/api/ping", `"app":"nabu"`, 200},
+		{"/", 200, "Your library"},
+		{"/testwiki/wiki/Babylon", 200, `class="infobox"`},
+		{"/testwiki/wiki/Babylon", 200, "Ancient city in Mesopotamia"},
+		{"/testwiki/wiki/Babylon", 200, `<h2 id="History">`},
+		{"/testwiki/wiki/Nineveh", 404, "is not in this Wikipedia"},
+		{"/testwiki/source/Babylon", 200, "{{Infobox settlement"},
+		{"/testwiki/search?list=1&q=tab", 200, "Tablet"},
+		{"/testwiki/search?list=1&q=qqqq", 200, "No article title"},
+		{"/suggest?book=testwiki&q=ecr", 200, `"title":"Écriture"`},
+		{"/fawiki/wiki/" + "%D8%A8%D8%A7%D8%A8%D9%84", 200, `dir="rtl"`},
+		{"/nabu/updates", 200, "Bahasa Indonesia"},
+		{"/nabu/about", 200, "Why these ten languages"},
+		{"/nabu/static/wiki.css", 200, "infobox"},
+		{"/nowiki/wiki/X", 404, "nothing at this address"},
 	}
 	for _, c := range cases {
-		r := get(t, s, c.path)
-		b := body(r)
+		r, b := get(s, c.path)
 		if r.StatusCode != c.code || !strings.Contains(b, c.want) {
-			t.Errorf("%s: %d, want %d containing %q\n%.300s", c.path, r.StatusCode, c.code, c.want, b)
+			t.Errorf("%s: %d (want %d) containing %q\n%.400s", c.path, r.StatusCode, c.code, c.want, b)
 		}
+	}
+	_, b := get(s, "/testwiki/wiki/Babylon")
+	if strings.Contains(b, "<script>alert") || strings.Contains(b, "javascript:x") {
+		t.Error("unsafe markup reached the page")
 	}
 }
 
 func TestRedirects(t *testing.T) {
 	s := newTestServer(t)
 	for path, want := range map[string]string{
-		"/content/" + book + "/":          "/content/" + book + "/Main_Page",
-		"/content/" + book + "/Babylonia": "/content/" + book + "/Babylon",
-		"/search?q=god+of+scribes":        "/content/" + book + "/Nabu",
-		"/search?q=%C3%A9criture":         "/content/" + book + "/%C3%89criture",
-		"/content/" + book + "/A/Nabu":    "",
+		"/testwiki/":                    "/testwiki/wiki/Main_Page",
+		"/testwiki/wiki/babylon":        "/testwiki/wiki/Babylon",
+		"/testwiki/wiki/Babylonia":      "/testwiki/wiki/Babylon?from=Babylonia",
+		"/testwiki/wiki/God_of_scribes": "/testwiki/wiki/Nabu?from=God+of+scribes#Worship",
+		"/testwiki/search?q=ECRITURE":   "/testwiki/wiki/%C3%89criture",
+		"/search?book=testwiki&q=nabu":  "/testwiki/wiki/Nabu",
 	} {
-		r := get(t, s, path)
-		if want == "" {
-			if r.StatusCode != 200 {
-				t.Errorf("%s: %d", path, r.StatusCode)
-			}
-			continue
-		}
+		r, _ := get(s, path)
 		if r.StatusCode != http.StatusFound || r.Header.Get("Location") != want {
 			t.Errorf("%s: %d -> %q, want %q", path, r.StatusCode, r.Header.Get("Location"), want)
 		}
 	}
-	r := get(t, s, "/random")
-	if r.StatusCode != http.StatusFound || !strings.HasPrefix(r.Header.Get("Location"), "/content/"+book+"/") {
+	r, _ := get(s, "/testwiki/random")
+	if r.StatusCode != http.StatusFound || !strings.HasPrefix(r.Header.Get("Location"), "/testwiki/wiki/") {
 		t.Errorf("random: %d %s", r.StatusCode, r.Header.Get("Location"))
 	}
-}
-
-func TestCachingAndRanges(t *testing.T) {
-	s := newTestServer(t)
-	r := get(t, s, "/content/"+book+"/_assets_/tablet.png")
-	etag := r.Header.Get("ETag")
-	if r.StatusCode != 200 || etag == "" || r.Header.Get("Content-Type") != "image/png" {
-		t.Fatalf("png: %d %q %q", r.StatusCode, etag, r.Header.Get("Content-Type"))
-	}
-	if r := get(t, s, "/content/"+book+"/_assets_/tablet.png", "If-None-Match", etag); r.StatusCode != 304 {
-		t.Fatalf("conditional: %d", r.StatusCode)
-	}
-	r = get(t, s, "/content/"+book+"/_assets_/tablet.png", "Range", "bytes=0-7")
-	if b := body(r); r.StatusCode != 206 || b != "\x89PNG\r\n\x1a\n" {
-		t.Fatalf("range: %d %q", r.StatusCode, b)
+	if r, b := get(s, "/testwiki/wiki/Babylonia?redirect=no"); r.StatusCode != 200 || !strings.Contains(b, "Babylonia") {
+		t.Errorf("redirect=no: %d", r.StatusCode)
 	}
 }
 
 func TestSecurity(t *testing.T) {
 	s := newTestServer(t)
-	// DNS rebinding: a foreign host name must be refused.
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Host = "evil.example:8080"
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, req)
 	if w.Code != http.StatusMisdirectedRequest {
-		t.Fatalf("rebinding: %d", w.Code)
+		t.Fatalf("DNS rebinding not blocked: %d", w.Code)
 	}
-	post := func(path, remote, origin string, nabuHeader bool) int {
-		req := httptest.NewRequest("POST", path, strings.NewReader(`{}`))
-		req.Host = "localhost:8080"
-		req.RemoteAddr = remote
-		if origin != "" {
-			req.Header.Set("Origin", origin)
-		}
-		if nabuHeader {
-			req.Header.Set("X-Nabu", "1")
-		}
-		w := httptest.NewRecorder()
-		s.ServeHTTP(w, req)
-		return w.Code
+	nabu := map[string]string{"X-Nabu": "1"}
+	if r := do(s, "POST", "/nabu/api/rescan", "127.0.0.1:1", nil); r.StatusCode != 403 {
+		t.Errorf("missing header accepted: %d", r.StatusCode)
 	}
-	if c := post("/nabu/api/rescan", "127.0.0.1:1", "", false); c != 403 {
-		t.Errorf("missing header accepted: %d", c)
+	if r := do(s, "POST", "/nabu/api/rescan", "127.0.0.1:1", map[string]string{"X-Nabu": "1", "Origin": "http://evil.example"}); r.StatusCode != 403 {
+		t.Errorf("cross-origin accepted: %d", r.StatusCode)
 	}
-	if c := post("/nabu/api/rescan", "127.0.0.1:1", "http://evil.example", true); c != 403 {
-		t.Errorf("cross origin accepted: %d", c)
+	if r := do(s, "POST", "/nabu/api/rescan", "192.168.1.9:1", nabu); r.StatusCode != 403 {
+		t.Errorf("other machine accepted: %d", r.StatusCode)
 	}
-	if c := post("/nabu/api/rescan", "192.168.1.20:1", "", true); c != 403 {
-		t.Errorf("remote machine accepted: %d", c)
+	if r := do(s, "POST", "/nabu/api/rescan", "127.0.0.1:1", nabu); r.StatusCode != 200 {
+		t.Errorf("legit request refused: %d", r.StatusCode)
 	}
-	if c := post("/nabu/api/rescan", "127.0.0.1:1", "http://localhost:8080", true); c != 200 {
-		t.Errorf("legit request refused: %d", c)
-	}
-	if c := post("/nabu/api/remove", "127.0.0.1:1", "", true); c != http.StatusConflict {
-		t.Errorf("removing the only edition must be refused: %d", c)
+	req = httptest.NewRequest("POST", "/nabu/api/remove", strings.NewReader(`{"book":"testwiki"}`))
+	req.Host, req.RemoteAddr = "localhost:8080", "127.0.0.1:1"
+	req.Header.Set("X-Nabu", "1")
+	w = httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	if w.Code != http.StatusConflict {
+		t.Errorf("deleting the only copy must be refused: %d", w.Code)
 	}
 }

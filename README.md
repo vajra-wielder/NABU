@@ -1,60 +1,82 @@
 <p align="center"><img src="internal/web/assets/nabu.svg" width="96" alt=""></p>
 
 <h1 align="center">NABU</h1>
-<p align="center"><em>All of Wikipedia on a pen drive. Plug it into almost any computer and read, no internet needed.</em></p>
+<p align="center"><em>Wikipedia on a pen drive, read straight from Wikimedia's own compressed dumps. Plug it into almost any computer. No internet, no installation.</em></p>
 
 ---
 
 Nabu was the Babylonian god of scribes, writing and wisdom. His symbol was a single
 wedge pressed into clay, the stylus that wrote the first libraries. His temples kept
-the tablets and his scribes copied them, so knowledge outlived the people who wrote it.
+the tablets so knowledge outlived the people who wrote it.
 
-This project does the same job for Wikipedia. Copy NABU and a Wikipedia file onto a
-USB stick. On any Windows, Mac or Linux laptop, double-click **Start NABU** and the
-whole encyclopedia opens in the browser: articles, links, pictures, tables, infoboxes
-and Wikipedia's own typography. Nothing is installed and the computer needs no
-internet connection. When it does have one, NABU checks for a newer Wikipedia and
-offers to download it onto the drive.
+This NABU keeps Wikipedia. Copy NABU and a Wikipedia dump onto a USB stick. On any
+Windows, Mac or Linux laptop, double-click **Start NABU** and the encyclopedia opens in
+the browser, with Wikipedia's look: serif headings, infoboxes, footnotes, tables and
+links that work. When the laptop is online, NABU asks Wikimedia for the latest dump and
+offers to fetch it.
 
 ## Contents
 
-- [What it does](#what-it-does)
+- [Why read the raw dumps](#why-read-the-raw-dumps)
+- [Languages: ten that cover 91% of the land](#languages-ten-that-cover-91-of-the-land)
 - [Using a NABU drive](#using-a-nabu-drive)
 - [Making a NABU drive](#making-a-nabu-drive)
 - [Requisites (pinned, kept locally)](#requisites-pinned-kept-locally)
-- [Where the Wikipedia comes from](#where-the-wikipedia-comes-from)
 - [How it works](#how-it-works)
 - [Computers it runs on](#computers-it-runs-on)
 - [Command line](#command-line)
 - [Developing](#developing)
-- [Limits and next steps](#limits-and-next-steps)
+- [Limits](#limits)
 - [Credits and licences](#credits-and-licences)
 
-## What it does
+## Why read the raw dumps
 
-- **Plug and play.** One small program (~10 MB, no dependencies, nothing installed)
-  for each operating system and processor, plus a double-click launcher for each OS.
-  The launcher picks the right program automatically.
-- **Real Wikipedia pages.** NABU serves the pages exactly as Kiwix rendered them from
-  Wikipedia: every internal link works, images and maths show, and the layout and
-  styles are Wikipedia's own. Headings use Wikipedia's serif face (Linux Libertine,
-  via the bundled Libertinus Serif), so pages look right even on machines that lack it.
-- **Search as you type** from a slim bar at the top of every article (press <kbd>/</kbd>).
-  Enter on an exact title opens the article, as on Wikipedia. Redirects ("Babylonia",
-  "God of scribes") are followed, and capitalisation does not matter. A
-  random article is one click away.
-- **Checks for updates on start.** When online, NABU asks the Kiwix catalogue whether
-  a newer Wikipedia snapshot exists and shows a banner. The "Get & update" page lists
-  every language and size, with free space on the drive.
-- **Downloads that survive bad connections.** Downloads resume after drops or
-  restarts, are verified with SHA-256, and only appear in the library once
-  complete. Files over 4 GB are written in 4 GB parts, so a FAT32 stick, which cannot
-  hold a 4 GB file, still fits a full Wikipedia.
-- **Shares with a room.** `--lan` lets every phone and laptop on the same Wi-Fi read
-  from one drive. Only the computer running NABU can download, delete or stop it.
-- **Respects the drive.** Nothing is written to the host computer. "Turn off NABU"
-  stops it cleanly so the stick can be removed safely.
-- **Light and dark** interface, phone-friendly, works in old browsers.
+Wikimedia publishes every Wikipedia, about twice a month, as
+`<wiki>-<date>-pages-articles-multistream.xml.bz2`. That is the wikitext of every
+page, compressed with bzip2 in independent streams of 100 pages, plus an index saying
+which stream holds which page. NABU reads that file **as is**:
+
+| | Wikimedia dump (NABU) | Kiwix ZIM "maxi" |
+|---|---|---|
+| English Wikipedia | **25.4 GB** + 0.3 GB index | ~110 GB |
+| Conversion needed | none: the downloaded file is the library | — |
+| Fresh | the day Wikimedia publishes | weeks to months later |
+| Pictures | from Wikimedia when online; labelled frames offline | included |
+
+To open an article, NABU finds the title in its search index, seeks to the right stream
+in the `.bz2` and decompresses about half a megabyte. That takes 20–40 ms, even from a
+USB stick. The program is about 10 MB and uses only the Go standard library, with no
+third-party code at all.
+
+## Languages: ten that cover 91% of the land
+
+NABU offers the **smallest set of languages that together cover the most land**, not
+the most speakers. A country counts as covered when one of its official or co-official
+languages is in the set. Languages are picked greedily by the uncovered land area they
+add (set cover over 171 countries, ≈99% of the land outside Antarctica). Ten languages
+reach 91%:
+
+| # | Language | Adds | Cumulative | Main areas | Dump size (Nov 2026) |
+|---|---|---|---|---|---|
+| 1 | English | 43.6 M km² | 31.9% | Canada, USA, Australia, India, Sudan, South Africa… | 25.4 GB |
+| 2 | Russian | 20.4 M km² | 46.9% | Russia, Kazakhstan, Belarus, Kyrgyzstan, Tajikistan | 5.9 GB |
+| 3 | Arabic | 12.8 M km² | 56.3% | Algeria, Saudi Arabia, Libya, Chad, Egypt… | 2.1 GB |
+| 4 | Spanish | 12.0 M km² | 65.1% | Argentina, Mexico, Peru, Colombia, Bolivia… | 5.1 GB |
+| 5 | Portuguese | 10.7 M km² | 72.9% | Brazil, Angola, Mozambique, Portugal | 2.7 GB |
+| 6 | Chinese | 9.6 M km² | 80.0% | China, Taiwan | 3.4 GB |
+| 7 | French | 8.7 M km² | 86.3% | DR Congo, Niger, Mali, France, CAR, Madagascar… | 6.9 GB |
+| 8 | Persian | 2.3 M km² | 88.0% | Iran, Afghanistan | 1.5 GB |
+| 9 | Danish | 2.2 M km² | 89.6% | Greenland, Denmark | 0.5 GB |
+| 10 | Indonesian | 1.9 M km² | 91.0% | Indonesia | 1.3 GB |
+| | **All ten** | | **91%** | | **≈55 GB, fits a 64 GB stick** |
+
+Reproduce it with `python3 docs/language_coverage.py` (`--all` keeps going: Mongolian,
+Amharic, Turkish, Swedish… each adds under 1.2%). Danish is there purely for Greenland's
+2.2 million km², which is the honest result of counting area rather than people.
+
+The reader itself is language-independent. Namespace names ("Datei", "پرونده"), the
+main page, right-to-left layout and the site name all come from each dump's own header.
+Any other Wikimedia dump copied into `library/` works too.
 
 ## Using a NABU drive
 
@@ -64,27 +86,24 @@ offers to download it onto the drive.
 | Mac | Double-click **`Start NABU (Mac).command`**. The first time, right-click it, choose **Open**, then **Open** (NABU is not notarised by Apple). |
 | Linux | `sh start-nabu-linux.sh`, or double-click it and choose *Run in Terminal* |
 
-The browser opens on your library. A small window stays open while NABU runs. Close
-it, or click **Turn off NABU** at the bottom of any page, when you are done. If the
-browser does not open by itself, go to <http://localhost:8080>.
+The browser opens on your library. Search from the box at the top of every page (press
+<kbd>/</kbd>); capitals and accents don't matter, so "ecriture" finds "Écriture".
+Close the small NABU window, or click **Turn off NABU**, when you are done.
 
-**No Wikipedia yet?** The library page offers to download one. Sizes for English:
+**No Wikipedia yet?** The **Get & update** page lists the ten languages with the date
+and size of Wikimedia's newest dump, and downloads with one click. Downloads resume
+after dropped connections or restarts, and every file is checked against Wikimedia's
+SHA-1 before it is used. Files over 4 GB are written in 4 GB pieces, so FAT32 sticks
+work. Already have the two files? Copy them into `library/`.
 
-| Edition | What you get | Size |
-|---|---|---|
-| `wikipedia_en_all_maxi` | every article, with pictures | ~110 GB |
-| `wikipedia_en_all_nopic` | every article, no pictures | ~50 GB |
-| `wikipedia_en_all_mini` | the introduction of every article | ~12 GB |
-| `wikipedia_en_top_maxi` | the most-read articles, with pictures | a few GB |
-| `wikipedia_en_100_mini` | 100 articles, for trying NABU out | a few MB |
+**First use of a new dump:** NABU sorts its titles into a search index on the drive
+(`library/.nabu/index/`, about 2–3% of the dump's size). It takes seconds for small
+wikis and a few minutes for English, up to about 15 on an old laptop. It runs in the
+background with a progress bar, once per dump. You can also do it ahead of time on a
+fast machine with `nabu prepare`.
 
-Other languages are smaller. Any `.zim` file from <https://download.kiwix.org/zim/>
-also works (Wiktionary, Wikivoyage, Project Gutenberg, Stack Exchange…): drop it in
-`library/` and click *Look for new files*.
-
-**Which drive format?** Use **exFAT**: every Windows, Mac and Linux computer reads and
-writes it. FAT32 works too, because NABU splits big files. Avoid NTFS, which Macs can
-only read, so updates fail there.
+**Drive format:** exFAT is best (every OS reads and writes it). FAT32 works too.
+Avoid NTFS: Macs can't write to it, so updates fail there.
 
 ## Making a NABU drive
 
@@ -99,10 +118,10 @@ scripts/fetch-requisites.sh
 scripts/build.sh
 ```
 
-The first command downloads the two pinned Go toolchains for your computer and checks
-their SHA-256. Everything else is already in the repository. The second builds every
-platform into `dist/NABU/` and also produces `dist/NABU-<version>.zip`. Copy the
-*contents* of `dist/NABU/` to the root of the stick:
+The first command fetches the two pinned Go toolchains for your computer and checks
+their SHA-256. The second builds 11 programs into `dist/NABU/` (plus
+`dist/NABU-<version>.zip`, about 45 MB). Copy the *contents* of `dist/NABU/` to the root
+of the stick:
 
 ```
 NABU drive/
@@ -111,105 +130,85 @@ NABU drive/
 ├── start-nabu-linux.sh
 ├── READ ME FIRST.txt
 ├── nabu/            11 programs: Windows, macOS, Linux × Intel/AMD/ARM (+ legacy)
-├── library/         put .zim files here (or download them from NABU)
+├── library/         the dumps (NABU can download them)
 └── licenses/
 ```
 
-Then add a Wikipedia: start NABU and use **Get & update**, run
-`nabu/nabu-<os>-<arch> download wikipedia_en_all_maxi --library library`, or copy a
-`.zim` file into `library/` yourself.
+Then add a Wikipedia from the **Get & update** page, or headless:
 
-Tagging a release (`git tag v1.0.0 && git push --tags`) makes GitHub Actions run the
-tests on Windows, macOS and Linux and attach the ready-made drive zip to the release.
+```bash
+nabu/nabu-linux-amd64 download en --library library
+```
+
+Pushing a tag such as `v1.0.0` makes GitHub Actions test on Windows, macOS and Linux
+(Go 1.24 and 1.20) and attach the drive zip to a release.
 
 ## Requisites (pinned, kept locally)
 
-Every input needed to build NABU is pinned to an exact version and either **committed
-in this repository** or **fetched and checksum-verified** by
-`scripts/fetch-requisites.sh`. After that one fetch, building needs no network at all.
-The machine-readable list is [`requisites/requisites.lock`](requisites/requisites.lock).
+Everything needed to build NABU is pinned to an exact version and either **committed
+here** or **fetched and checksum-verified** by `scripts/fetch-requisites.sh`. After that
+one fetch, building needs no network at all. Machine-readable list:
+[`requisites/requisites.lock`](requisites/requisites.lock).
 
 | Requisite | Version | Why | Kept where | Licence |
 |---|---|---|---|---|
-| Go toolchain | **1.24.7** | Builds the modern programs (Windows 10+, macOS 11+, all Linux) | Fetched to `requisites/toolchains/go1.24.7/` from the Go module proxy, SHA-256 in the lock file | BSD-3-Clause |
-| Go toolchain (legacy) | **1.20.14** | The last Go release that runs on Windows 7/8 and macOS 10.13–10.15; builds the `-legacy` programs | Fetched to `requisites/toolchains/go1.20.14/` | BSD-3-Clause |
-| `github.com/klauspost/compress` | **v1.17.9** | Zstandard decompression (modern ZIM files) | Committed in [`vendor/`](vendor/github.com/klauspost/compress), hash in `go.sum` | BSD-3-Clause, Apache-2.0, MIT (per package) |
-| `github.com/ulikunitz/xz` | **v0.5.17** | XZ/LZMA2 decompression (older ZIM files) | Committed in [`vendor/`](vendor/github.com/ulikunitz/xz), hash in `go.sum` | BSD-3-Clause |
-| Libertinus Serif (`@fontsource/libertinus-serif`) | **5.3.0** | Wikipedia's heading typeface, embedded in the program | Committed in [`internal/web/assets/fonts/`](internal/web/assets/fonts), integrity hash in the lock file | SIL OFL 1.1 |
-| Test ZIM | libzim 9 via `python-libzim` **4.1.0** | Checks NABU's reader against the reference implementation | Committed at [`testdata/`](testdata), generator in `testdata/make_fixture.py` | — |
+| Go toolchain | **1.24.7** | Builds the programs for Windows 10+, macOS 11+, all Linux | `requisites/toolchains/go1.24.7/`, fetched from the Go module proxy, SHA-256 in the lock file | BSD-3-Clause |
+| Go toolchain (legacy) | **1.20.14** | The last Go that runs on Windows 7/8 and macOS 10.13–10.15; builds the `-legacy` programs | `requisites/toolchains/go1.20.14/` | BSD-3-Clause |
+| Libertinus Serif (`@fontsource/libertinus-serif`) | **5.3.0** | Wikipedia's heading face (Linux Libertine's successor), embedded in the program | committed in [`internal/web/assets/fonts/`](internal/web/assets/fonts) | SIL OFL 1.1 |
+| Go libraries | none | bzip2, XML, HTTP, SHA-1 all come from Go's standard library | — | — |
+| Test dumps | — | Small synthetic multistream dumps (English and right-to-left Persian) | committed in [`testdata/`](testdata), generator `testdata/make_dumps.py` (Python's built-in `bz2`) | — |
 
-Both library versions declare `go 1.20`, so the same vendored code builds with both
-toolchains. `go.mod` also declares `go 1.20` so nothing newer slips in by accident. CI
-runs the tests under both Go versions to enforce it.
+`go.mod` declares `go 1.20`, so nothing newer than the legacy toolchain slips in. CI
+runs the tests under both versions.
 
-Pinned toolchain checksums (SHA-256 of the module-proxy zip):
-
-| Toolchain | linux-amd64 | darwin-arm64 | windows-amd64 |
+| Toolchain zip (SHA-256) | linux-amd64 | darwin-arm64 | windows-amd64 |
 |---|---|---|---|
 | go1.24.7 | `4c2a63c0…7b8031e` | `b529787f…ac604f63` | `615b3423…ddfae337` |
 | go1.20.14 | `725ca027…54e7d26d` | `597bb4d3…9925967b` | `50b3d782…f0a58e02` |
 
-Full hashes, plus linux-arm64 and darwin-amd64, are in the lock file.
-
-## Where the Wikipedia comes from
-
-You asked NABU to "ping the Wikidata page for the latest dump". Here is what actually
-happens, and why:
-
-1. **Wikimedia** (the foundation behind Wikipedia and Wikidata) publishes database
-   dumps at <https://dumps.wikimedia.org>. These are raw *wikitext*: no pictures, no
-   templates expanded, no rendering. Turning them into readable pages takes a full
-   MediaWiki installation and days of computing. Wikidata, strictly, is the separate
-   database of structured facts and has no article pages.
-2. **Kiwix**, a non-profit partner of Wikimedia, renders each new dump with MediaWiki
-   itself, then packs every page, picture, stylesheet and link into one compressed
-   **ZIM** file per language and size. It publishes them at
-   <https://download.kiwix.org/zim/wikipedia/>, typically every month or two.
-3. **NABU** reads ZIM files. Each time it starts and finds the internet, it fetches
-   the Kiwix catalogue, compares the date in each file name (`…_2026-10.zim`) with
-   what is on the drive, and offers anything newer. With **automatic updates** on (a
-   switch on the Get & update page), it downloads by itself when the new file fits.
-
-So the dump NABU fetches is the latest Wikimedia snapshot, in the one form a laptop
-can actually read offline. The catalogue address is a setting (`--catalog`), so a
-school or a local mirror can point NABU elsewhere.
-
 ## How it works
 
 ```
- browser ──HTTP──▶ nabu (one static binary, listens on 127.0.0.1:8080)
-                    ├─ /content/<book>/<page>  page bytes straight from the ZIM file
-                    │                          (+ NABU bar injected into HTML pages)
-                    ├─ /search, /suggest       title index binary search, case variants
-                    ├─ /, /nabu/updates, …     NABU's own pages (embedded templates)
-                    └─ updater                 Kiwix catalogue → resumable download
-                                               → SHA-256 → split parts → hot reload
- library/*.zim ◀── ZIM reader: 80-byte header, pointer lists, zstd/xz clusters
+ browser ──HTTP──▶ nabu  (one static program, listening on 127.0.0.1:8080)
+                    ├─ /enwiki/wiki/<Title>   index lookup → seek → bunzip2 one stream
+                    │                          → find <page> → wikitext → HTML
+                    ├─ /enwiki/search, /suggest  binary search of the sorted title index
+                    ├─ /, /nabu/updates        library, downloads, settings
+                    └─ updater                 RSS + dumpstatus.json on dumps.wikimedia.org
+                                               → resumable download → SHA-1 → 4 GB pieces
+ library/*.xml.bz2 + *-index.txt.bz2   (exactly as Wikimedia publishes them)
+ library/.nabu/index/*.nidx            NABU's sorted title index, built once per dump
 ```
 
-- **The ZIM reader** (`internal/zim`) is written for slow USB sticks. Opening a
-  100 GB file reads 80 bytes plus the MIME table. Finding an article is a binary
-  search over on-disk pointer lists, about 25 small reads. Compressed clusters
-  (zstd, xz, plus legacy zlib/bzip2) are decompressed once into a 64 MB LRU cache.
-  Concurrent requests for the same cluster share one decompression. Images sit in
-  uncompressed clusters and stream straight from disk, so HTTP range requests (audio,
-  video) work. Old-style (`A/`, `I/`, `-/`) and modern (`C/`) namespaces are both
-  supported, as are split `.zimaa/.zimab…` files.
-- **Search** binary-searches the title index (the front-articles list in modern
-  files) for several capitalisations of the query, follows redirects, removes
-  duplicates and ranks exact matches first.
-- **Security.** NABU listens only on `127.0.0.1` unless `--lan` is given. It refuses
-  requests addressed to a domain name, which blocks DNS rebinding. Actions that
-  change the drive need a loopback client, a custom header and a matching `Origin`,
-  so a web page you visit cannot drive NABU.
-- **Why Go and not Assembly?** You offered Assembly, so here is the reasoning.
-  Assembly would mean rewriting the program for every processor (x86, x86-64, ARM)
-  *and* every operating system's system calls, and it would still need a Zstandard
-  decoder. Go compiles one readable codebase into fully static native programs for
-  11 targets, with no runtime to install, at about 10 MB each. That is the property
-  that makes a pen drive work on "any laptop in the world". The page you read is
-  served from the file in a handful of disk reads, so the language was never the
-  bottleneck; the USB stick is.
+- **Index** (`internal/dump`). Wikimedia's index lists pages in file order. NABU
+  re-sorts it by a search key (lower case, accents removed) with an external merge
+  sort, so memory stays around 150 MB even for English's ~30 million titles. Titles are
+  front-coded in blocks of 64. Only a directory of block starts lives in RAM (~15 MB
+  for English); everything else stays on the stick. An index is rebuilt automatically
+  if its dump changes. Small wikis ship as one file pair; English also ships as ~70
+  numbered parts, and NABU reads both layouts.
+- **Pages.** One bzip2 stream (100 pages) is read and decompressed; a small cache keeps
+  recent streams, and parallel requests for the same stream share the work. Only the
+  matching `<page>` is XML-decoded.
+- **Wikitext** (`internal/wikitext`). NABU renders the language itself faithfully:
+  headings and contents, links with trails and pipe tricks, lists, tables (nested,
+  with attributes), bold and italic by MediaWiki's own algorithm, footnotes with named
+  and grouped references, galleries, poems, multi-line captions. Wikipedia's templates
+  run on Lua servers that a dump doesn't include, so the ones a reader needs have small
+  built-in implementations: **infoboxes** (any of them, as a label/value table),
+  **citations** (in all ten languages' parameter names), hatnotes, dates and ages, unit
+  conversion, coordinates, quotations, lists, footnote variants, flags and table-cell
+  helpers. Maintenance banners and navigation boxes are dropped. Everything is escaped,
+  and only a whitelist of HTML and CSS survives. Rendering a page takes about 0.5 ms
+  (median), under 100 ms worst case. It was tested on thousands of real articles from
+  Simple English, Abkhaz and Yiddish Wikipedia without a single crash.
+- **Security.** NABU listens on `127.0.0.1` unless `--lan`. It refuses requests addressed
+  to domain names (DNS rebinding). Actions that change the drive need a local client, a
+  custom header and a matching `Origin`.
+- **Why Go and not Assembly?** Assembly would mean rewriting NABU for every processor
+  *and* every operating system. Go compiles one readable codebase into static programs
+  for 11 targets with no runtime to install. The bottleneck is the USB stick, not the
+  language.
 
 ## Computers it runs on
 
@@ -219,32 +218,27 @@ school or a local mirror can point NABU elsewhere.
 | macOS | `darwin-arm64` (Apple silicon), `darwin-amd64` (Intel) | macOS 11; **10.13–10.15** via `darwin-amd64-legacy` |
 | Linux | `linux-amd64`, `linux-386`, `linux-arm64`, `linux-arm` (Raspberry Pi, ARMv6+) | kernel 3.2; no libc needed (static) |
 
-The launchers pick the right file from the CPU type and OS version. On Linux, USB
-sticks are often mounted so that programs cannot run from them (`noexec`, or no
-executable bit on exFAT/FAT). The launcher detects this and runs a temporary copy
-from `/tmp` instead. The Mac launcher also clears the download quarantine flag.
-
-Any browser from the last decade works. The interface's script is plain ES5.
+The launchers pick the right program from the CPU and OS version. On Linux, USB sticks
+are often mounted so programs can't run from them; the launcher then runs a temporary
+copy from `/tmp`. The Mac launcher clears the download quarantine flag.
 
 ## Command line
 
 ```text
-nabu [flags]                  start NABU and open the browser
-  --library DIR               folder with .zim files (launchers pass the drive's library/)
-  --port 8080                 first port to try (the next free one is used if busy)
-  --lan                       share with other devices on the local network
-  --no-browser                don't open a browser (servers, Raspberry Pi kiosks)
-  --offline                   never touch the network
-  --catalog URL               where to look for editions (default: Kiwix)
-nabu catalog [lang]           list the newest editions online, e.g. `nabu catalog fr`
-nabu download <name>          download headless, e.g. `nabu download wikipedia_en_all_nopic`
-                              (Ctrl+C pauses; run again to resume)
-nabu info <file.zim>          show a ZIM file's metadata
+nabu [flags]              start NABU and open the browser
+  --library DIR           folder with the dumps (launchers pass the drive's library/)
+  --port 8080             first port to try (next free one if busy)
+  --lan                   share with phones and computers on the same network
+  --no-browser            don't open a browser (servers, Raspberry Pi kiosks)
+  --offline               never touch the network (no update checks, no pictures)
+  --mirror URL            a Wikimedia dump mirror instead of dumps.wikimedia.org
+nabu catalog [wiki…]      newest dump date and size of each offered Wikipedia
+nabu download <wiki>      download a dump: en, fr, … or enwiki, zh_yuewiki, …
+                          (Ctrl+C pauses; run again to resume)
+nabu prepare              build the search index of every dump now
+nabu info                 list the dumps in the library and their state
 nabu version
 ```
-
-Starting NABU twice is harmless: the second launch just opens the browser on the
-first one.
 
 ## Developing
 
@@ -256,37 +250,43 @@ go test ./...
 go run ./cmd/nabu --library testdata --offline
 ```
 
-- `internal/zim`: ZIM reader. Tests build archives with an in-test writer and check
-  against a file made by the official libzim writer (`testdata/`).
-- `internal/library`: finds books, joins split files, hot-rescans.
-- `internal/update`: catalogue parsing, update detection, resumable verified
-  downloads. The tests simulate a server that drops the connection every 64 KB.
-- `internal/server`: HTTP handlers, injection, API with CSRF/rebinding protection.
-- `internal/web`: embedded templates, CSS, JS, fonts, logo.
-- `launchers/`: the double-click scripts. `.bat` files are kept CRLF (`.gitattributes`).
+To test against real dumps, put a few small ones (for example `simplewiki`, `abwiki`,
+`yiwiki`) in a folder and run:
 
-To regenerate the test archive: `pip install libzim==4.1.0`, then
-`python3 testdata/make_fixture.py testdata/wikipedia_en_test_maxi_2026-10.zim 300`.
+```bash
+NABU_REAL_DUMPS=/path/to/dumps go test ./internal/dump ./internal/wikitext -run Real -v
+```
 
-## Limits and next steps
+This renders a sample of real articles and reports speed and any markup left
+unrendered.
 
-- **Search covers titles, not full text.** ZIM files carry a Xapian full-text index.
-  Reading it means implementing Xapian's on-disk format, which is the largest item on
-  the roadmap.
-- **Unsigned programs.** Windows SmartScreen may say "Windows protected your PC";
-  click *More info → Run anyway*. On a Mac, right-click → Open the first time. Signing
-  certificates would remove both prompts.
-- **Updates replace whole files.** Kiwix publishes no deltas, so a new edition is a
-  full download. NABU resumes it across sessions and lets you delete the old one once
-  the new one is verified.
-- **Only Kiwix's Wikipedia directory is browsed** in the update page. Any other ZIM
-  copied into `library/` is read fine, but NABU won't offer updates for it.
+- `internal/dump`: siteinfo and namespaces, title normalisation and folding, index
+  builder (external sort) and reader, stream cache, page extraction.
+- `internal/wikitext`: the renderer: blocks, inline, links and files, tables, extension
+  tags and references, templates (`handlers.go`, `cite.go`), sanitising.
+- `internal/library`: finds dumps, prepares them in the background.
+- `internal/update`: Wikimedia release lookup, resumable verified downloads, settings.
+- `internal/server`, `internal/web`: pages, API, templates, CSS, JS, fonts.
+- `docs/language_coverage.py`: the language selection.
+
+## Limits
+
+- **Pictures need the internet.** Dumps contain text only. When online (and the
+  setting is on), pictures load from Wikimedia; offline, a frame shows each picture's
+  name and caption.
+- **Templates are approximated.** The common reader-facing ones are implemented. Rare
+  ones show their main text or are left out. Navigation boxes are not shown. Maths
+  appears as its TeX source.
+- **Search covers titles, not full text.** It forgives case and accents. Full-text
+  search would need an index of every word, roughly another 10–20% of the dump.
+- **Category pages** show their description but not member lists, which aren't in the
+  articles dump.
+- **Unsigned programs.** Windows SmartScreen may warn (*More info → Run anyway*). On a
+  Mac, right-click → Open the first time.
 
 ## Credits and licences
 
 - NABU: MIT, see [LICENSE](LICENSE).
-- Wikipedia content: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
-  by Wikipedia's volunteer authors. Images carry their own licences.
-- ZIM format and files: [openZIM](https://openzim.org) and [Kiwix](https://kiwix.org).
-- Libertinus Serif: SIL Open Font License 1.1. Go libraries: see `vendor/` and the
-  `licenses/` folder on every drive.
+- Wikipedia content: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) by
+  Wikipedia's volunteer authors. Dumps published by the Wikimedia Foundation.
+- Libertinus Serif: SIL Open Font License 1.1.

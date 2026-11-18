@@ -10,133 +10,103 @@ import (
 	"time"
 )
 
-// Settings are the user's choices, stored on the drive next to the books.
+// Settings are the user's choices, stored on the drive.
 type Settings struct {
-	CheckOnStart bool `json:"check_on_start"` // ask the catalogue when NABU starts
-	AutoDownload bool `json:"auto_download"`  // fetch newer editions without asking
+	CheckOnStart bool `json:"check_on_start"` // ask Wikimedia when NABU starts
+	AutoDownload bool `json:"auto_download"`  // fetch newer dumps unasked
+	Pictures     bool `json:"pictures"`       // load pictures from Wikimedia when online
 }
 
-// DefaultSettings: look for news, but never start a huge download unasked.
-var DefaultSettings = Settings{CheckOnStart: true, AutoDownload: false}
+// DefaultSettings: look for news and show pictures when online, but never
+// start a big download unasked.
+var DefaultSettings = Settings{CheckOnStart: true, Pictures: true}
 
-// Checker fetches the catalogue and remembers the last answer on disk,
-// so the update page still has something to show when offline.
+// Checker remembers, per wiki, the newest release seen and when.
 type Checker struct {
-	Dir        string // library directory
-	CatalogURL string
-	Client     *http.Client
+	Dir    string
+	Mirror string
+	Client *http.Client
 
-	mu        sync.Mutex
-	all       []Edition
-	checkedAt time.Time
-	lastErr   string
-	checking  bool
+	mu      sync.Mutex
+	known   map[string]*Checked
+	running map[string]bool
 }
 
-type cacheFile struct {
-	CheckedAt time.Time `json:"checked_at"`
-	Editions  []Edition `json:"editions"`
+// Checked is the result of asking about one wiki.
+type Checked struct {
+	Release *Release  `json:"release,omitempty"`
+	At      time.Time `json:"at"`
+	Err     string    `json:"error,omitempty"`
 }
 
-func (c *Checker) stateDir() string { return filepath.Join(c.Dir, ".nabu") }
+func (c *Checker) cachePath() string { return filepath.Join(c.Dir, ".nabu", "releases.json") }
 
-// LoadCache restores the last catalogue seen.
-func (c *Checker) LoadCache() {
-	b, err := os.ReadFile(filepath.Join(c.stateDir(), "catalog.json"))
-	if err != nil {
-		return
-	}
-	var cf cacheFile
-	if json.Unmarshal(b, &cf) == nil {
-		c.mu.Lock()
-		c.all, c.checkedAt = cf.Editions, cf.CheckedAt
-		c.mu.Unlock()
-	}
-}
-
-// Check asks the catalogue for the current list of editions.
-func (c *Checker) Check(ctx context.Context) error {
+// Load restores what was learned in earlier sessions.
+func (c *Checker) Load() {
 	c.mu.Lock()
-	if c.checking {
-		c.mu.Unlock()
-		return nil
+	defer c.mu.Unlock()
+	c.known = map[string]*Checked{}
+	c.running = map[string]bool{}
+	if b, err := os.ReadFile(c.cachePath()); err == nil {
+		json.Unmarshal(b, &c.known)
 	}
-	c.checking = true
+	for k, v := range c.known {
+		if v == nil {
+			delete(c.known, k)
+		}
+	}
+}
+
+// Check asks the server about wiki now.
+func (c *Checker) Check(ctx context.Context, wiki string) *Checked {
+	c.mu.Lock()
+	if c.known == nil {
+		c.known, c.running = map[string]*Checked{}, map[string]bool{}
+	}
+	if c.running[wiki] {
+		c.mu.Unlock()
+		return c.Get(wiki)
+	}
+	c.running[wiki] = true
 	c.mu.Unlock()
 
-	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	eds, err := FetchCatalog(ctx, c.Client, c.CatalogURL)
+	rel, err := Latest(ctx, c.Client, c.Mirror, wiki)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.checking = false
+	delete(c.running, wiki)
+	res := &Checked{At: time.Now()}
 	if err != nil {
-		c.lastErr = err.Error()
-		return err
+		res.Err = err.Error()
+		if prev := c.known[wiki]; prev != nil && prev.Release != nil {
+			res.Release = prev.Release // keep the last good answer
+		}
+	} else {
+		res.Release = rel
 	}
-	c.all, c.checkedAt, c.lastErr = eds, time.Now(), ""
-	if err := os.MkdirAll(c.stateDir(), 0o755); err == nil {
-		if b, err := json.Marshal(cacheFile{CheckedAt: c.checkedAt, Editions: eds}); err == nil {
-			os.WriteFile(filepath.Join(c.stateDir(), "catalog.json"), b, 0o644)
+	c.known[wiki] = res
+	if err := os.MkdirAll(filepath.Dir(c.cachePath()), 0o755); err == nil {
+		if b, err := json.Marshal(c.known); err == nil {
+			os.WriteFile(c.cachePath(), b, 0o644)
 		}
 	}
-	return nil
+	return res
 }
 
-// Snapshot returns the newest edition of every series and check state.
-func (c *Checker) Snapshot() (latest []Edition, checkedAt time.Time, lastErr string, checking bool) {
+// Get returns the last known answer for wiki, or nil.
+func (c *Checker) Get(wiki string) *Checked {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return Latest(c.all), c.checkedAt, c.lastErr, c.checking
+	return c.known[wiki]
 }
 
-// Find returns the catalogue entry for a file name.
-func (c *Checker) Find(file string) (Edition, bool) {
+// Checking reports whether a check of wiki is in flight.
+func (c *Checker) Checking(wiki string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for _, e := range c.all {
-		if e.File == file {
-			return e, true
-		}
-	}
-	return Edition{}, false
-}
-
-// Installed describes a book already on the drive.
-type Installed struct {
-	ID      string
-	Series  string
-	Edition string // YYYY-MM
-}
-
-// Available pairs an installed book with a newer edition of it.
-type Available struct {
-	BookID  string
-	Current string
-	Newer   Edition
-}
-
-// UpdatesFor lists newer editions for the installed books.
-func UpdatesFor(books []Installed, latest []Edition) []Available {
-	bySeries := map[string]Edition{}
-	for _, e := range latest {
-		bySeries[e.Series()] = e
-	}
-	have := map[string]string{}
-	for _, b := range books {
-		if b.Edition > have[b.Series] {
-			have[b.Series] = b.Edition
-		}
-	}
-	var out []Available
-	for _, b := range books {
-		e, ok := bySeries[b.Series]
-		if ok && b.Edition != "" && e.Date > b.Edition && have[b.Series] == b.Edition {
-			out = append(out, Available{BookID: b.ID, Current: b.Edition, Newer: e})
-		}
-	}
-	return out
+	return c.running[wiki]
 }
 
 // LoadSettings reads settings from the library, falling back to defaults.

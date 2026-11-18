@@ -1,10 +1,10 @@
 {{define "missing.html"}}{{template "head" .}}
 <div class="empty" style="margin-top:36px">
-  <h2>“{{.Title}}” is not in this edition</h2>
-  <p class="muted">{{.Book.Title}} does not include this page. Smaller editions leave some articles out.</p>
+  <h2 dir="auto">“{{.Title}}” is not in this Wikipedia</h2>
+  <p class="muted">There is no page with this title in the {{wikiname .Book.Files.DB}} dump.</p>
   {{if .Results}}<h3>Similar titles</h3>
-  <ul class="results" style="text-align:left;max-width:520px;margin:0 auto">{{range .Results}}<li><a href="{{.URL}}">{{.Title}}</a>{{if .Via}}<small>redirected from “{{.Via}}”</small>{{end}}</li>{{end}}</ul>{{end}}
-  <p style="margin-top:20px"><a class="btn" href="javascript:history.back()">Go back</a> <a class="btn" href="/content/{{.Book.ID}}/">Main page</a>
-  {{if .Online}} <a class="btn" href="{{.Online}}" rel="noopener">Read it online</a>{{end}}</p>
+  <ul class="results" dir="auto" style="text-align:start;max-width:520px;margin:0 auto">{{range .Results}}<li><a href="{{.URL}}">{{.Title}}</a></li>{{end}}</ul>{{end}}
+  <p style="margin-top:20px"><a class="btn" href="javascript:history.back()">Go back</a> <a class="btn" href="/{{.Book.ID}}/">Main page</a>
+  <a class="btn" href="{{.Online}}" rel="noopener">Look online</a></p>
 </div>
 {{template "foot" .}}{{end}}

@@ -18,9 +18,8 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
           cache: false
-      - name: Test (offline, vendored libraries)
+      - name: Test (standard library only, no downloads)
         env:
-          GOFLAGS: -mod=vendor
           GOTOOLCHAIN: local
         run: go test ./...
 

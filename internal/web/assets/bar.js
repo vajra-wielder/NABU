@@ -62,6 +62,7 @@
         }
         var more = el('li'), m = el('a', '', 'Search for “' + q + '” …');
         m.href = '/search?list=1&book=' + encodeURIComponent(book) + '&q=' + encodeURIComponent(q);
+        m.setAttribute('dir', 'auto');
         more.appendChild(m);
         list.appendChild(more);
         active = -1;
@@ -95,6 +96,15 @@
       if (q) { ev.preventDefault(); q.focus(); q.select(); }
     });
   }
+
+  // Pictures come from Wikimedia when online. When one cannot load
+  // (offline, blocked), show its labelled frame instead.
+  document.addEventListener('error', function (ev) {
+    var t = ev.target;
+    if (t && t.tagName === 'IMG' && t.parentNode && t.parentNode.className === 'pic') {
+      t.parentNode.className = 'pic broken';
+    }
+  }, true);
 
   if (!Element.prototype.closest) {
     Element.prototype.closest = function (s) {

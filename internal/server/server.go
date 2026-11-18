@@ -1,6 +1,5 @@
-// Package server is NABU's local web server: it serves articles straight
-// out of ZIM files, adds a small search bar to every page, and hosts the
-// library, search and update pages.
+// Package server is NABU's local web server: it renders articles from
+// the dumps on the drive and hosts the library, search and update pages.
 package server
 
 import (
@@ -10,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -27,10 +27,10 @@ type Server struct {
 	Lib       *library.Library
 	Checker   *update.Checker
 	Downloads *update.Manager
-	Offline   bool     // never touch the network
-	LAN       bool     // listening on all interfaces
-	Addrs     []string // URLs where NABU can be reached, for the UI
-	Shutdown  func()   // stops the program
+	Offline   bool
+	LAN       bool
+	Addrs     []string
+	Shutdown  func()
 
 	settingsMu sync.Mutex
 	tmpl       *template.Template
@@ -54,44 +54,68 @@ func New(lib *library.Library, checker *update.Checker, dl *update.Manager) (*Se
 	return s, nil
 }
 
-// ServeHTTP dispatches requests. A hand-written router is used instead of
-// http.ServeMux because the mux "cleans" paths, and real article names
-// contain things like "//" and "/./" that must reach the archive intact.
+var bookPathRe = regexp.MustCompile(`^/([a-z0-9_]+(?:-\d{8})?)(/.*)?$`)
+
+// ServeHTTP dispatches requests. A hand-written router is used because
+// http.ServeMux "cleans" paths, and article titles can contain "//" or
+// "/./" that must arrive intact.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !s.hostAllowed(r.Host) {
-		// Blocks DNS rebinding: a web page on some evil.example domain
-		// resolving to 127.0.0.1 cannot talk to NABU.
+		// Blocks DNS rebinding: a page on some evil.example domain that
+		// resolves to 127.0.0.1 cannot talk to NABU.
 		http.Error(w, "NABU only answers to localhost and IP addresses", http.StatusMisdirectedRequest)
 		return
 	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Referrer-Policy", "no-referrer")
 	p := r.URL.Path
 	switch {
-	case strings.HasPrefix(p, "/content/"):
-		s.serveContent(w, r)
 	case p == "/":
 		s.serveHome(w, r)
 	case p == "/search":
-		s.serveSearch(w, r)
+		s.serveSearch(w, r, s.pickBook(r))
 	case p == "/suggest":
 		s.serveSuggest(w, r)
-	case p == "/random":
-		s.serveRandom(w, r)
 	case p == "/nabu/updates":
 		s.serveUpdates(w, r)
 	case p == "/nabu/about":
 		s.serveAbout(w, r)
-	case strings.HasPrefix(p, "/nabu/icon/"):
-		s.serveIcon(w, r)
 	case strings.HasPrefix(p, "/nabu/static/"):
 		w.Header().Set("Cache-Control", "public, max-age=86400")
 		s.static.ServeHTTP(w, r)
-	case p == "/favicon.ico":
-		http.Redirect(w, r, "/nabu/static/nabu.svg", http.StatusMovedPermanently)
 	case strings.HasPrefix(p, "/nabu/api/"):
 		s.serveAPI(w, r)
+	case p == "/favicon.ico":
+		http.Redirect(w, r, "/nabu/static/nabu.svg", http.StatusMovedPermanently)
 	default:
-		s.notFound(w, r, "", "")
+		if m := bookPathRe.FindStringSubmatch(p); m != nil {
+			if b := s.Lib.Get(m[1]); b != nil {
+				s.serveBook(w, r, b, m[2])
+				return
+			}
+		}
+		s.errorPage(w, r, http.StatusNotFound, "Not found", "There is nothing at this address.")
+	}
+}
+
+func (s *Server) serveBook(w http.ResponseWriter, r *http.Request, b *library.Book, rest string) {
+	if b.Reader() == nil {
+		s.preparing(w, r, b)
+		return
+	}
+	switch {
+	case rest == "" || rest == "/":
+		http.Redirect(w, r, articleURL(b, b.Site().MainPage()), http.StatusFound)
+	case strings.HasPrefix(rest, "/wiki/"):
+		s.serveArticle(w, r, b, rest[len("/wiki/"):], false)
+	case strings.HasPrefix(rest, "/source/"):
+		s.serveArticle(w, r, b, rest[len("/source/"):], true)
+	case rest == "/search":
+		s.serveSearch(w, r, b)
+	case rest == "/random":
+		s.serveRandom(w, r, b)
+	default:
+		s.errorPage(w, r, http.StatusNotFound, "Not found", "There is nothing at this address.")
 	}
 }
 
@@ -109,8 +133,7 @@ func (s *Server) hostAllowed(host string) bool {
 }
 
 // isLocal reports whether the request comes from this computer. Actions
-// that change the drive (downloads, deletions, shutdown) are only
-// accepted from here, even when sharing on the network.
+// that change the drive are only accepted from here.
 func isLocal(r *http.Request) bool {
 	h, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -134,11 +157,10 @@ func (s *Server) Run(ctx context.Context, ln net.Listener) error {
 		defer cancel()
 		srv.Shutdown(sctx)
 	}()
-	err := srv.Serve(ln)
-	if err == http.ErrServerClosed {
-		return nil
+	if err := srv.Serve(ln); err != http.ErrServerClosed {
+		return err
 	}
-	return err
+	return nil
 }
 
 type discard struct{}

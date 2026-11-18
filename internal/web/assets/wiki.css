@@ -1,0 +1,132 @@
+/* Article pages: Wikipedia's reading layout, rebuilt small. Serif
+   headings in Linux Libertine (bundled as Libertinus), body text in the
+   computer's own sans-serif, infoboxes and thumbnails floating to the
+   side, and dark mode. */
+:root {
+  --w-bg: #ffffff; --w-ink: #202122; --w-soft: #54595d; --w-line: #a2a9b1; --w-line-soft: #c8ccd1;
+  --w-box: #f8f9fa; --w-head: #eaecf0; --w-link: #3366cc; --w-visited: #6a60b0; --w-ext: #3366cc;
+  --w-hat: #f8f9fa; --w-code: #f8f9fa;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --w-bg: #101418; --w-ink: #eaecf0; --w-soft: #a2a9b1; --w-line: #54595d; --w-line-soft: #3a3f44;
+    --w-box: #1b1f24; --w-head: #262b31; --w-link: #88a3e8; --w-visited: #a799cd; --w-ext: #88a3e8;
+    --w-hat: #1b1f24; --w-code: #1b1f24;
+    color-scheme: dark;
+  }
+  .wiki img { background: #fff; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body.wiki { margin: 0; background: var(--w-bg); color: var(--w-ink);
+  font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif; }
+.page { max-width: 1000px; margin: 0 auto; padding: 8px 20px 40px; }
+.wiki a { color: var(--w-link); text-decoration: none; }
+.wiki a:hover { text-decoration: underline; }
+.wiki a.external { color: var(--w-ext); }
+.wiki a.external::after { content: "\2009\2197"; font-size: .8em; }
+.firstHeading { font-family: 'Linux Libertine', 'Libertinus Serif', Georgia, 'Times', serif; font-weight: normal;
+  font-size: 2rem; line-height: 1.3; margin: 18px 0 2px; padding-bottom: 4px; border-bottom: 1px solid var(--w-line); overflow-wrap: anywhere; }
+.firstHeading small { font-size: .5em; color: var(--w-soft); }
+.tagline { color: var(--w-soft); font-size: .85rem; margin: 6px 0 16px; }
+.redirect-note a { color: var(--w-soft); text-decoration: underline; }
+.mw-body h2, .mw-body h3, .mw-body h4, .mw-body h5, .mw-body h6 { clear: none; line-height: 1.3; margin: 1.2em 0 .4em; }
+.mw-body h2 { font-family: 'Linux Libertine', 'Libertinus Serif', Georgia, 'Times', serif; font-weight: normal; font-size: 1.5rem;
+  border-bottom: 1px solid var(--w-line); padding-bottom: 2px; }
+.mw-body h3 { font-size: 1.2rem; font-weight: 700; }
+.mw-body h4, .mw-body h5, .mw-body h6 { font-size: 1rem; font-weight: 700; }
+.mw-body p { margin: .5em 0; }
+.mw-body ul, .mw-body ol { margin: .3em 0 .5em; padding-inline-start: 1.6em; }
+.mw-body dl { margin: .2em 0 .5em; }
+.mw-body dd { margin-inline-start: 1.6em; }
+.mw-body dt { font-weight: 700; }
+.mw-body blockquote { margin: 1em 2em; padding: 0 1em; border-inline-start: 4px solid var(--w-line-soft); }
+.mw-body pre, .source { background: var(--w-code); border: 1px solid var(--w-line-soft); padding: 12px; overflow-x: auto;
+  white-space: pre-wrap; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.mw-body code { background: var(--w-code); border: 1px solid var(--w-line-soft); border-radius: 2px; padding: 1px 4px; font-size: .9em; }
+.mw-body code.math { border: 0; background: none; font-family: 'Linux Libertine', 'Libertinus Serif', Georgia, serif; font-style: italic; }
+.mw-body .texhtml { font-family: 'Linux Libertine', 'Libertinus Serif', Georgia, serif; font-size: 1.1em; white-space: nowrap; }
+.mw-body hr { border: 0; border-top: 1px solid var(--w-line); }
+.mw-body .selflink { font-weight: 700; }
+.hatnote { font-style: italic; padding-inline-start: 1.6em; margin: .4em 0 .8em; color: var(--w-ink); }
+.hatnote a { font-style: normal; }
+.coord-title { float: right; font-size: .85em; margin-top: -2.2em; }
+[dir=rtl] .coord-title { float: left; }
+
+/* Infobox */
+.infobox { float: right; clear: right; width: 22em; max-width: 100%; margin: .5em 0 1em 1.4em; border: 1px solid var(--w-line);
+  background: var(--w-box); border-spacing: 3px; font-size: 88%; line-height: 1.5; }
+[dir=rtl] .infobox { float: left; clear: left; margin: .5em 1.4em 1em 0; }
+.infobox .infobox-title { font-size: 125%; font-weight: 700; padding: .3em; text-align: center; }
+.infobox th, .infobox td { vertical-align: top; text-align: start; padding: .2em .4em; }
+.infobox th[scope=row] { width: 40%; }
+.infobox .infobox-image, .infobox .infobox-full { text-align: center; }
+.infobox .infobox-header { background: var(--w-head); text-align: center; }
+.infobox-caption { font-size: 95%; padding-top: .2em; }
+.infobox ul { padding-inline-start: 1.2em; margin: 0; }
+.plainlist, ul.plainlist { list-style: none; padding: 0 !important; margin: 0; }
+.plainlist ul { list-style: none; padding: 0; margin: 0; }
+.hlist ul, ul.hlist { display: inline; padding: 0 !important; margin: 0; list-style: none; }
+.hlist li { display: inline; }
+.hlist li + li::before { content: " · "; font-weight: 700; }
+
+/* Pictures */
+figure { margin: 0; }
+.thumb { border: 1px solid var(--w-line-soft); background: var(--w-box); padding: 3px; font-size: 88%; text-align: center; max-width: 100%; }
+.thumb.tright, figure.float.tright { float: right; clear: right; margin: .5em 0 1em 1.4em; }
+.thumb.tleft, figure.float.tleft { float: left; clear: left; margin: .5em 1.4em 1em 0; }
+.thumb.tcenter, figure.float.tcenter, .thumb.tnone { margin: .5em auto 1em; clear: both; }
+.thumb figcaption { text-align: start; padding: 4px 2px 2px; line-height: 1.4; }
+.pic { display: inline-block; position: relative; max-width: 100%; }
+.pic img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.pic .pic-ph { display: none; }
+.pic.broken img { display: none; }
+.pic.broken .pic-ph, .pic-ph { display: block; min-height: 64px; padding: 18px 8px; background: var(--w-head); color: var(--w-soft);
+  font-size: 85%; text-align: center; overflow-wrap: anywhere; border-radius: 2px; }
+.gallery { display: flex; flex-wrap: wrap; gap: 8px; margin: .8em 0; clear: both; }
+.gallery-item { width: 190px; border: 1px solid var(--w-line-soft); background: var(--w-box); padding: 4px; font-size: 85%; }
+.gallery-item figcaption { padding-top: 4px; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; max-width: 100%; }
+.mw-body table { border-collapse: collapse; }
+.wikitable { background: var(--w-box); border: 1px solid var(--w-line); margin: 1em 0; color: var(--w-ink); }
+.wikitable > tbody > tr > th, .wikitable > tbody > tr > td, .wikitable > caption { border: 1px solid var(--w-line); padding: .2em .4em; }
+.wikitable > tbody > tr > th { background: var(--w-head); text-align: center; }
+.wikitable caption { font-weight: 700; }
+@media (prefers-color-scheme: dark) {
+  .mw-body [style*="background"] { color: #202122; }
+  .mw-body .wikitable th[style*="background"], .mw-body .wikitable td[style*="background"] { color: #202122; }
+}
+
+/* References and contents */
+sup.reference { line-height: 1; font-size: .75em; white-space: nowrap; }
+ol.references { font-size: 90%; padding-inline-start: 2.2em; }
+ol.references li { margin-bottom: .2em; }
+ol.references li:target { background: color-mix(in srgb, var(--w-link) 15%, transparent); }
+.ref-back { font-weight: 700; margin-inline-end: .2em; }
+cite.citation { font-style: normal; }
+.toc { display: inline-block; border: 1px solid var(--w-line); background: var(--w-box); padding: 6px 14px 6px 10px; margin: .6em 0 .4em; font-size: 95%; max-width: 100%; }
+.toc summary { font-weight: 700; cursor: pointer; text-align: center; }
+.toc ol { list-style: none; counter-reset: s; padding-inline-start: 1.2em; margin: .2em 0; }
+.toc > details > ol { padding-inline-start: 0; }
+.toc li { counter-increment: s; }
+.toc li > a::before { content: counters(s, ".") " "; color: var(--w-ink); }
+.poem p { white-space: normal; }
+.quote-source { text-align: end; color: var(--w-soft); }
+.catlinks { clear: both; border: 1px solid var(--w-line); background: var(--w-box); padding: 6px 10px; margin-top: 2em; font-size: 88%; }
+.page-foot { clear: both; margin-top: 2em; padding-top: 10px; border-top: 1px solid var(--w-line-soft); color: var(--w-soft); font-size: 80%; }
+.source { min-height: 60vh; }
+
+@media (max-width: 720px) {
+  .page { padding: 4px 12px 32px; }
+  .firstHeading { font-size: 1.6rem; }
+  .infobox, [dir=rtl] .infobox { float: none; width: 100%; margin: .5em 0 1em; }
+  .thumb.tright, .thumb.tleft, figure.float { float: none; margin: .5em auto 1em; }
+  .mw-body blockquote { margin: 1em .5em; }
+}
+@media print {
+  .page { max-width: none; }
+  .wiki a.external::after { content: ""; }
+}

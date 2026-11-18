@@ -1,22 +1,26 @@
 {{define "about.html"}}{{template "head" .}}
 <div class="prose">
 <h1 style="margin-top:32px">About NABU</h1>
-<p><em>Nabu</em> was the Babylonian god of scribes, writing and wisdom. His symbol was a single wedge pressed into clay, the stylus that wrote the world's first libraries. His temples kept tablets and his priests copied them, so that knowledge outlived the people who wrote it down.</p>
-<p>This NABU does the same for Wikipedia. Carry it on a pen drive, plug it into almost any computer, and the whole encyclopedia opens in the browser: every article, link, picture and table, without an internet connection.</p>
+<p><em>Nabu</em> was the Babylonian god of scribes, writing and wisdom. His symbol was a single wedge pressed into clay, the stylus that wrote the first libraries. His temples kept tablets so that knowledge outlived the people who wrote it down.</p>
+<p>This NABU keeps Wikipedia. It reads the compressed dumps that Wikimedia itself publishes, the same bytes, unconverted, so a whole Wikipedia takes a fraction of the space of other offline copies. It opens any article in a few hundredths of a second on almost any computer.</p>
 
 <h2>How it works</h2>
-<p>NABU is a small program (about 10 MB) with versions for Windows, macOS and Linux on Intel, AMD and ARM processors. It reads Wikipedia from <code>.zim</code> files in the library folder and shows the pages to your browser at a private address on this computer. Nothing is installed and nothing is written to the computer you plug into.</p>
-<p>When it starts and the computer is online, NABU asks the Kiwix catalogue whether a newer Wikipedia snapshot exists, and offers to download it onto the drive.</p>
+<p>A "multistream" dump is the XML of every page, compressed with bzip2 in small independent pieces of 100 pages. Wikimedia's index says which piece holds which page. The first time NABU sees a dump, it sorts that index into a compact search index on the drive. After that, opening a page means reading and unpacking one piece, about half a megabyte, then turning its wikitext into a web page.</p>
+<p>Dumps contain text, not pictures. When the computer is online, NABU can show pictures straight from Wikimedia Commons. Offline, a labelled frame shows where each picture belongs.</p>
+
+<h2 id="languages">Why these ten languages</h2>
+<p>NABU offers the smallest set of languages that, between them, are official or co-official in the countries covering the most land. Each language is picked for the extra area it adds:</p>
+<ol>{{range .Langs}}<li><strong>{{.En}}</strong>: {{.Covers}}</li>{{end}}</ol>
+<p>Together they cover about 91% of the land outside Antarctica. The calculation is in <code>docs/language_coverage.py</code>. Danish makes the list for Greenland's vast area.</p>
 
 <h2>This session</h2>
 <p>Library folder: <code>{{.Dir}}</code><br>
 Running for: {{.Uptime}}<br>
-{{if .LAN}}Shared on your network at: {{range $i, $a := .Addrs}}{{if $i}}, {{end}}<code>{{$a}}</code>{{end}}{{else}}Only this computer can open the library. To share it with other devices on your Wi-Fi, start NABU with <code>--lan</code>.{{end}}<br>
-Catalogue: <code>{{.Catalog}}</code></p>
+{{if .LAN}}Shared on your network at: {{range $i, $a := .Addrs}}{{if $i}}, {{end}}<code>{{$a}}</code>{{end}}{{else}}Only this computer can open the library. Start NABU with <code>--lan</code> to share it on your Wi-Fi.{{end}}<br>
+Dump server: <code>{{.Mirror}}</code></p>
 
 <h2>Credits &amp; licences</h2>
-<p>Wikipedia articles are written by volunteers and shared under the <a href="https://creativecommons.org/licenses/by-sa/4.0/">Creative Commons Attribution-ShareAlike</a> licence. Images carry their own licences, listed on each image's description page.</p>
-<p>The ZIM files are built by <a href="https://www.kiwix.org/">Kiwix</a> and <a href="https://openzim.org/">openZIM</a>. NABU uses the Go libraries <code>klauspost/compress</code> (BSD 3-Clause and others) and <code>ulikunitz/xz</code> (BSD 3-Clause), and ships the Libertinus Serif typeface (SIL Open Font License 1.1). NABU itself is MIT-licensed.</p>
+<p>Wikipedia articles are written by volunteers and shared under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>. Dumps are published by the Wikimedia Foundation. NABU uses only the Go standard library and ships the Libertinus Serif typeface (SIL Open Font License 1.1). NABU itself is MIT-licensed.</p>
 {{if .Local}}<p><button class="btn danger" data-action="shutdown" data-confirm="Stop NABU? You can then safely remove the drive.">Turn off NABU</button></p>{{end}}
 </div>
 {{template "foot" .}}{{end}}

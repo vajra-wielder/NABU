@@ -1,9 +1,7 @@
-/* The slim NABU bar added to the top of every article. Selectors are
-   prefixed and properties set explicitly so Wikipedia's own stylesheet
-   cannot bend it, and it cannot bend Wikipedia. */
-html { padding-top: 44px !important; scroll-padding-top: 56px; }
+/* The slim NABU bar at the top of every article. */
+html { scroll-padding-top: 56px; }
 #nabu-bar {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 2147483000;
+  position: sticky; top: 0; z-index: 100;
   display: flex; align-items: center; gap: 10px;
   margin: 0; padding: 6px 12px; min-height: 44px;
   background: #1d3a8a; color: #fff;
@@ -32,4 +30,4 @@ html { padding-top: 44px !important; scroll-padding-top: 56px; }
   #nabu-bar .nabu-book { display: none; }
   #nabu-bar .nabu-brand span { display: none; }
 }
-@media print { #nabu-bar { display: none; } html { padding-top: 0 !important; } }
+@media print { #nabu-bar { display: none; } }

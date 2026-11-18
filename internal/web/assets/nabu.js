@@ -1,4 +1,5 @@
-// NABU pages: buttons that act on the drive, and live download progress.
+// NABU pages: buttons that act on the drive, and live progress for
+// downloads and for preparing new dumps. Plain ES5 for old browsers.
 (function () {
   'use strict';
 
@@ -32,19 +33,21 @@
   }
 
   var labels = {
-    starting: 'Contacting the server…',
+    starting: 'Contacting Wikimedia…',
     checking: 'Checking the part already downloaded…',
     downloading: 'Downloading',
     retrying: 'Connection lost, retrying soon…',
-    finishing: 'Verifying and installing…',
-    done: 'Installed and ready to read.',
+    finishing: 'Installing…',
+    done: 'Downloaded and verified. NABU is now preparing it for reading.',
     failed: 'Download stopped',
     cancelled: 'Paused. You can resume later; nothing is lost.'
   };
 
-  // Live progress box.
   var box = document.getElementById('dl');
-  var wasActive = false;
+  var preps = document.querySelectorAll('[data-prep]');
+  var wasActive = false, wasChecking = false;
+  var readyBefore = {};
+
   function poll() {
     var xhr = new XMLHttpRequest();
     xhr.open('GET', '/nabu/api/status');
@@ -55,7 +58,8 @@
       var active = ['starting', 'checking', 'downloading', 'retrying', 'finishing'].indexOf(d.state) >= 0;
       if (box) {
         box.hidden = d.state === 'idle';
-        box.querySelector('[data-file]').textContent = d.file || '';
+        box.querySelector('[data-file]').textContent = d.release || '';
+        box.querySelector('[data-part]').textContent = active ? (d.file || '') : '';
         var pct = d.total > 0 ? Math.min(100, 100 * d.done / d.total) : 0;
         box.querySelector('.progress > div').style.width = pct.toFixed(1) + '%';
         var line = labels[d.state] || d.state;
@@ -64,29 +68,33 @@
           if (d.speed > 0 && d.state === 'downloading') line += ' · ' + human(d.speed) + '/s';
           if (d.eta) line += ' · about ' + duration(d.eta) + ' left';
         }
-        if (d.state === 'done' && d.verified) line += ' Checksum verified.';
         box.querySelector('[data-line]').textContent = line;
-        var err = box.querySelector('[data-error]');
-        err.textContent = d.error && (d.state === 'failed' || d.state === 'retrying') ? d.error : '';
+        box.querySelector('[data-error]').textContent = d.error && (d.state === 'failed' || d.state === 'retrying') ? d.error : '';
         box.querySelector('[data-cancel]').hidden = !active;
         box.className = 'notice' + (d.state === 'failed' ? ' bad' : d.state === 'done' ? ' ok' : '');
       }
+      var preparing = false;
+      for (var i = 0; i < (st.books || []).length; i++) {
+        var b = st.books[i];
+        if (b.state === 'preparing' || b.state === 'waiting') preparing = true;
+        var el = document.querySelector('[data-prep="' + b.id + '"] .progress > div');
+        if (el && b.total > 0) el.style.width = (100 * b.done / b.total).toFixed(1) + '%';
+        if (readyBefore[b.id] === false && b.state === 'ready' && preps.length) { location.reload(); return; }
+        readyBefore[b.id] = b.state === 'ready';
+      }
       var checking = document.querySelector('[data-checking]');
       if (checking) checking.hidden = !st.checking;
-      if (wasActive && !active) { setTimeout(function () { location.reload(); }, 800); }
-      if (document.body.getAttribute('data-was-checking') === '1' && !st.checking) {
-        document.body.removeAttribute('data-was-checking');
-        location.reload();
-      }
+      if ((wasActive && !active) || (wasChecking && !st.checking)) { setTimeout(function () { location.reload(); }, 600); return; }
       wasActive = active;
-      setTimeout(poll, active || st.checking ? 1000 : 5000);
+      wasChecking = st.checking;
+      setTimeout(poll, active || st.checking || preparing ? 1000 : 5000);
     };
     xhr.onerror = function () { setTimeout(poll, 5000); };
     xhr.send();
   }
-  if (box || document.querySelector('[data-checking]')) poll();
+  if (box || preps.length || document.querySelector('[data-checking]')) poll();
 
-  // Buttons: <button data-action="download" data-file="...">.
+  // Buttons: <button data-action="download" data-wiki="enwiki">.
   document.addEventListener('click', function (ev) {
     var b = ev.target.closest ? ev.target.closest('[data-action]') : null;
     if (!b) return;
@@ -94,22 +102,32 @@
     var action = b.getAttribute('data-action');
     var confirmText = b.getAttribute('data-confirm');
     if (confirmText && !confirm(confirmText)) return;
-    var body = { file: b.getAttribute('data-file') || '', book: b.getAttribute('data-book') || '' };
+    var body = {
+      wiki: b.getAttribute('data-wiki') || '',
+      key: b.getAttribute('data-key') || '',
+      book: b.getAttribute('data-book') || ''
+    };
     b.disabled = true;
     post(action, body, function (ok) {
       b.disabled = false;
       if (!ok) return;
       if (action === 'shutdown') {
-        document.body.innerHTML = '<div class="wrap" style="text-align:center;padding:80px 16px"><img src="/nabu/static/nabu.svg" width="72" height="72" alt=""><h1 style="font-family:var(--serif)">NABU has stopped.</h1><p>It is now safe to close this tab and remove the drive.</p></div>';
+        document.body.innerHTML = '<div style="text-align:center;padding:80px 16px;font-family:system-ui,sans-serif"><img src="/nabu/static/nabu.svg" width="72" height="72" alt=""><h1>NABU has stopped.</h1><p>It is now safe to close this tab and remove the drive.</p></div>';
         return;
       }
-      if (action === 'check') { document.body.setAttribute('data-was-checking', '1'); poll(); return; }
-      if (action === 'download' || action === 'resume') { window.scrollTo(0, 0); }
+      if (action === 'check') {
+        wasChecking = true;
+        var c = document.querySelector('[data-checking]');
+        if (c) c.hidden = false;
+        setTimeout(poll, 800);
+        return;
+      }
+      if (action === 'download' || action === 'resume') window.scrollTo(0, 0);
       location.reload();
     });
   });
 
-  // Settings switches: <input type=checkbox data-setting="auto_download">.
+  // Settings switches: <input type=checkbox data-setting="pictures">.
   var switches = document.querySelectorAll('[data-setting]');
   for (var i = 0; i < switches.length; i++) {
     switches[i].addEventListener('change', function (ev) {
@@ -118,8 +136,4 @@
       post('settings', body);
     });
   }
-
-  // Language filter on the catalogue.
-  var lang = document.getElementById('lang');
-  if (lang) lang.addEventListener('change', function () { location.href = '/nabu/updates?lang=' + encodeURIComponent(lang.value) + '#catalogue'; });
 })();

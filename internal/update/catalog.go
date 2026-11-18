@@ -1,180 +1,136 @@
-// Package update discovers newer Wikipedia dumps and downloads them.
+// Package update asks Wikimedia for the newest dump of a wiki and
+// downloads it.
 //
-// Wikimedia publishes raw dumps (wikitext, no images, no rendering) at
-// dumps.wikimedia.org. The Kiwix project turns each one into a ZIM file
-// with the pages fully rendered, pictures included, and publishes them at
-// download.kiwix.org. NABU reads those, so that is the catalogue it asks.
+// Every wiki's latest "pages-articles-multistream" dump is announced in a
+// small RSS file, and each dump run has a dumpstatus.json listing its
+// files with sizes and SHA-1 checksums. Both live on dumps.wikimedia.org
+// (or a mirror with the same layout).
 package update
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"regexp"
-	"sort"
-	"strconv"
 	"strings"
 )
 
-// DefaultCatalogURL is the Kiwix directory of Wikipedia ZIM files.
-const DefaultCatalogURL = "https://download.kiwix.org/zim/wikipedia/"
+// DefaultMirror is Wikimedia's own dump server.
+const DefaultMirror = "https://dumps.wikimedia.org"
 
-// Edition is one downloadable dump.
-type Edition struct {
-	File      string `json:"file"`      // wikipedia_en_all_maxi_2026-10.zim
-	URL       string `json:"url"`       // absolute download URL
-	Lang      string `json:"lang"`      // en, fr, zh-classical, ...
-	Selection string `json:"selection"` // all, top, 100, simple_all, medicine, ...
-	Flavour   string `json:"flavour"`   // maxi, nopic, mini (or "")
-	Date      string `json:"date"`      // 2026-10
-	Size      int64  `json:"size"`      // approximate, from the listing
+// RemoteFile is one file of a dump.
+type RemoteFile struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	Size int64  `json:"size"`
+	SHA1 string `json:"sha1"`
 }
 
-// Series is the edition's family name without the date, matching the
-// Name_Flavour metadata of an installed book.
-func (e Edition) Series() string {
-	s := "wikipedia_" + e.Lang + "_" + e.Selection
-	if e.Flavour != "" {
-		s += "_" + e.Flavour
-	}
-	return s
+// Release is a complete multistream dump: the XML and its index.
+type Release struct {
+	Wiki  string       `json:"wiki"` // dbname, e.g. "enwiki"
+	Date  string       `json:"date"` // e.g. "20261101"
+	Files []RemoteFile `json:"files"`
 }
 
-// Describe is a plain-language summary of what the edition contains.
-func (e Edition) Describe() string {
-	var what string
-	switch e.Selection {
-	case "all":
-		what = "Complete Wikipedia"
-	case "simple_all":
-		what = "Simple English Wikipedia"
-	case "top":
-		what = "Most-read articles"
-	case "100":
-		what = "Top 100 articles (sampler)"
-	default:
-		what = "Topic: " + strings.ReplaceAll(e.Selection, "_", " ")
+// Size is the total download size.
+func (r Release) Size() int64 {
+	var n int64
+	for _, f := range r.Files {
+		n += f.Size
 	}
-	switch e.Flavour {
-	case "maxi":
-		return what + ", full articles with pictures"
-	case "nopic":
-		return what + ", full articles, no pictures"
-	case "mini":
-		return what + ", introductions only"
-	}
-	return what
+	return n
 }
+
+// Key names the release, e.g. "enwiki-20261101".
+func (r Release) Key() string { return r.Wiki + "-" + r.Date }
+
+// UserAgent identifies NABU to Wikimedia, as their policy asks.
+var UserAgent = "NABU-offline-wikipedia/1 (https://github.com/vajra-wielder/nabu)"
 
 var (
-	zimHrefRe = regexp.MustCompile(`href="(wikipedia_[^"/]+\.zim)"`)
-	nameRe    = regexp.MustCompile(`^wikipedia_([a-z][a-z0-9-]*)_(.+)_(\d{4}-\d{2})\.zim$`)
-	sizeRe    = regexp.MustCompile(`(?:^|[\s>])(\d+(?:\.\d+)?)([KMGT])(?:[\s<]|$)`)
+	rssDateRe = regexp.MustCompile(`/` + `[a-z0-9_]+/(\d{8})`)
+	wikiRe    = regexp.MustCompile(`^[a-z0-9_]{2,40}$`)
 )
 
-// ParseName splits a Kiwix Wikipedia file name into its parts.
-func ParseName(file string) (Edition, bool) {
-	m := nameRe.FindStringSubmatch(file)
+// Latest asks the mirror for the newest finished multistream dump of
+// wiki (a dbname such as "enwiki" or "zh_yuewiki").
+func Latest(ctx context.Context, client *http.Client, mirror, wiki string) (*Release, error) {
+	if !wikiRe.MatchString(wiki) {
+		return nil, fmt.Errorf("%q is not a wiki name", wiki)
+	}
+	mirror = strings.TrimRight(mirror, "/")
+	rss, err := get(ctx, client, fmt.Sprintf("%s/%s/latest/%s-latest-pages-articles-multistream-index.txt.bz2-rss.xml", mirror, wiki, wiki), 1<<20)
+	if err != nil {
+		return nil, err
+	}
+	m := rssDateRe.FindAllStringSubmatch(string(rss), -1)
 	if m == nil {
-		return Edition{}, false
+		return nil, errors.New("the dump server did not say which dump is newest")
 	}
-	e := Edition{File: file, Lang: m[1], Selection: m[2], Date: m[3]}
-	for _, f := range []string{"maxi", "nopic", "mini"} {
-		if strings.HasSuffix(e.Selection, "_"+f) {
-			e.Flavour = f
-			e.Selection = strings.TrimSuffix(e.Selection, "_"+f)
-		}
+	date := m[len(m)-1][1]
+	status, err := get(ctx, client, fmt.Sprintf("%s/%s/%s/dumpstatus.json", mirror, wiki, date), 8<<20)
+	if err != nil {
+		return nil, err
 	}
-	return e, true
+	rel, err := parseStatus(status, wiki, date, mirror)
+	if err != nil {
+		return nil, err
+	}
+	return rel, nil
 }
 
-// ParseListing extracts editions from an Apache/nginx style directory
-// index page. Sizes such as "102G" are read from the text that follows
-// each link on the same row.
-func ParseListing(page, base string) []Edition {
-	baseURL, err := url.Parse(base)
-	if err != nil {
-		return nil
+type dumpStatus struct {
+	Jobs map[string]struct {
+		Status string `json:"status"`
+		Files  map[string]struct {
+			Size int64  `json:"size"`
+			SHA1 string `json:"sha1"`
+			URL  string `json:"url"`
+		} `json:"files"`
+	} `json:"jobs"`
+}
+
+// parseStatus picks the combined multistream file and its index from a
+// dumpstatus.json. (Big wikis also offer the same data in numbered
+// parts; one file is simpler to fetch and NABU splits it for FAT32.)
+func parseStatus(b []byte, wiki, date, mirror string) (*Release, error) {
+	var ds dumpStatus
+	if err := json.Unmarshal(b, &ds); err != nil {
+		return nil, fmt.Errorf("unreadable dumpstatus.json: %w", err)
 	}
-	var out []Edition
-	seen := map[string]bool{}
-	locs := zimHrefRe.FindAllStringSubmatchIndex(page, -1)
-	for i, loc := range locs {
-		file := page[loc[2]:loc[3]]
-		if seen[file] {
-			continue
-		}
-		seen[file] = true
-		e, ok := ParseName(file)
-		if !ok {
-			continue
-		}
-		ref, _ := url.Parse(url.PathEscape(file))
-		e.URL = baseURL.ResolveReference(ref).String()
-		rowEnd := len(page)
-		if i+1 < len(locs) {
-			rowEnd = locs[i+1][0]
-		}
-		row := page[loc[1]:rowEnd]
-		if nl := strings.IndexAny(row, "\n"); nl >= 0 {
-			if tr := strings.Index(row, "</tr>"); tr < 0 || nl < tr {
-				row = row[:nl]
+	data := wiki + "-" + date + "-pages-articles-multistream.xml.bz2"
+	index := wiki + "-" + date + "-pages-articles-multistream-index.txt.bz2"
+	rel := &Release{Wiki: wiki, Date: date}
+	for _, want := range []string{index, data} {
+		found := false
+		for _, job := range []string{"articlesmultistreamdumprecombine", "articlesmultistreamdump"} {
+			j, ok := ds.Jobs[job]
+			if !ok || j.Status != "done" {
+				continue
+			}
+			if f, ok := j.Files[want]; ok && f.Size > 0 {
+				u := f.URL
+				if strings.HasPrefix(u, "/") {
+					u = mirror + u
+				}
+				rel.Files = append(rel.Files, RemoteFile{Name: want, URL: u, Size: f.Size, SHA1: f.SHA1})
+				found = true
+				break
 			}
 		}
-		if m := sizeRe.FindAllStringSubmatch(row, -1); m != nil {
-			last := m[len(m)-1]
-			e.Size = parseSize(last[1], last[2])
-		}
-		out = append(out, e)
-	}
-	return out
-}
-
-func parseSize(num, unit string) int64 {
-	f, err := strconv.ParseFloat(num, 64)
-	if err != nil {
-		return 0
-	}
-	mult := map[string]float64{"K": 1 << 10, "M": 1 << 20, "G": 1 << 30, "T": 1 << 40}[unit]
-	return int64(f * mult)
-}
-
-// Latest keeps only the newest edition of every series.
-func Latest(eds []Edition) []Edition {
-	best := map[string]Edition{}
-	for _, e := range eds {
-		if b, ok := best[e.Series()]; !ok || e.Date > b.Date {
-			best[e.Series()] = e
+		if !found {
+			return nil, fmt.Errorf("the %s dump of %s is not finished yet", date, wiki)
 		}
 	}
-	out := make([]Edition, 0, len(best))
-	for _, e := range best {
-		out = append(out, e)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Lang != out[j].Lang {
-			return out[i].Lang < out[j].Lang
-		}
-		return rank(out[i]) < rank(out[j])
-	})
-	return out
+	return rel, nil
 }
 
-// rank orders a language's editions from most to least useful.
-func rank(e Edition) string {
-	sel := map[string]string{"all": "0", "simple_all": "1", "top": "2", "100": "9"}[e.Selection]
-	if sel == "" {
-		sel = "5" + e.Selection
-	}
-	fl := map[string]string{"maxi": "0", "nopic": "1", "mini": "2"}[e.Flavour]
-	return sel + fl
-}
-
-// FetchCatalog downloads and parses the directory listing at base.
-func FetchCatalog(ctx context.Context, client *http.Client, base string) ([]Edition, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", base, nil)
+func get(ctx context.Context, client *http.Client, url string, limit int64) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -184,19 +140,46 @@ func FetchCatalog(ctx context.Context, client *http.Client, base string) ([]Edit
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, errors.New("this wiki has no dump on the server")
+	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("catalogue returned %s", resp.Status)
+		return nil, fmt.Errorf("dump server answered %s", resp.Status)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
-	if err != nil {
-		return nil, err
-	}
-	eds := ParseListing(string(body), base)
-	if len(eds) == 0 {
-		return nil, fmt.Errorf("no Wikipedia editions found at %s", base)
-	}
-	return eds, nil
+	return io.ReadAll(io.LimitReader(resp.Body, limit))
 }
 
-// UserAgent identifies NABU to download servers.
-var UserAgent = "NABU-offline-wikipedia (+https://github.com/vajra-wielder/nabu)"
+// Language is one of the Wikipedias NABU offers to download.
+type Language struct {
+	Code   string // Wikipedia language code
+	Wiki   string // dbname
+	Name   string // in its own language
+	En     string // in English
+	Covers string // where it is the (co-)official language, by land area
+}
+
+// Languages is the smallest set of languages whose countries cover the
+// most land: the greedy set cover in docs/language_coverage.py. Ten
+// languages reach about 91% of the inhabited land area of the world.
+var Languages = []Language{
+	{"en", "enwiki", "English", "English", "Canada, USA, Australia, India, Nigeria, South Africa and 50+ more"},
+	{"ru", "ruwiki", "Русский", "Russian", "Russia, Kazakhstan, Belarus, Kyrgyzstan, Tajikistan"},
+	{"ar", "arwiki", "العربية", "Arabic", "Algeria, Saudi Arabia, Sudan, Libya, Egypt and the Arab world"},
+	{"es", "eswiki", "Español", "Spanish", "Argentina, Mexico, Peru, Colombia, Bolivia, Spain and more"},
+	{"pt", "ptwiki", "Português", "Portuguese", "Brazil, Angola, Mozambique, Portugal"},
+	{"zh", "zhwiki", "中文", "Chinese", "China, Taiwan"},
+	{"fr", "frwiki", "Français", "French", "DR Congo, Niger, Mali, Chad, France and Francophone Africa"},
+	{"fa", "fawiki", "فارسی", "Persian", "Iran, Afghanistan"},
+	{"da", "dawiki", "Dansk", "Danish", "Greenland, Denmark"},
+	{"id", "idwiki", "Bahasa Indonesia", "Indonesian", "Indonesia"},
+}
+
+// LanguageByWiki finds a language by dbname.
+func LanguageByWiki(wiki string) (Language, bool) {
+	for _, l := range Languages {
+		if l.Wiki == wiki {
+			return l, true
+		}
+	}
+	return Language{}, false
+}

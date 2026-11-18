@@ -1,149 +1,237 @@
-// Package library finds and opens the ZIM files on the NABU drive.
+// Package library keeps track of the Wikipedia dumps on the NABU drive
+// and prepares (indexes) new ones in the background.
 package library
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
-	"regexp"
+	"runtime"
 	"sort"
-	"strings"
 	"sync"
+	"time"
 
-	"github.com/vajra-wielder/nabu/internal/zim"
+	"github.com/vajra-wielder/nabu/internal/dump"
 )
 
-// Book is one opened archive.
+// Book states.
+const (
+	Waiting   = "waiting"   // queued for indexing
+	Preparing = "preparing" // building its index (first use only)
+	Ready     = "ready"
+	Failed    = "failed"
+)
+
+// Book is one edition of one wiki.
 type Book struct {
-	ID          string // URL-safe identifier, derived from the file name
-	Files       []string
-	Size        int64
-	Archive     *zim.Archive
-	Title       string
-	Description string
-	Language    string
-	Name        string // e.g. "wikipedia_en_all"
-	Flavour     string // e.g. "maxi", "nopic", "mini"
-	Date        string // e.g. "2026-10-01"
-	Articles    int64
-	HasIcon     bool
+	ID    string // URL name: "enwiki", or "enwiki-20261001" for an older copy
+	Files *dump.Files
+
+	mu      sync.Mutex
+	state   string
+	done    int64
+	total   int64
+	err     string
+	started time.Time
+	reader  *dump.Reader
 }
 
-// Series identifies a family of editions, e.g. "wikipedia_en_all_maxi".
-// A newer dump of the same series replaces an older one.
-func (b *Book) Series() string {
-	if b.Name != "" {
-		if b.Flavour != "" && !strings.HasSuffix(b.Name, "_"+b.Flavour) {
-			return b.Name + "_" + b.Flavour
-		}
-		return b.Name
-	}
-	if m := fileNameRe.FindStringSubmatch(b.ID); m != nil {
-		return m[1]
-	}
-	return b.ID
+// Status is a snapshot for display.
+type Status struct {
+	State    string
+	Done     int64
+	Total    int64
+	Err      string
+	Elapsed  time.Duration
+	Articles int64
 }
 
-// Edition is the dump month, "YYYY-MM". The file name is preferred
-// because it is what the download catalogue uses; the Date metadata
-// (when the file was built) is the fallback for renamed files.
-func (b *Book) Edition() string {
-	if m := fileNameRe.FindStringSubmatch(b.ID); m != nil {
-		return m[2]
+// Status reports the book's state.
+func (b *Book) Status() Status {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	s := Status{State: b.state, Done: b.done, Total: b.total, Err: b.err}
+	if b.state == Preparing {
+		s.Elapsed = time.Since(b.started)
 	}
-	if len(b.Date) >= 7 {
-		return b.Date[:7]
+	if b.reader != nil {
+		s.Articles = b.reader.Index.Meta.Articles
 	}
-	return ""
+	return s
 }
 
-var fileNameRe = regexp.MustCompile(`^(.+)_(\d{4}-\d{2})$`)
+// Reader returns the page reader, or nil until the book is ready.
+func (b *Book) Reader() *dump.Reader {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.reader
+}
 
-// Library is the set of books in a directory.
+// Site returns the wiki's siteinfo once ready.
+func (b *Book) Site() *dump.Siteinfo {
+	if r := b.Reader(); r != nil {
+		return r.Site()
+	}
+	return nil
+}
+
+// Library is the set of books in a folder.
 type Library struct {
 	Dir   string
 	mu    sync.RWMutex
 	books []*Book
 	byID  map[string]*Book
-	Errs  []string // files that could not be opened, for display
+	Notes []string
+
+	queue chan *Book
 }
 
-// Open scans dir for ZIM files.
+// Open scans dir and starts preparing any new dumps.
 func Open(dir string) (*Library, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
-	l := &Library{Dir: dir, byID: map[string]*Book{}}
+	l := &Library{Dir: dir, byID: map[string]*Book{}, queue: make(chan *Book, 256)}
+	go l.worker()
 	return l, l.Rescan()
 }
 
-// Rescan re-reads the directory, opening new files and closing removed ones.
-func (l *Library) Rescan() error {
-	ents, err := os.ReadDir(l.Dir)
-	if err != nil {
-		return err
-	}
-	groups := map[string][]string{}
-	for _, e := range ents {
-		name := e.Name()
-		if e.IsDir() || strings.HasPrefix(name, ".") {
-			continue
-		}
-		lower := strings.ToLower(name)
-		switch {
-		case strings.HasSuffix(lower, ".zim"):
-			groups[name[:len(name)-4]] = []string{filepath.Join(l.Dir, name)}
-		case len(lower) > 6 && strings.HasSuffix(lower[:len(lower)-2], ".zim") && isAlphaPair(lower[len(lower)-2:]):
-			// Split archive: name.zimaa, name.zimab, ...
-			base := name[:len(name)-6]
-			groups[base] = append(groups[base], filepath.Join(l.Dir, name))
-		}
-	}
+func (l *Library) indexPath(f *dump.Files) string {
+	return filepath.Join(l.Dir, ".nabu", "index", f.Key()+".nidx")
+}
 
+// Rescan looks for added or removed dumps.
+func (l *Library) Rescan() error {
+	found, notes := dump.Scan(l.Dir)
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	old := l.byID
-	l.byID = map[string]*Book{}
-	l.books = nil
-	l.Errs = nil
-	for base, files := range groups {
-		sort.Strings(files)
-		id := slug(base)
-		if b, ok := old[id]; ok && sameFiles(b.Files, files) {
-			l.add(b)
-			delete(old, id)
+	l.Notes = notes
+	old := map[string]*Book{}
+	for _, b := range l.books {
+		old[b.Files.Key()] = b
+	}
+	var books []*Book
+	seenDB := map[string]bool{}
+	for _, f := range found { // newest first within a wiki
+		id := f.DB
+		if seenDB[f.DB] {
+			id = f.Key()
+		}
+		seenDB[f.DB] = true
+		if b, ok := old[f.Key()]; ok && sameSources(b.Files, f) {
+			b.ID = id
+			books = append(books, b)
+			delete(old, f.Key())
 			continue
 		}
-		b, err := openBook(id, files)
-		if err != nil {
-			l.Errs = append(l.Errs, fmt.Sprintf("%s: %v", filepath.Base(files[0]), err))
-			continue
+		b := &Book{ID: id, Files: f, state: Waiting}
+		if ix, err := dump.OpenIndex(l.indexPath(f), f); err == nil {
+			if rd, err := dump.NewReader(f, ix); err == nil {
+				b.reader, b.state = rd, Ready
+			} else {
+				ix.Close()
+				b.state, b.err = Failed, err.Error()
+			}
+		} else {
+			select {
+			case l.queue <- b:
+			default:
+			}
 		}
-		l.add(b)
+		books = append(books, b)
 	}
 	for _, b := range old {
-		b.Archive.Close()
-	}
-	sort.Slice(l.books, func(i, j int) bool {
-		if l.books[i].Title != l.books[j].Title {
-			return l.books[i].Title < l.books[j].Title
+		b.mu.Lock()
+		if b.reader != nil {
+			b.reader.Close()
+			b.reader = nil
 		}
-		return l.books[i].Date > l.books[j].Date
-	})
-	sort.Strings(l.Errs)
+		b.mu.Unlock()
+	}
+	sort.SliceStable(books, func(i, j int) bool { return books[i].ID < books[j].ID })
+	l.books = books
+	l.byID = map[string]*Book{}
+	for _, b := range books {
+		l.byID[b.ID] = b
+	}
 	return nil
 }
 
-func (l *Library) add(b *Book) {
-	if _, dup := l.byID[b.ID]; dup {
-		return
+func sameSources(a, b *dump.Files) bool {
+	x, y := dump.SourcesOf(a), dump.SourcesOf(b)
+	if len(x) != len(y) {
+		return false
 	}
-	l.byID[b.ID] = b
-	l.books = append(l.books, b)
+	for i := range x {
+		if x[i] != y[i] {
+			return false
+		}
+	}
+	return true
 }
 
-// Books lists all books, sorted by title.
+// worker prepares books one at a time, so an old laptop is never asked
+// to sort two Wikipedias at once.
+func (l *Library) worker() {
+	for b := range l.queue {
+		l.prepare(b)
+	}
+}
+
+func (l *Library) prepare(b *Book) {
+	b.mu.Lock()
+	if b.state != Waiting {
+		b.mu.Unlock()
+		return
+	}
+	b.state, b.started = Preparing, time.Now()
+	b.mu.Unlock()
+
+	out := l.indexPath(b.Files)
+	os.MkdirAll(filepath.Dir(out), 0o755)
+	tmp := filepath.Join(l.Dir, ".nabu", "tmp", b.Files.Key())
+	budget := 128 << 20
+	if runtime.GOARCH == "386" || runtime.GOARCH == "arm" {
+		budget = 48 << 20
+	}
+	err := dump.Build(b.Files, out, tmp, budget, func(done, total int64) {
+		b.mu.Lock()
+		b.done, b.total = done, total
+		b.mu.Unlock()
+	})
+	os.RemoveAll(tmp)
+	var rd *dump.Reader
+	if err == nil {
+		var ix *dump.Index
+		ix, err = dump.OpenIndex(out, b.Files)
+		if err == nil {
+			rd, err = dump.NewReader(b.Files, ix)
+		}
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if err != nil {
+		b.state, b.err = Failed, fmt.Sprintf("could not prepare %s: %v", b.Files.Key(), err)
+		return
+	}
+	b.reader, b.state, b.done = rd, Ready, b.total
+}
+
+// Retry queues a failed book again.
+func (l *Library) Retry(id string) {
+	if b := l.Get(id); b != nil {
+		b.mu.Lock()
+		if b.state == Failed {
+			b.state, b.err = Waiting, ""
+			b.mu.Unlock()
+			l.queue <- b
+			return
+		}
+		b.mu.Unlock()
+	}
+}
+
+// Books lists the books.
 func (l *Library) Books() []*Book {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -157,170 +245,58 @@ func (l *Library) Get(id string) *Book {
 	return l.byID[id]
 }
 
-// Default is the book to use when none is specified: the largest one,
-// which is almost always the main Wikipedia.
+// Default is the largest ready book.
 func (l *Library) Default() *Book {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	var best *Book
 	for _, b := range l.books {
-		if best == nil || b.Articles > best.Articles {
+		if b.Reader() == nil {
+			continue
+		}
+		if best == nil || b.Files.Size > best.Files.Size {
 			best = b
 		}
 	}
 	return best
 }
 
-// Close closes all archives.
+// Remove deletes a book's files and index from the drive.
+func (l *Library) Remove(id string) error {
+	b := l.Get(id)
+	if b == nil {
+		return fmt.Errorf("no such book")
+	}
+	b.mu.Lock()
+	if b.state == Preparing {
+		b.mu.Unlock()
+		return fmt.Errorf("it is being prepared; try again when that finishes")
+	}
+	if b.reader != nil {
+		b.reader.Close()
+		b.reader = nil
+	}
+	b.mu.Unlock()
+	for _, p := range b.Files.Pairs {
+		for _, f := range p.Data {
+			os.Remove(f)
+		}
+		os.Remove(p.Index)
+	}
+	os.Remove(l.indexPath(b.Files))
+	return l.Rescan()
+}
+
+// Close releases every file.
 func (l *Library) Close() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for _, b := range l.books {
-		b.Archive.Close()
-	}
-	l.books = nil
-	l.byID = map[string]*Book{}
-}
-
-func openBook(id string, files []string) (*Book, error) {
-	r, size, closer, err := openParts(files)
-	if err != nil {
-		return nil, err
-	}
-	a, err := zim.New(r, size)
-	if err != nil {
-		closer.Close()
-		return nil, err
-	}
-	a.SetCloser(closer)
-	b := &Book{
-		ID:          id,
-		Files:       files,
-		Size:        size,
-		Archive:     a,
-		Title:       a.Metadata("Title"),
-		Description: a.Metadata("Description"),
-		Language:    a.Metadata("Language"),
-		Name:        a.Metadata("Name"),
-		Flavour:     a.Metadata("Flavour"),
-		Date:        a.Metadata("Date"),
-		Articles:    a.ArticleCount(),
-	}
-	if b.Title == "" {
-		b.Title = strings.ReplaceAll(id, "_", " ")
-	}
-	if _, err := a.Find('M', "Illustration_48x48@1"); err == nil {
-		b.HasIcon = true
-	} else if _, err := a.Find('-', "favicon"); err == nil {
-		b.HasIcon = true
-	}
-	return b, nil
-}
-
-func sameFiles(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
+		b.mu.Lock()
+		if b.reader != nil {
+			b.reader.Close()
+			b.reader = nil
 		}
+		b.mu.Unlock()
 	}
-	return true
-}
-
-func isAlphaPair(s string) bool {
-	return len(s) == 2 && s[0] >= 'a' && s[0] <= 'z' && s[1] >= 'a' && s[1] <= 'z'
-}
-
-func slug(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
-			b.WriteRune(r)
-		default:
-			b.WriteByte('_')
-		}
-	}
-	return b.String()
-}
-
-// multiFile presents a split archive (.zimaa, .zimab, ...) as one
-// contiguous file. Splitting lets a full Wikipedia live on FAT32 drives,
-// which cannot hold files of 4 GB or more.
-type multiFile struct {
-	files  []*os.File
-	starts []int64 // starting offset of each part
-	size   int64
-}
-
-func openParts(paths []string) (io.ReaderAt, int64, io.Closer, error) {
-	if len(paths) == 1 {
-		f, err := os.Open(paths[0])
-		if err != nil {
-			return nil, 0, nil, err
-		}
-		st, err := f.Stat()
-		if err != nil {
-			f.Close()
-			return nil, 0, nil, err
-		}
-		return f, st.Size(), f, nil
-	}
-	m := &multiFile{}
-	for _, p := range paths {
-		f, err := os.Open(p)
-		if err != nil {
-			m.Close()
-			return nil, 0, nil, err
-		}
-		st, err := f.Stat()
-		if err != nil {
-			f.Close()
-			m.Close()
-			return nil, 0, nil, err
-		}
-		m.files = append(m.files, f)
-		m.starts = append(m.starts, m.size)
-		m.size += st.Size()
-	}
-	return m, m.size, m, nil
-}
-
-func (m *multiFile) ReadAt(p []byte, off int64) (int, error) {
-	if off >= m.size {
-		return 0, io.EOF
-	}
-	total := 0
-	for len(p) > 0 {
-		if off >= m.size {
-			return total, io.EOF
-		}
-		i := sort.Search(len(m.starts), func(i int) bool { return m.starts[i] > off }) - 1
-		local := off - m.starts[i]
-		end := m.size
-		if i+1 < len(m.starts) {
-			end = m.starts[i+1]
-		}
-		chunk := p
-		if max := end - off; int64(len(chunk)) > max {
-			chunk = chunk[:max]
-		}
-		n, err := m.files[i].ReadAt(chunk, local)
-		total += n
-		off += int64(n)
-		p = p[n:]
-		if err != nil && !(err == io.EOF && n == len(chunk)) {
-			return total, err
-		}
-	}
-	return total, nil
-}
-
-func (m *multiFile) Close() error {
-	for _, f := range m.files {
-		f.Close()
-	}
-	return nil
 }

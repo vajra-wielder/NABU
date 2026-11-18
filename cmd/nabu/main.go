@@ -1,11 +1,13 @@
-// NABU: plug-and-play offline Wikipedia.
+// NABU: plug-and-play offline Wikipedia, read straight from Wikimedia's
+// compressed dumps.
 //
 // Usage:
 //
-//	nabu [flags]                 start the library and open the browser
-//	nabu catalog [lang]          list Wikipedia editions available online
-//	nabu download <file|series>  download an edition into the library
-//	nabu info <file.zim>         show what is inside a ZIM file
+//	nabu [flags]              start the library and open the browser
+//	nabu catalog              newest dump of each offered Wikipedia
+//	nabu download <wiki>      download a dump, e.g. "nabu download enwiki"
+//	nabu prepare              build search indexes now (e.g. on a fast PC)
+//	nabu info                 list the dumps in the library
 //	nabu version
 package main
 
@@ -26,18 +28,18 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vajra-wielder/nabu/internal/dump"
 	"github.com/vajra-wielder/nabu/internal/library"
 	"github.com/vajra-wielder/nabu/internal/server"
 	"github.com/vajra-wielder/nabu/internal/sysutil"
 	"github.com/vajra-wielder/nabu/internal/update"
-	"github.com/vajra-wielder/nabu/internal/zim"
 )
 
 var version = "dev"
 
 func main() {
 	server.Version = version
-	update.UserAgent = "NABU/" + version + " (offline Wikipedia reader; +https://github.com/vajra-wielder/nabu)"
+	update.UserAgent = "NABU/" + version + " (offline Wikipedia reader; https://github.com/vajra-wielder/nabu)"
 
 	args := os.Args[1:]
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
@@ -48,6 +50,8 @@ func main() {
 			err = cmdCatalog(rest)
 		case "download":
 			err = cmdDownload(rest)
+		case "prepare", "index":
+			err = cmdPrepare(rest)
 		case "info":
 			err = cmdInfo(rest)
 		case "version":
@@ -76,48 +80,52 @@ func exit(err error) {
 func usage() {
 	fmt.Print(`NABU: plug-and-play offline Wikipedia
 
-  nabu [flags]                  start NABU and open it in the browser
-  nabu catalog [language]       list Wikipedia editions available online
-  nabu download <file|series>   download an edition, e.g.
-                                  nabu download wikipedia_en_all_maxi
-  nabu info <file.zim>          describe a ZIM file
-  nabu version                  print the version
+  nabu [flags]             start NABU and open it in the browser
+  nabu catalog             newest dump of each offered Wikipedia
+  nabu download <wiki>     download a dump (enwiki, frwiki, ... or en, fr, ...)
+  nabu prepare             build the search index of every dump now
+  nabu info                list the dumps in the library
+  nabu version             print the version
 
-Flags for starting NABU:
+Flags:
 `)
-	serveFlags(flag.NewFlagSet("nabu", flag.ContinueOnError)).PrintDefaults()
+	fs := flag.NewFlagSet("nabu", flag.ContinueOnError)
+	bindFlags(fs, &opts{})
+	fs.PrintDefaults()
 }
 
-type serveOpts struct {
+type opts struct {
 	library   string
 	port      int
 	lan       bool
 	noBrowser bool
 	offline   bool
-	catalog   string
+	mirror    string
 }
 
-func serveFlags(fs *flag.FlagSet) *flag.FlagSet {
-	o := &serveOpts{}
-	bindServeFlags(fs, o)
-	return fs
-}
-
-func bindServeFlags(fs *flag.FlagSet, o *serveOpts) {
-	fs.StringVar(&o.library, "library", "", "folder holding .zim files (default: the drive's library folder)")
+func bindFlags(fs *flag.FlagSet, o *opts) {
+	fs.StringVar(&o.library, "library", "", "folder holding the dumps (default: the drive's library folder)")
 	fs.IntVar(&o.port, "port", 8080, "port to listen on; the next free one is used if taken")
 	fs.BoolVar(&o.lan, "lan", false, "share the library with other devices on the local network")
 	fs.BoolVar(&o.noBrowser, "no-browser", false, "do not open the web browser")
-	fs.BoolVar(&o.offline, "offline", false, "never connect to the internet (no update checks)")
-	fs.StringVar(&o.catalog, "catalog", update.DefaultCatalogURL, "where to look for Wikipedia editions")
+	fs.BoolVar(&o.offline, "offline", false, "never connect to the internet (no update checks, no pictures)")
+	fs.StringVar(&o.mirror, "mirror", update.DefaultMirror, "Wikimedia dump server or mirror")
 }
 
-// findLibrary locates the library folder on the drive. The launchers
-// pass --library explicitly; this is for running the binary by hand.
+func parse(name string, args []string) (*opts, *flag.FlagSet, error) {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	o := &opts{}
+	bindFlags(fs, o)
+	fs.Usage = usage
+	err := fs.Parse(args)
+	return o, fs, err
+}
+
+// findLibrary locates the library folder. The launchers pass --library;
+// this is for running the program by hand.
 func findLibrary(flagValue string) string {
 	if flagValue != "" {
-		abs, err := filepath.Abs(flagValue)
-		if err == nil {
+		if abs, err := filepath.Abs(flagValue); err == nil {
 			return abs
 		}
 		return flagValue
@@ -153,11 +161,8 @@ func httpClient() *http.Client {
 }
 
 func cmdServe(args []string) error {
-	fs := flag.NewFlagSet("nabu", flag.ContinueOnError)
-	o := &serveOpts{}
-	bindServeFlags(fs, o)
-	fs.Usage = usage
-	if err := fs.Parse(args); err != nil {
+	o, _, err := parse("nabu", args)
+	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
@@ -181,10 +186,10 @@ func cmdServe(args []string) error {
 	defer lib.Close()
 
 	client := httpClient()
-	checker := &update.Checker{Dir: dir, CatalogURL: o.catalog, Client: client}
-	checker.LoadCache()
+	checker := &update.Checker{Dir: dir, Mirror: o.mirror, Client: client}
+	checker.Load()
 	dl := update.NewManager(dir, client)
-	dl.OnFinish = func(string) { lib.Rescan() }
+	dl.OnFinish = func(*update.Release) { lib.Rescan() }
 
 	srv, err := server.New(lib, checker, dl)
 	if err != nil {
@@ -212,9 +217,7 @@ func cmdServe(args []string) error {
 	srv.Shutdown = stop
 
 	banner(url, lib, dir, srv.Addrs)
-
 	go func() {
-		// Give the server a moment so the first page loads instantly.
 		time.Sleep(200 * time.Millisecond)
 		if !o.noBrowser {
 			if err := sysutil.OpenBrowser(url); err != nil {
@@ -222,11 +225,9 @@ func cmdServe(args []string) error {
 			}
 		}
 	}()
-
 	if !o.offline {
 		go startupCheck(ctx, lib, checker, dl, dir)
 	}
-
 	err = srv.Run(ctx, ln)
 	dl.Cancel()
 	fmt.Println("\nNABU has stopped. It is safe to remove the drive.")
@@ -235,8 +236,7 @@ func cmdServe(args []string) error {
 
 func listen(host string, port int) (net.Listener, int, error) {
 	for p := port; p < port+20; p++ {
-		ln, err := net.Listen("tcp", net.JoinHostPort(host, strconv.Itoa(p)))
-		if err == nil {
+		if ln, err := net.Listen("tcp", net.JoinHostPort(host, strconv.Itoa(p))); err == nil {
 			return ln, p, nil
 		}
 	}
@@ -247,12 +247,9 @@ func listen(host string, port int) (net.Listener, int, error) {
 	return ln, ln.Addr().(*net.TCPAddr).Port, nil
 }
 
-// alreadyRunning asks the usual ports whether NABU is serving the same
-// library already.
 func alreadyRunning(port int, dir string) (string, bool) {
 	c := &http.Client{Timeout: 400 * time.Millisecond}
 	for p := port; p < port+5; p++ {
-		url := "http://localhost:" + strconv.Itoa(p) + "/"
 		resp, err := c.Get("http://127.0.0.1:" + strconv.Itoa(p) + "/nabu/api/ping")
 		if err != nil {
 			continue
@@ -261,7 +258,7 @@ func alreadyRunning(port int, dir string) (string, bool) {
 		json.NewDecoder(resp.Body).Decode(&info)
 		resp.Body.Close()
 		if info.App == "nabu" && info.Library == dir {
-			return url, true
+			return "http://localhost:" + strconv.Itoa(p) + "/", true
 		}
 	}
 	return "", false
@@ -280,13 +277,17 @@ func banner(url string, lib *library.Library, dir string, addrs []string) {
 	fmt.Println("  Library folder:        ", dir)
 	books := lib.Books()
 	if len(books) == 0 {
-		fmt.Println("  Books:                  none yet; the browser page will help you get one")
+		fmt.Println("  Wikipedias:             none yet; the browser page will help you get one")
 	}
 	for _, b := range books {
-		fmt.Printf("  Book:                   %s (%s, %s)\n", b.Title, b.Edition(), update.HumanBytes(b.Size))
+		state := ""
+		if b.Reader() == nil {
+			state = "  (preparing for first use)"
+		}
+		fmt.Printf("  Wikipedia:              %s, dump of %s, %s%s\n", b.Files.DB, dump.HumanDate(b.Files.Date), update.HumanBytes(b.Files.Size), state)
 	}
-	for _, e := range lib.Errs {
-		fmt.Println("  Could not open:        ", e)
+	for _, n := range lib.Notes {
+		fmt.Println("  Note:                  ", n)
 	}
 	fmt.Println()
 	fmt.Println("  Keep this window open while you read.")
@@ -294,77 +295,94 @@ func banner(url string, lib *library.Library, dir string, addrs []string) {
 	fmt.Println()
 }
 
-// startupCheck is the "ping the catalogue when activated" step.
+// startupCheck asks Wikimedia whether newer dumps of the Wikipedias on
+// the drive exist (the "ping on activation").
 func startupCheck(ctx context.Context, lib *library.Library, c *update.Checker, dl *update.Manager, dir string) {
 	settings := update.LoadSettings(dir)
 	if !settings.CheckOnStart {
 		return
 	}
-	if err := c.Check(ctx); err != nil {
-		fmt.Println("  (No internet, or the catalogue is unreachable. Reading works fine offline.)")
-		return
-	}
-	latest, _, _, _ := c.Snapshot()
-	var inst []update.Installed
+	newest := map[string]string{}
 	for _, b := range lib.Books() {
-		inst = append(inst, update.Installed{ID: b.ID, Series: b.Series(), Edition: b.Edition()})
+		if b.Files.Date > newest[b.Files.DB] {
+			newest[b.Files.DB] = b.Files.Date
+		}
 	}
-	ups := update.UpdatesFor(inst, latest)
-	if len(ups) == 0 {
-		if len(inst) > 0 {
-			fmt.Println("  Your Wikipedia is the newest edition available.")
+	if len(newest) == 0 {
+		// Nothing installed yet: fetch the list so the page is ready.
+		for _, l := range update.Languages {
+			go c.Check(ctx, l.Wiki)
 		}
 		return
 	}
-	for _, u := range ups {
-		fmt.Printf("  Newer edition available: %s (%s, %s). See the \"Get & update\" page.\n",
-			u.Newer.File, u.Newer.Date, update.HumanBytes(u.Newer.Size))
-	}
-	if settings.AutoDownload {
-		u := ups[0]
-		if free, err := sysutil.FreeSpace(dir); err == nil && free < u.Newer.Size {
-			fmt.Println("  Not downloading automatically: not enough free space on the drive.")
-			return
+	for db, have := range newest {
+		res := c.Check(ctx, db)
+		if res.Release == nil {
+			if res.Err != "" {
+				fmt.Println("  (Could not reach Wikimedia; reading works fine offline.)")
+			}
+			continue
 		}
-		if err := dl.Start(u.Newer); err == nil {
-			fmt.Println("  Downloading it now (automatic updates are on).")
+		if have == "latest" || res.Release.Date <= have {
+			fmt.Printf("  %s is up to date (newest dump: %s).\n", db, dump.HumanDate(res.Release.Date))
+			continue
+		}
+		fmt.Printf("  Newer dump of %s available: %s (%s). See \"Get & update\".\n", db,
+			dump.HumanDate(res.Release.Date), update.HumanBytes(res.Release.Size()))
+		if settings.AutoDownload && !dl.Busy() {
+			if free, err := sysutil.FreeSpace(dir); err == nil && free < res.Release.Size()*102/100 {
+				fmt.Println("  Not downloading automatically: not enough free space.")
+				continue
+			}
+			if err := dl.Start(res.Release); err == nil {
+				fmt.Println("  Downloading it now (automatic updates are on).")
+			}
 		}
 	}
 }
 
-func cmdCatalog(args []string) error {
-	fs := flag.NewFlagSet("catalog", flag.ContinueOnError)
-	cat := fs.String("catalog", update.DefaultCatalogURL, "catalogue URL")
-	if err := fs.Parse(args); err != nil {
-		return err
+func wikiArg(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if !strings.HasSuffix(s, "wiki") && !strings.Contains(s, "wik") {
+		s = strings.ReplaceAll(s, "-", "_") + "wiki"
 	}
-	lang := fs.Arg(0)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	eds, err := update.FetchCatalog(ctx, httpClient(), *cat)
+	return s
+}
+
+func cmdCatalog(args []string) error {
+	o, fs, err := parse("catalog", args)
 	if err != nil {
 		return err
 	}
-	for _, e := range update.Latest(eds) {
-		if lang != "" && e.Lang != lang {
+	wikis := fs.Args()
+	if len(wikis) == 0 {
+		for _, l := range update.Languages {
+			wikis = append(wikis, l.Wiki)
+		}
+	}
+	client := httpClient()
+	for _, w := range wikis {
+		w = wikiArg(w)
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		rel, err := update.Latest(ctx, client, o.mirror, w)
+		cancel()
+		if err != nil {
+			fmt.Printf("%-14s  %v\n", w, err)
 			continue
 		}
-		fmt.Printf("%-48s %8s  %s\n", strings.TrimSuffix(e.File, ".zim"), update.HumanBytes(e.Size), e.Describe())
+		fmt.Printf("%-14s  %s  %9s\n", w, dump.HumanDate(rel.Date), update.HumanBytes(rel.Size()))
 	}
 	return nil
 }
 
 func cmdDownload(args []string) error {
-	fs := flag.NewFlagSet("download", flag.ContinueOnError)
-	o := &serveOpts{}
-	bindServeFlags(fs, o)
-	if err := fs.Parse(args); err != nil {
+	o, fs, err := parse("download", args)
+	if err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
-		return errors.New("usage: nabu download <file or series>, e.g. nabu download wikipedia_en_all_maxi")
+		return errors.New("usage: nabu download <wiki>, e.g. nabu download enwiki")
 	}
-	want := strings.TrimSuffix(fs.Arg(0), ".zim")
 	dir := findLibrary(o.library)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -373,30 +391,14 @@ func cmdDownload(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	cctx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	eds, err := update.FetchCatalog(cctx, client, o.catalog)
+	rel, err := update.Latest(cctx, client, o.mirror, wikiArg(fs.Arg(0)))
 	cancel()
 	if err != nil {
 		return err
 	}
-	var pick *update.Edition
-	for _, e := range update.Latest(eds) {
-		e := e
-		if e.Series() == want {
-			pick = &e
-		}
-	}
-	for _, e := range eds {
-		e := e
-		if strings.TrimSuffix(e.File, ".zim") == want {
-			pick = &e
-		}
-	}
-	if pick == nil {
-		return fmt.Errorf("%s is not in the catalogue (see: nabu catalog)", want)
-	}
-	fmt.Printf("Downloading %s (%s) into %s\n", pick.File, update.HumanBytes(pick.Size), dir)
+	fmt.Printf("Downloading %s (dump of %s, %s) into %s\n", rel.Wiki, dump.HumanDate(rel.Date), update.HumanBytes(rel.Size()), dir)
 	m := update.NewManager(dir, client)
-	if err := m.Start(*pick); err != nil {
+	if err := m.Start(rel); err != nil {
 		return err
 	}
 	tick := time.NewTicker(time.Second)
@@ -421,7 +423,7 @@ func cmdDownload(args []string) error {
 			update.HumanBytes(st.Done), update.HumanBytes(st.Total), update.HumanBytes(int64(st.Speed)))
 		switch st.State {
 		case update.StateDone:
-			fmt.Println("\nDone. Verified:", st.Verified)
+			fmt.Println("\nDone and verified. Run \"nabu prepare\" now, or NABU prepares it on next start.")
 			return nil
 		case update.StateFailed:
 			fmt.Println()
@@ -430,27 +432,62 @@ func cmdDownload(args []string) error {
 	}
 }
 
-func cmdInfo(args []string) error {
-	if len(args) != 1 {
-		return errors.New("usage: nabu info <file.zim>")
-	}
-	a, err := zim.Open(args[0])
+func cmdPrepare(args []string) error {
+	o, _, err := parse("prepare", args)
 	if err != nil {
 		return err
 	}
-	defer a.Close()
-	h := a.Hdr
-	fmt.Printf("File:        %s (%s)\n", args[0], update.HumanBytes(a.Size()))
-	fmt.Printf("Format:      ZIM %d.%d, %d entries, %d clusters\n", h.Major, h.Minor, h.EntryCount, h.ClusterCount)
-	fmt.Printf("UUID:        %s\n", a.UUIDString())
-	for _, k := range []string{"Title", "Description", "Language", "Name", "Flavour", "Date", "Creator", "Publisher"} {
-		if v := a.Metadata(k); v != "" {
-			fmt.Printf("%-12s %s\n", k+":", v)
-		}
+	dir := findLibrary(o.library)
+	eds, notes := dump.Scan(dir)
+	for _, n := range notes {
+		fmt.Println("Note:", n)
 	}
-	fmt.Printf("Articles:    %d\n", a.ArticleCount())
-	if m, err := a.MainEntry(); err == nil {
-		fmt.Printf("Main page:   %s\n", m.Path())
+	if len(eds) == 0 {
+		return fmt.Errorf("no dumps found in %s", dir)
+	}
+	for _, f := range eds {
+		out := filepath.Join(dir, ".nabu", "index", f.Key()+".nidx")
+		if ix, err := dump.OpenIndex(out, f); err == nil {
+			fmt.Printf("%s: ready (%d pages)\n", f.Key(), ix.Meta.Records)
+			ix.Close()
+			continue
+		}
+		os.MkdirAll(filepath.Dir(out), 0o755)
+		start := time.Now()
+		tmp := filepath.Join(dir, ".nabu", "tmp", f.Key())
+		err := dump.Build(f, out, tmp, 256<<20, func(done, total int64) {
+			fmt.Printf("\r%s: preparing %5.1f%%", f.Key(), 100*float64(done)/float64(total))
+		})
+		os.RemoveAll(tmp)
+		if err != nil {
+			fmt.Println()
+			return err
+		}
+		fmt.Printf("\r%s: prepared in %v                \n", f.Key(), time.Since(start).Round(time.Second))
+	}
+	return nil
+}
+
+func cmdInfo(args []string) error {
+	o, _, err := parse("info", args)
+	if err != nil {
+		return err
+	}
+	dir := findLibrary(o.library)
+	eds, notes := dump.Scan(dir)
+	fmt.Println("Library:", dir)
+	for _, f := range eds {
+		state := "not prepared yet"
+		out := filepath.Join(dir, ".nabu", "index", f.Key()+".nidx")
+		if ix, err := dump.OpenIndex(out, f); err == nil {
+			si := ix.Site()
+			state = fmt.Sprintf("%s, %s, %d pages (%d in main namespace), main page %q", si.Sitename, si.Lang, ix.Meta.Records, ix.Meta.Articles, si.MainPage())
+			ix.Close()
+		}
+		fmt.Printf("  %s  %s  %d file(s), %s: %s\n", f.DB, dump.HumanDate(f.Date), len(f.Pairs), update.HumanBytes(f.Size), state)
+	}
+	for _, n := range notes {
+		fmt.Println("  Note:", n)
 	}
 	return nil
 }

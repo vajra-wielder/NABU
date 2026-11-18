@@ -2,8 +2,9 @@ NABU - Wikipedia, anywhere, offline
 ===================================
 
 Named after Nabu, the Babylonian god of scribes and keeper of tablets.
-This drive holds a copy of Wikipedia and a small program that shows it
-in your web browser. No internet and no installation needed.
+This drive holds Wikipedia, exactly as Wikimedia publishes it, and a
+small program that shows it in your web browser. No internet and no
+installation needed.
 
 
 START
@@ -26,20 +27,26 @@ If the browser does not open by itself, go to:  http://localhost:8080
 GETTING OR UPDATING WIKIPEDIA
 -----------------------------
 
-Wikipedia lives in the "library" folder as .zim files. When the
-computer is online, NABU checks for a newer edition each time it starts
-and offers to download it ("Get & update" page). Downloads resume where
-they left off if the connection drops, and are verified when complete.
+Each Wikipedia is two files from Wikimedia in the "library" folder:
 
-Sizes (English, approximate):
-  complete, with pictures (maxi) ....... about 110 GB
-  complete, no pictures (nopic) ........ about  50 GB
-  introductions only (mini) ............ about  12 GB
-Other languages are smaller. Big files are saved in 4 GB pieces
-(.zimaa, .zimab, ...) so they work on any drive format.
+  enwiki-20261101-pages-articles-multistream.xml.bz2        (the articles)
+  enwiki-20261101-pages-articles-multistream-index.txt.bz2  (where each one is)
 
-You can also copy any Kiwix .zim file into the library folder yourself.
-They are listed at  https://download.kiwix.org/zim/
+When the computer is online, NABU asks Wikimedia for a newer dump each
+time it starts and offers it on the "Get & update" page. Downloads resume
+where they stopped and are checked against Wikimedia's checksums.
+
+The first time NABU sees a new dump it spends a few minutes building a
+search index next to it (about 2% of the dump's size). Only once.
+
+Sizes of the ten Wikipedias NABU offers (November 2026):
+  English 25.4 GB   French 6.9 GB    Russian 5.9 GB    Spanish 5.1 GB
+  Chinese 3.4 GB    Portuguese 2.7 GB   Arabic 2.1 GB  Persian 1.5 GB
+  Indonesian 1.3 GB   Danish 0.5 GB              All ten: about 55 GB
+Together these languages are official across ~91% of the world's land.
+
+Dumps contain the text of every article. Pictures are shown from
+Wikimedia when the computer is online, and as labelled frames when not.
 
 
 SHARE WITH A ROOM
@@ -54,9 +61,9 @@ WHICH COMPUTERS
 
 Windows 7 or newer, macOS 10.13 or newer, and Linux, on Intel/AMD
 (32- and 64-bit) and ARM processors (including Raspberry Pi and Apple
-silicon). Any modern web browser.
+silicon). Any web browser from the last ten years.
 
 
-Wikipedia content: CC BY-SA, by Wikipedia's volunteer authors.
+Wikipedia content: CC BY-SA 4.0, by Wikipedia's volunteer authors.
 NABU: MIT licence. Typeface: Libertinus Serif, SIL Open Font License.
 Source code and help: https://github.com/vajra-wielder/nabu
