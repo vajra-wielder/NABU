@@ -82,6 +82,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveAbout(w, r)
 	case strings.HasPrefix(p, "/nabu/static/"):
 		w.Header().Set("Cache-Control", "public, max-age=86400")
+		if s.serveLegacyCSS(w, r) {
+			return
+		}
+		w.Header().Set("Vary", "User-Agent")
 		s.static.ServeHTTP(w, r)
 	case strings.HasPrefix(p, "/nabu/api/"):
 		s.serveAPI(w, r)
@@ -126,6 +130,11 @@ func (s *Server) hostAllowed(host string) bool {
 	}
 	h = strings.Trim(h, "[]")
 	if h == "localhost" || net.ParseIP(h) != nil {
+		return true
+	}
+	// ChromeOS shows its Linux container to the browser under this
+	// fixed internal name; it cannot be pointed elsewhere by a website.
+	if h == "penguin.linux.test" {
 		return true
 	}
 	// Bare machine names (no dots) for LAN sharing: http://my-laptop:8080

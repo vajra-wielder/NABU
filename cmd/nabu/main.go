@@ -455,7 +455,7 @@ func cmdPrepare(args []string) error {
 		os.MkdirAll(filepath.Dir(out), 0o755)
 		start := time.Now()
 		tmp := filepath.Join(dir, ".nabu", "tmp", f.Key())
-		err := dump.Build(f, out, tmp, 256<<20, func(done, total int64) {
+		err := dump.Build(f, out, tmp, library.BuildBudget(), func(done, total int64) {
 			fmt.Printf("\r%s: preparing %5.1f%%", f.Key(), 100*float64(done)/float64(total))
 		})
 		os.RemoveAll(tmp)

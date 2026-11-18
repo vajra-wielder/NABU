@@ -15,6 +15,10 @@ func OpenBrowser(url string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
+		if modern := modernBrowserIfDefaultIsIE(); modern != "" {
+			cmd = exec.Command(modern, url)
+			break
+		}
 		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
 	case "darwin":
 		cmd = exec.Command("open", url)

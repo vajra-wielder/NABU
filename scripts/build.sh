@@ -30,7 +30,7 @@ build() { # goos goarch output [go]
   local goos=$1 goarch=$2 out=$3 gobin=${4:-$GO} extra=()
   [ "$goarch" = arm ] && export GOARM=6 || unset GOARM
   printf '  %-34s' "$(basename "$out")"
-  GOOS=$goos GOARCH=$goarch "$gobin" build -trimpath \
+  GOOS=$goos GOARCH=$goarch GO386="${GO386:-sse2}" "$gobin" build -trimpath \
     -ldflags "-s -w -X main.version=$VERSION" -o "$out" ./cmd/nabu
   printf '%6s KB\n' "$(( $(wc -c <"$out") / 1024 ))"
 }
@@ -43,13 +43,13 @@ build darwin  arm64 "$OUT/nabu/nabu-darwin-arm64"
 build darwin  amd64 "$OUT/nabu/nabu-darwin-amd64"
 build linux   amd64 "$OUT/nabu/nabu-linux-amd64"
 build linux   arm64 "$OUT/nabu/nabu-linux-arm64"
-build linux   386   "$OUT/nabu/nabu-linux-386"
+GO386=softfloat build linux 386 "$OUT/nabu/nabu-linux-386"  # no SSE2 needed: Pentium III, Athlon XP
 build linux   arm   "$OUT/nabu/nabu-linux-arm"
 
 if [ -z "${NO_LEGACY:-}" ]; then
   if [ -n "$GO_LEGACY" ]; then
     echo "Legacy builds (Windows 7/8, macOS 10.13-10.15) with $("$GO_LEGACY" version | cut -d' ' -f3)"
-    build windows 386   "$OUT/nabu/nabu-windows-386-legacy.exe" "$GO_LEGACY"
+    GO386=softfloat build windows 386 "$OUT/nabu/nabu-windows-386-legacy.exe" "$GO_LEGACY"
     build darwin  amd64 "$OUT/nabu/nabu-darwin-amd64-legacy" "$GO_LEGACY"
   else
     echo "WARNING: no Go 1.20 toolchain found, skipping Windows 7/8 and old macOS builds."

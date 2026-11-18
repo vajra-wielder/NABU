@@ -1,6 +1,8 @@
 #!/bin/sh
 # NABU - offline Wikipedia. Double-click this file to start.
-# (If macOS says it cannot be opened: right-click it, choose Open, then Open.)
+# If macOS says it cannot be opened: on macOS 15 and newer go to System
+# Settings > Privacy & Security and click "Open Anyway"; on older macOS
+# right-click this file, choose Open, then Open.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
 case "$(uname -m)" in

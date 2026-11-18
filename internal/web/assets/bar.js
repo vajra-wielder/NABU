@@ -75,11 +75,12 @@
     input.addEventListener('focus', function () { if (list.children.length && input.value.trim()) list.hidden = false; });
     input.addEventListener('keydown', function (ev) {
       var a = items();
+      var key = { Down: 'ArrowDown', Up: 'ArrowUp', Esc: 'Escape' }[ev.key] || ev.key; // IE11 names
       if (list.hidden || !a.length) return;
-      if (ev.key === 'ArrowDown') { ev.preventDefault(); setActive((active + 1) % a.length); }
-      else if (ev.key === 'ArrowUp') { ev.preventDefault(); setActive(active <= 0 ? a.length - 1 : active - 1); }
-      else if (ev.key === 'Enter' && active >= 0) { ev.preventDefault(); window.location.href = a[active].href; }
-      else if (ev.key === 'Escape') { hide(); }
+      if (key === 'ArrowDown') { ev.preventDefault(); setActive((active + 1) % a.length); }
+      else if (key === 'ArrowUp') { ev.preventDefault(); setActive(active <= 0 ? a.length - 1 : active - 1); }
+      else if (key === 'Enter' && active >= 0) { ev.preventDefault(); window.location.href = a[active].href; }
+      else if (key === 'Escape') { hide(); }
     });
     document.addEventListener('click', function (ev) { if (!form.contains(ev.target)) hide(); });
   }

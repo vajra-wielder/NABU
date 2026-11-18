@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"time"
@@ -103,6 +104,10 @@ func Build(f *Files, out, tmpDir string, memBudget int, progress Progress) (err 
 	if memBudget <= 0 {
 		memBudget = 96 << 20
 	}
+	// Keep the garbage collector close to the budget so preparing a big
+	// dump never pushes an old laptop into swapping.
+	prevLimit := debug.SetMemoryLimit(int64(memBudget)*2 + 32<<20)
+	defer debug.SetMemoryLimit(prevLimit)
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
 		return err
 	}
@@ -225,7 +230,8 @@ type builder struct {
 
 func (b *builder) add(r record) error {
 	b.buf = append(b.buf, r)
-	b.bufMem += len(r.fold) + len(r.title) + 64
+	// Two strings, the struct, and slack for the slice doubling.
+	b.bufMem += len(r.fold) + len(r.title) + 112
 	b.records++
 	if b.bufMem >= b.budget {
 		return b.flush()

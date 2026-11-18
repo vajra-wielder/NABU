@@ -190,11 +190,7 @@ func (l *Library) prepare(b *Book) {
 	out := l.indexPath(b.Files)
 	os.MkdirAll(filepath.Dir(out), 0o755)
 	tmp := filepath.Join(l.Dir, ".nabu", "tmp", b.Files.Key())
-	budget := 128 << 20
-	if runtime.GOARCH == "386" || runtime.GOARCH == "arm" {
-		budget = 48 << 20
-	}
-	err := dump.Build(b.Files, out, tmp, budget, func(done, total int64) {
+	err := dump.Build(b.Files, out, tmp, BuildBudget(), func(done, total int64) {
 		b.mu.Lock()
 		b.done, b.total = done, total
 		b.mu.Unlock()
@@ -215,6 +211,16 @@ func (l *Library) prepare(b *Book) {
 		return
 	}
 	b.reader, b.state, b.done = rd, Ready, b.total
+}
+
+// BuildBudget is the memory used for sorting titles while preparing a
+// dump: modest, so a 2 GB laptop stays responsive, and smaller on
+// 32-bit machines. Bigger runs only mean fewer temporary files.
+func BuildBudget() int {
+	if runtime.GOARCH == "386" || runtime.GOARCH == "arm" {
+		return 48 << 20
+	}
+	return 128 << 20
 }
 
 // Retry queues a failed book again.

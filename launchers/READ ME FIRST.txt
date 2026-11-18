@@ -12,7 +12,9 @@ START
 
   Windows ......... double-click  "Start NABU (Windows).bat"
   Mac ............. double-click  "Start NABU (Mac).command"
-                    (first time: right-click it, choose Open, then Open)
+                    (if macOS refuses the first time: macOS 15 or newer:
+                    System Settings > Privacy & Security > Open Anyway;
+                    older macOS: right-click it, choose Open, then Open)
   Linux ........... run  sh start-nabu-linux.sh
                     (or double-click it and choose "Run in Terminal")
 
@@ -22,6 +24,19 @@ You can also click "Turn off NABU" at the bottom of any NABU page. Then
 it is safe to remove the drive.
 
 If the browser does not open by itself, go to:  http://localhost:8080
+
+If Windows says "Smart App Control blocked" NABU, or the computer is in
+"S mode", or a school/office computer forbids programs from USB sticks,
+NABU cannot run there. Run it on another computer with --lan instead
+(see SHARE WITH A ROOM): the locked one can still read it in its browser.
+
+CHROMEBOOK: turn on "Linux development environment" in Settings, share
+the drive with Linux (right-click it in Files), then in the Linux
+terminal run:
+    sh /mnt/chromeos/removable/<drive name>/start-nabu-linux.sh --lan
+and open  http://penguin.linux.test:8080  in Chrome. (School-managed
+Chromebooks often have Linux turned off; then read from another
+computer running NABU with --lan.)
 
 
 GETTING OR UPDATING WIKIPEDIA
@@ -60,8 +75,10 @@ WHICH COMPUTERS
 ---------------
 
 Windows 7 or newer, macOS 10.13 or newer, and Linux, on Intel/AMD
-(32- and 64-bit) and ARM processors (including Raspberry Pi and Apple
-silicon). Any web browser from the last ten years.
+(32- and 64-bit, back to the Pentium III) and ARM processors (including
+Raspberry Pi and Apple silicon), with 1 GB of memory or more. Any web
+browser from the last ten years, and Internet Explorer 11.
+Details: docs/COMPATIBILITY.md in the source code.
 
 
 Wikipedia content: CC BY-SA 4.0, by Wikipedia's volunteer authors.

@@ -214,13 +214,22 @@ runs the tests under both versions.
 
 | | Programs on the drive | Oldest supported |
 |---|---|---|
-| Windows | `windows-amd64`, `windows-386` (32-bit), `windows-arm64` | Windows 10; **Windows 7 / 8 / 8.1** via `windows-386-legacy` |
+| Windows | `windows-amd64`, `windows-386` (32-bit), `windows-arm64` | Windows 10; **Windows 7 SP1 / 8 / 8.1** via `windows-386-legacy` |
 | macOS | `darwin-arm64` (Apple silicon), `darwin-amd64` (Intel) | macOS 11; **10.13–10.15** via `darwin-amd64-legacy` |
 | Linux | `linux-amd64`, `linux-386`, `linux-arm64`, `linux-arm` (Raspberry Pi, ARMv6+) | kernel 3.2; no libc needed (static) |
 
 The launchers pick the right program from the CPU and OS version. On Linux, USB sticks
 are often mounted so programs can't run from them; the launcher then runs a temporary
-copy from `/tmp`. The Mac launcher clears the download quarantine flag.
+copy from `/tmp`. The Mac launcher clears the download quarantine flag. The 32-bit
+Linux and Windows 7 programs need no SSE2, so they run on CPUs back to the Pentium III.
+Internet Explorer 11 gets stylesheets it understands, and on Windows NABU opens an
+installed modern browser rather than IE.
+
+**Coverage: about 97% of desktop and laptop computers** (StatCounter web-use share,
+mid-2026), and above 94% even after allowing for machines that forbid unsigned programs.
+NABU needs about 1 GB of RAM: opening an article took 23 ms median on one core, and
+preparing a 6-million-title index peaked at 264 MB. The full analysis, measurements,
+gaps and release checklist are in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
 ## Command line
 

@@ -135,6 +135,9 @@ func TestSecurity(t *testing.T) {
 	if w.Code != http.StatusMisdirectedRequest {
 		t.Fatalf("DNS rebinding not blocked: %d", w.Code)
 	}
+	if !s.hostAllowed("penguin.linux.test:8080") || s.hostAllowed("penguin.linux.test.evil.example") {
+		t.Error("ChromeOS container host handling is wrong")
+	}
 	nabu := map[string]string{"X-Nabu": "1"}
 	if r := do(s, "POST", "/nabu/api/rescan", "127.0.0.1:1", nil); r.StatusCode != 403 {
 		t.Errorf("missing header accepted: %d", r.StatusCode)
@@ -155,5 +158,25 @@ func TestSecurity(t *testing.T) {
 	s.ServeHTTP(w, req)
 	if w.Code != http.StatusConflict {
 		t.Errorf("deleting the only copy must be refused: %d", w.Code)
+	}
+}
+
+func TestInternetExplorerStylesheets(t *testing.T) {
+	s := newTestServer(t)
+	for _, name := range []string{"nabu.css", "wiki.css", "bar.css"} {
+		r := do(s, "GET", "/nabu/static/"+name, "127.0.0.1:1",
+			map[string]string{"User-Agent": "Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko"})
+		b, _ := io.ReadAll(r.Body)
+		css := string(b)
+		if r.StatusCode != 200 || strings.Contains(css, "var(--") || len(css) < 500 {
+			t.Errorf("%s for IE11: %d, still has var(): %v", name, r.StatusCode, strings.Contains(css, "var(--"))
+		}
+	}
+	_, css := get(s, "/nabu/static/wiki.css")
+	if !strings.Contains(css, "var(--") {
+		t.Error("modern browsers should get the original stylesheet")
+	}
+	if !strings.Contains(flattenCSS(":root{--a:#123;--b:var(--a);} x{color:var(--b)}"), "color:#123") {
+		t.Error("nested variables not resolved")
 	}
 }
