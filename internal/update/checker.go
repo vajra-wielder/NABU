@@ -15,11 +15,12 @@ type Settings struct {
 	CheckOnStart bool `json:"check_on_start"` // ask Wikimedia when NABU starts
 	AutoDownload bool `json:"auto_download"`  // fetch newer dumps unasked
 	Pictures     bool `json:"pictures"`       // load pictures from Wikimedia when online
+	History      bool `json:"history"`        // remember articles read on this computer
 }
 
 // DefaultSettings: look for news and show pictures when online, but never
 // start a big download unasked.
-var DefaultSettings = Settings{CheckOnStart: true, Pictures: true}
+var DefaultSettings = Settings{CheckOnStart: true, Pictures: true, History: true}
 
 // Checker remembers, per wiki, the newest release seen and when.
 type Checker struct {

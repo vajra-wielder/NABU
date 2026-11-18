@@ -1,22 +1,18 @@
 {{define "source.html"}}<!DOCTYPE html>
 <html lang="{{.Site.Lang}}">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+{{template "meta" .}}
 <title>{{.Page.Title}} (source) · NABU</title>
-<link rel="icon" href="/nabu/static/nabu.svg">
-<link rel="stylesheet" href="/nabu/static/fonts.css">
-<link rel="stylesheet" href="/nabu/static/bar.css">
 <link rel="stylesheet" href="/nabu/static/wiki.css">
 <script src="/nabu/static/bar.js" defer></script>
 </head>
 <body class="wiki">
 {{template "bar" .}}
-<main class="page">
-  <h1 class="firstHeading">{{.Page.Title}} <small>(wikitext source)</small></h1>
-  <p class="tagline"><a href="{{.URL}}">Back to the article</a> · page id {{.Page.ID}}{{if .Page.Redirect}} · redirect to <a href="/{{.Book.ID}}/wiki/{{.Page.Redirect}}">{{.Page.Redirect}}</a>{{end}}</p>
+<div class="reader"><main class="page" id="main">
+  <h1 class="firstHeading" dir="auto">{{.Page.Title}} <small>(wikitext source)</small></h1>
+  <p class="tagline"><a href="{{.URL}}">← Back to the article</a> · page id {{.Page.ID}}{{if .Page.Redirect}} · redirect to <a href="/{{.Book.ID}}/wiki/{{.Page.Redirect}}">{{.Page.Redirect}}</a>{{end}}</p>
   <pre class="source" dir="auto">{{.Page.Text}}</pre>
-</main>
+</main></div>
 </body>
 </html>
 {{end}}

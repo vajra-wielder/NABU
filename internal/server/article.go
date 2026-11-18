@@ -96,20 +96,17 @@ func (s *Server) serveArticle(w http.ResponseWriter, r *http.Request, b *library
 		return
 	}
 
-	ctx := &wikitext.Context{
-		Title:   page.Title,
-		Site:    site,
-		PageURL: func(t string) string { return articleURL(b, t) },
-	}
-	settings := s.settings()
-	if settings.Pictures && !s.Offline {
-		host := site.Host()
-		ctx.ImageURL = func(file string, width int) string {
-			return "https://" + host + "/wiki/Special:FilePath/" + wikiPath(file) + "?width=" + itoa(int64(width))
-		}
-	}
 	start := time.Now()
-	out := wikitext.Render(page.Text, ctx)
+	out := s.renderPage(b, page)
+	settings := s.settings()
+	summary := extract(out.HTML, 220)
+	if isLocal(r) && settings.History {
+		s.reads.visit(b.ID, page.Title, summary)
+	}
+	var side template.HTML
+	if len(out.Headings) >= 2 {
+		side = template.HTML(wikitext.TOCList(out.Headings))
+	}
 	display := page.Title
 	if out.DisplayTitle != "" && strings.EqualFold(out.DisplayTitle, page.Title) {
 		display = out.DisplayTitle
@@ -131,7 +128,42 @@ func (s *Server) serveArticle(w http.ResponseWriter, r *http.Request, b *library
 		"Dir":        dirOf(site),
 		"Edition":    dump.HumanDate(b.Files.Date),
 		"IsMain":     page.Title == site.MainPage(),
+		"Side":       side,
+		"Saved":      s.reads.isSaved(b.ID, page.Title),
+		"Summary":    summary,
 	})
+}
+
+// renderPage turns a page's wikitext into HTML for this book.
+func (s *Server) renderPage(b *library.Book, page *dump.Page) *wikitext.Output {
+	site := b.Site()
+	ctx := &wikitext.Context{
+		Title:   page.Title,
+		Site:    site,
+		PageURL: func(t string) string { return articleURL(b, t) },
+	}
+	if s.settings().Pictures && !s.Offline {
+		host := site.Host()
+		ctx.ImageURL = func(file string, width int) string {
+			return "https://" + host + "/wiki/Special:FilePath/" + wikiPath(file) + "?width=" + itoa(int64(width))
+		}
+	}
+	return wikitext.Render(page.Text, ctx)
+}
+
+// loadFollow reads a page by title, following one redirect.
+func (s *Server) loadFollow(b *library.Book, title string) (*dump.Page, error) {
+	rd := b.Reader()
+	p, _, err := rd.Lookup(title)
+	if err != nil {
+		return nil, err
+	}
+	if p.Redirect != "" {
+		if q, _, err := rd.Lookup(p.Redirect); err == nil {
+			return q, nil
+		}
+	}
+	return p, nil
 }
 
 func keepQuery(r *http.Request) string {

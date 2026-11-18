@@ -30,12 +30,16 @@ func isOldIE(r *http.Request) bool {
 	return strings.Contains(ua, "Trident/") || strings.Contains(ua, "MSIE ")
 }
 
-// flattenCSS resolves custom properties using the first :root block.
+// flattenCSS resolves custom properties using the first :root block of
+// the shared theme and then of css itself (the Day theme).
 func flattenCSS(css string) string {
 	vars := map[string]string{}
-	if m := rootBlockRe.FindStringSubmatch(css); m != nil {
-		for _, d := range cssVarDefRe.FindAllStringSubmatch(m[1], -1) {
-			vars[d[1]] = strings.TrimSpace(d[2])
+	theme, _ := fs.ReadFile(web.Assets, "assets/theme.css")
+	for _, src := range []string{string(theme), css} {
+		if m := rootBlockRe.FindStringSubmatch(src); m != nil {
+			for _, d := range cssVarDefRe.FindAllStringSubmatch(m[1], -1) {
+				vars[d[1]] = strings.TrimSpace(d[2])
+			}
 		}
 	}
 	css = darkBlockRe.ReplaceAllString(css, "")

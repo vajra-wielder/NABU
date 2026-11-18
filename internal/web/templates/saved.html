@@ -1,0 +1,16 @@
+{{define "saved.html"}}{{template "head" .}}
+<h1 style="margin-top:32px">Saved &amp; recent</h1>
+<p class="muted prose">Both lists are kept on the drive, so they go wherever NABU goes. Only reading on the computer running NABU is remembered, never that of phones or computers reading over the network.</p>
+
+<h2 class="section">Saved for later</h2>
+{{if .Saved}}{{template "readlist" (dict "Items" .Saved "Remove" (or (and .Local "unsave") ""))}}
+{{else}}<div class="empty"><p class="muted">Nothing saved yet. Press <strong>☆ Save</strong> at the top of any article.</p></div>{{end}}
+
+<h2 class="section" id="recent">Recently read
+  {{if .Local}}{{if .History}}<span class="more"><button class="btn small" data-action="clear-history" data-confirm="Forget everything read on this drive?">Clear history</button></span>{{end}}{{end}}</h2>
+{{if .Local}}
+<label class="switch"><input type="checkbox" data-setting="history"{{if .Settings.History}} checked{{end}}> Remember the articles I read on this drive</label>
+{{end}}
+{{if .History}}{{template "readlist" (dict "Items" .History "Remove" (or (and .Local "forget") ""))}}
+{{else}}<div class="empty"><p class="muted">{{if .Settings.History}}Articles you open will appear here.{{else}}History is turned off.{{end}}</p></div>{{end}}
+{{template "foot" .}}{{end}}

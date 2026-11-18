@@ -1,23 +1,38 @@
 {{define "home.html"}}{{template "head" .}}
 <section class="hero">
-  <img src="/nabu/static/nabu.svg" alt="">
+  <img class="tablet" src="/nabu/static/nabu.svg" alt="">
   <h1>NABU</h1>
   <p class="tag">Wikipedia on a pen drive. No internet required.</p>
+  <svg class="wedges" viewBox="0 0 160 12" aria-hidden="true"><g fill="var(--clay)"><path d="M10 2h14l-7 8z"/><path d="M40 2h14l-7 8z"/><path d="M73 1h14l-7 10z" fill="var(--lapis)"/><path d="M106 2h14l-7 8z"/><path d="M136 2h14l-7 8z"/></g></svg>
   {{template "searchbox" .}}
-  {{if .Default}}<p class="hint muted small">Tip: press <kbd>/</kbd> on any page to search.</p>{{end}}
+  {{if .Default}}<p class="hint">Press <kbd>/</kbd> on any page to search. Capitals and accents don't matter.</p>{{end}}
 </section>
 
 {{if ne .Download.State "idle"}}{{template "dlbox" .}}{{end}}
-
 {{range .Notes}}<div class="notice bad"><p>{{.}}</p></div>{{end}}
 
+{{if .Recent}}
+<h2 class="section">Continue reading <a class="more" href="/nabu/saved#recent">All history →</a></h2>
+{{template "readlist" (dict "Items" .Recent)}}
+{{end}}
+
+{{if .SavedTop}}
+<h2 class="section">Saved for later <a class="more" href="/nabu/saved">All saved →</a></h2>
+{{template "readlist" (dict "Items" .SavedTop)}}
+{{end}}
+
+{{if .Discover}}
+<h2 class="section">Something to read <a class="more" href="/{{.Default.ID}}/random">Surprise me →</a></h2>
+{{template "readlist" (dict "Items" .Discover "Discover" true)}}
+{{end}}
+
 {{if .Cards}}
-<h2>Your library</h2>
-<div class="books">
+<h2 class="section">Your library <a class="more" href="/nabu/updates">Get more →</a></h2>
+<div class="grid">
 {{range .Cards}}
-  <article class="card" data-book="{{.ID}}">
+  <article class="card{{if .Older}}{{else}} lapis{{end}}" data-book="{{.ID}}">
     <header>
-      <img src="/nabu/static/nabu.svg" alt="" width="40" height="40">
+      <span class="glyph" aria-hidden="true">{{if .Site}}{{.Site.Lang}}{{else}}{{.Files.DB}}{{end}}</span>
       <div><h3>{{if .MainURL}}<a href="{{.MainURL}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}</h3>
       <span class="muted small">Dump of {{date .Files.Date}}{{if .Older}} · older copy{{end}}</span></div>
     </header>
@@ -25,7 +40,7 @@
       {{if .Status.Articles}}<span>{{count .Status.Articles}} pages</span>{{end}}
       <span>{{bytes .Files.Size}}</span>
       {{if .Site}}{{if .Site.RTL}}<span class="badge">right-to-left</span>{{end}}{{end}}
-      {{if .Newer}}<span class="badge new">newer dump: {{date .Newer.Date}}</span>{{end}}
+      {{if .Newer}}<a class="badge new" href="/nabu/updates">newer dump: {{date .Newer.Date}}</a>{{end}}
     </div>
     {{if eq .Status.State "ready"}}
     <div class="actions">
@@ -58,5 +73,5 @@
 <div class="notice ok"><p><strong>Sharing with your network.</strong> Phones and computers on the same Wi-Fi can read this library at
 {{range $i, $a := .Addrs}}{{if $i}}, {{end}}<code>{{$a}}</code>{{end}}.</p></div>{{end}}{{end}}
 
-{{if .Cards}}<p class="small muted" style="margin-top:28px"><a href="#" data-action="rescan">Look for new files</a> in the library folder.</p>{{end}}
+{{if .Cards}}<p class="small muted" style="margin-top:24px"><a href="#" data-action="rescan">Look for new files</a> in the library folder.</p>{{end}}
 {{template "foot" .}}{{end}}

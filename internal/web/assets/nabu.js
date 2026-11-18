@@ -105,7 +105,8 @@
     var body = {
       wiki: b.getAttribute('data-wiki') || '',
       key: b.getAttribute('data-key') || '',
-      book: b.getAttribute('data-book') || ''
+      book: b.getAttribute('data-book') || '',
+      title: b.getAttribute('data-title') || ''
     };
     b.disabled = true;
     post(action, body, function (ok) {
@@ -121,6 +122,10 @@
         if (c) c.hidden = false;
         setTimeout(poll, 800);
         return;
+      }
+      if (action === 'unsave' || action === 'forget') {
+        var li = b.closest ? b.closest('li') : null;
+        if (li) { li.parentNode.removeChild(li); return; }
       }
       if (action === 'download' || action === 'resume') window.scrollTo(0, 0);
       location.reload();

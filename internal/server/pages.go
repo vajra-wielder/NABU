@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/vajra-wielder/nabu/internal/dump"
@@ -30,16 +31,44 @@ var funcs = template.FuncMap{
 		return strconv.FormatFloat(p, 'f', 1, 64)
 	},
 	"wikiname": wikiName,
-	"seconds":  func(d time.Duration) int64 { return int64(d / time.Second) },
+	"dict": func(kv ...interface{}) map[string]interface{} {
+		m := map[string]interface{}{}
+		for i := 0; i+1 < len(kv); i += 2 {
+			if k, ok := kv[i].(string); ok {
+				m[k] = kv[i+1]
+			}
+		}
+		return m
+	},
+	"seconds": func(d time.Duration) int64 { return int64(d / time.Second) },
 }
 
-// wikiName names a wiki for people: "English Wikipedia (enwiki)".
+// wikiName names a wiki for people: "Русский · Russian Wikipedia".
 func wikiName(db string) string {
 	if l, ok := update.LanguageByWiki(db); ok {
 		if l.Name == l.En {
 			return l.Name + " Wikipedia"
 		}
 		return l.Name + " · " + l.En + " Wikipedia"
+	}
+	if db == "simplewiki" {
+		return "Simple English Wikipedia"
+	}
+	if strings.HasSuffix(db, "wiki") {
+		code := strings.ReplaceAll(strings.TrimSuffix(db, "wiki"), "_", "-")
+		if code == "be-x-old" {
+			code = "be-tarask"
+		}
+		if n, ok := langNames[code]; ok {
+			native, english := n, n
+			if i := strings.Index(n, " ("); i > 0 && strings.HasSuffix(n, ")") {
+				native, english = n[:i], n[i+2:len(n)-1]
+			}
+			if native == english {
+				return native + " Wikipedia"
+			}
+			return native + " · " + english + " Wikipedia"
+		}
 	}
 	return db
 }
@@ -64,6 +93,24 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 	if _, ok := data["PageTitle"]; !ok {
 		data["PageTitle"] = map[string]string{"updates.html": "Get & update", "about.html": "About"}[name]
 	}
+	if _, ok := data["BarBook"]; !ok {
+		if b, ok := data["Book"].(*library.Book); ok && b.Reader() != nil {
+			data["BarBook"] = b
+		} else if d, ok := data["Default"].(*library.Book); ok && d != nil {
+			data["BarBook"] = d
+		} else {
+			data["BarBook"] = (*library.Book)(nil)
+		}
+	}
+	saved, _ := s.reads.lists()
+	data["SavedCount"] = len(saved)
+	ups := 0
+	for _, v := range s.bookViews() {
+		if v.Newer != nil {
+			ups++
+		}
+	}
+	data["UpdateCount"] = ups
 	if _, ok := data["Lang"]; !ok {
 		data["Lang"] = "en"
 		data["Dir"] = "ltr"
@@ -132,7 +179,11 @@ func (s *Server) bookViews() []bookView {
 }
 
 func (s *Server) serveHome(w http.ResponseWriter, r *http.Request) {
+	saved, history := s.reads.lists()
 	s.render(w, r, "home.html", map[string]interface{}{
+		"Recent":   s.itemViews(history, 6),
+		"SavedTop": s.itemViews(saved, 6),
+		"Discover": s.discoverFor(s.Lib.Default()),
 		"Cards":    s.bookViews(),
 		"Download": s.Downloads.Status(),
 		"Notes":    s.Lib.Notes,

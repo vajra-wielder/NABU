@@ -1,46 +1,50 @@
-{{define "bar"}}
-<header id="nabu-bar" role="navigation" aria-label="NABU">
-  <a class="nabu-brand" href="/" title="NABU library"><img src="/nabu/static/nabu.svg" alt="" width="22" height="22"><span>NABU</span></a>
-  <a class="nabu-book" href="/{{.Book.ID}}/" title="Main page">{{.Site.Sitename}}</a>
-  <form class="nabu-search" action="/{{.Book.ID}}/search" method="get" role="search">
-    <input type="hidden" name="book" value="{{.Book.ID}}">
-    <input class="nabu-q" type="search" name="q" placeholder="Search {{.Site.Sitename}}" aria-label="Search" autocomplete="off" spellcheck="false">
-    <button type="submit" aria-label="Search"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
-  </form>
-  <a class="nabu-random" href="/{{.Book.ID}}/random" title="Random article" aria-label="Random article"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.6" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg></a>
-</header>
-{{end}}
-
 {{define "article.html"}}<!DOCTYPE html>
 <html lang="{{.Lang}}" dir="{{.Dir}}">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}} · {{.Site.Sitename}}</title>
-<link rel="icon" href="/nabu/static/nabu.svg">
-<link rel="stylesheet" href="/nabu/static/fonts.css">
-<link rel="stylesheet" href="/nabu/static/bar.css">
+{{template "meta" .}}
+<title>{{.Title}} · {{wikiname .Book.Files.DB}} · NABU</title>
+<meta name="description" content="{{.Summary}}">
 <link rel="stylesheet" href="/nabu/static/wiki.css">
 <script src="/nabu/static/bar.js" defer></script>
+<script src="/nabu/static/reader.js" defer></script>
 </head>
-<body class="wiki">
-{{template "bar" .}}
-<main class="page">
-  <h1 class="firstHeading">{{.Title}}</h1>
-  <div class="tagline" dir="ltr">
-    {{if .ShortDesc}}<span class="shortdesc" dir="auto">{{.ShortDesc}}</span> · {{end}}From {{.Site.Sitename}}, the free encyclopedia
-    {{if .From}}<br><span class="redirect-note">(Redirected from <a href="/{{.Book.ID}}/wiki/{{.From}}?redirect=no">{{.From}}</a>)</span>{{end}}
-  </div>
-  <article class="mw-body">
+<body class="wiki" data-book="{{.Book.ID}}" data-title="{{.Page.Title}}">
+<div dir="ltr">{{template "bar" .}}</div>
+<div class="reader">
+  <aside class="side" aria-label="Contents and tools" dir="ltr">
+    {{if .Side}}<h2>Contents</h2>
+    <ol><li><a href="#top">(Top)</a></li></ol>
+    <div class="side-toc" dir="{{.Dir}}">{{.Side}}</div>{{end}}
+    <div class="tools{{if not .Side}} first{{end}}">
+      <button type="button" class="save-side" data-save aria-pressed="{{if .Saved}}true{{else}}false{{end}}">{{if .Saved}}★ Saved{{else}}☆ Save article{{end}}</button>
+      <a href="/{{.Book.ID}}/random">⚄ Random article</a>
+      <a href="{{.Source}}">‹/› View source</a>
+      <a href="{{.Online}}" rel="noopener">↗ View on the web</a>
+      <button type="button" data-print>⎙ Print or save as PDF</button>
+    </div>
+  </aside>
+  <main class="page" id="main">
+    <div class="page-head" id="top">
+      <h1 class="firstHeading" dir="auto">{{.Title}}</h1>
+      <div class="tagline" dir="ltr">
+        {{if .ShortDesc}}<span class="shortdesc" dir="auto">{{.ShortDesc}}</span>{{end}}
+        <span>From {{.Site.Sitename}}, the free encyclopedia</span>
+        {{if .From}}<span class="redirect-note">(Redirected from <a href="/{{.Book.ID}}/wiki/{{.From}}?redirect=no">{{.From}}</a>)</span>{{end}}
+        <span class="head-tools">
+          <button type="button" class="btn save" data-save aria-pressed="{{if .Saved}}true{{else}}false{{end}}" title="Save to read later (kept on the drive)"><svg class="star" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span class="label">{{if .Saved}}Saved{{else}}Save{{end}}</span></button>
+        </span>
+      </div>
+    </div>
+    <article class="mw-body">
 {{.Body}}
-  </article>
-  {{if .Categories}}<div class="catlinks"><b>Categories:</b> {{range $i, $c := .Categories}}{{if $i}} · {{end}}<span>{{$c}}</span>{{end}}</div>{{end}}
-  <footer class="page-foot" dir="ltr">
-    <p>Text from {{.Site.Sitename}}, dump of {{.Edition}}, under the <a class="external" href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> licence.
-    Last edited {{.Page.Timestamp}}.</p>
-    <p><a href="{{.Online}}" class="external" rel="noopener">View on the web</a> · <a href="{{.Source}}">View source</a> · <a href="/">NABU library</a></p>
-  </footer>
-</main>
+    </article>
+    {{if .Categories}}<div class="catlinks" dir="auto"><b>Categories:</b> {{range .Categories}}<span>{{.}}</span>{{end}}</div>{{end}}
+    <footer class="page-foot" dir="ltr">
+      <p>Text from {{.Site.Sitename}}'s dump of {{.Edition}}, under the <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> licence. Last edited {{.Page.Timestamp}}.
+      <a href="{{.Online}}" rel="noopener">View on the web</a> · <a href="{{.Source}}">View source</a> · <a href="/">NABU library</a></p>
+    </footer>
+  </main>
+</div>
 </body>
 </html>
 {{end}}

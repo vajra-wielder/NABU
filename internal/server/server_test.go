@@ -163,13 +163,16 @@ func TestSecurity(t *testing.T) {
 
 func TestInternetExplorerStylesheets(t *testing.T) {
 	s := newTestServer(t)
-	for _, name := range []string{"nabu.css", "wiki.css", "bar.css"} {
+	for _, name := range []string{"theme.css", "nabu.css", "wiki.css"} {
 		r := do(s, "GET", "/nabu/static/"+name, "127.0.0.1:1",
 			map[string]string{"User-Agent": "Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko"})
 		b, _ := io.ReadAll(r.Body)
 		css := string(b)
 		if r.StatusCode != 200 || strings.Contains(css, "var(--") || len(css) < 500 {
 			t.Errorf("%s for IE11: %d, still has var(): %v", name, r.StatusCode, strings.Contains(css, "var(--"))
+		}
+		if strings.Contains(css, "inherit") && !strings.Contains(css, "#1d3a8a") && name != "theme.css" {
+			t.Errorf("%s for IE11 lost its colours", name)
 		}
 	}
 	_, css := get(s, "/nabu/static/wiki.css")
@@ -178,5 +181,82 @@ func TestInternetExplorerStylesheets(t *testing.T) {
 	}
 	if !strings.Contains(flattenCSS(":root{--a:#123;--b:var(--a);} x{color:var(--b)}"), "color:#123") {
 		t.Error("nested variables not resolved")
+	}
+}
+
+func TestReadingFeatures(t *testing.T) {
+	s := newTestServer(t)
+	nabu := map[string]string{"X-Nabu": "1", "Content-Type": "application/json"}
+	post := func(path, remote, body string) int {
+		req := httptest.NewRequest("POST", path, strings.NewReader(body))
+		req.Host, req.RemoteAddr = "localhost:8080", remote
+		for k, v := range nabu {
+			req.Header.Set(k, v)
+		}
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	// Reading on this computer is remembered; reading over the network is not.
+	get(s, "/testwiki/wiki/Babylon")
+	do(s, "GET", "/testwiki/wiki/Nabu", "192.168.1.20:4000", nil)
+	saved, history := s.reads.lists()
+	if len(history) != 1 || history[0].Title != "Babylon" || !strings.Contains(history[0].Extract, "Babylon was a city") {
+		t.Fatalf("history: %+v", history)
+	}
+	if len(saved) != 0 {
+		t.Fatal("nothing should be saved yet")
+	}
+
+	// Save, show on the home page and Saved page, unsave.
+	if c := post("/nabu/api/save", "127.0.0.1:1", `{"book":"testwiki","title":"Babylon","saved":true}`); c != 200 {
+		t.Fatalf("save: %d", c)
+	}
+	if c := post("/nabu/api/save", "192.168.1.20:1", `{"book":"testwiki","title":"Nabu"}`); c != 403 {
+		t.Fatalf("saving from the network must be refused: %d", c)
+	}
+	if !s.reads.isSaved("testwiki", "Babylon") {
+		t.Fatal("not saved")
+	}
+	for _, path := range []string{"/", "/nabu/saved"} {
+		if _, b := get(s, path); !strings.Contains(b, "Saved for later") || !strings.Contains(b, "Babylon was a city") {
+			t.Errorf("%s does not list the saved article", path)
+		}
+	}
+	if _, b := get(s, "/testwiki/wiki/Babylon"); !strings.Contains(b, `aria-pressed="true"`) {
+		t.Error("article page should show it as saved")
+	}
+	post("/nabu/api/unsave", "127.0.0.1:1", `{"book":"testwiki","title":"Babylon"}`)
+	post("/nabu/api/clear-history", "127.0.0.1:1", `{}`)
+	saved, history = s.reads.lists()
+	if len(saved)+len(history) != 0 {
+		t.Fatalf("unsave/clear failed: %v %v", saved, history)
+	}
+	// History can be switched off.
+	post("/nabu/api/settings", "127.0.0.1:1", `{"history":false}`)
+	get(s, "/testwiki/wiki/Nabu")
+	if _, history = s.reads.lists(); len(history) != 0 {
+		t.Fatal("history recorded while switched off")
+	}
+
+	// Link previews follow redirects and return the opening text.
+	r, b := get(s, "/nabu/api/preview?book=testwiki&title=Babylonia")
+	if r.StatusCode != 200 || !strings.Contains(b, `"title":"Babylon"`) || !strings.Contains(b, "city of") {
+		t.Fatalf("preview: %d %s", r.StatusCode, b)
+	}
+	if r, _ := get(s, "/nabu/api/preview?book=testwiki&title=Nowhere"); r.StatusCode != 404 {
+		t.Fatalf("preview of a missing page: %d", r.StatusCode)
+	}
+
+	// Pages carry the shared bar, settings panel and contents sidebar.
+	_, b = get(s, "/testwiki/wiki/Babylon")
+	for _, want := range []string{`id="nabu-bar"`, `id="prefs"`, `class="side-toc"`, `href="#History"`, "reader.js", "manifest.webmanifest"} {
+		if !strings.Contains(b, want) {
+			t.Errorf("article page lacks %s", want)
+		}
+	}
+	if r, _ := get(s, "/nabu/static/manifest.webmanifest"); r.StatusCode != 200 {
+		t.Error("manifest missing")
 	}
 }

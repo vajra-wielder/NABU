@@ -471,16 +471,21 @@ func (r *renderer) uniqueAnchor(a string) string {
 }
 
 func (r *renderer) toc() string {
+	return `<nav class="toc" aria-label="Contents"><details open><summary>Contents</summary>` + TOCList(r.out.Headings) + "</details></nav>"
+}
+
+// TOCList renders headings as a nested, numbered list of links.
+func TOCList(hs []Heading) string {
 	var b strings.Builder
-	b.WriteString(`<nav class="toc" aria-label="Contents"><details open><summary>Contents</summary><ol>`)
+	b.WriteString("<ol>")
 	min := 6
-	for _, h := range r.out.Headings {
+	for _, h := range hs {
 		if h.Level < min {
 			min = h.Level
 		}
 	}
 	level, open := min, false
-	for _, h := range r.out.Headings {
+	for _, h := range hs {
 		l := h.Level
 		if l > level+1 && open {
 			l = level + 1 // never skip a level ("==" then "====")
@@ -509,7 +514,7 @@ func (r *renderer) toc() string {
 		b.WriteString("</ol></li>")
 		level--
 	}
-	b.WriteString("</ol></details></nav>")
+	b.WriteString("</ol>")
 	return b.String()
 }
 

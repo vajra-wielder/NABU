@@ -1,35 +1,65 @@
+{{define "meta"}}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1d3a8a">
+<script>try{var p=JSON.parse(localStorage.getItem('nabu-prefs')||'{}'),h=document.documentElement;for(var k in p)if(p[k])h.setAttribute('data-'+k,p[k])}catch(e){}</script>
+<link rel="icon" href="/nabu/static/nabu.svg">
+<link rel="manifest" href="/nabu/static/manifest.webmanifest">
+<link rel="stylesheet" href="/nabu/static/fonts.css">
+<link rel="stylesheet" href="/nabu/static/theme.css">
+{{end}}
+
 {{define "head"}}<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+{{template "meta" .}}
 <title>{{if .PageTitle}}{{.PageTitle}} · {{end}}NABU</title>
-<link rel="icon" href="/nabu/static/nabu.svg">
-<link rel="stylesheet" href="/nabu/static/fonts.css">
 <link rel="stylesheet" href="/nabu/static/nabu.css">
 <script src="/nabu/static/bar.js" defer></script>
 <script src="/nabu/static/nabu.js" defer></script>
 </head>
 <body>
-<header class="top"><div class="wrap">
-  <a class="brand" href="/"><img src="/nabu/static/nabu.svg" alt="" width="30" height="30">NABU</a>
-  <nav>
-    <a href="/"{{if eq .Nav "home"}} aria-current="page"{{end}}>Library</a>
-    <a href="/nabu/updates"{{if eq .Nav "updates"}} aria-current="page"{{end}}>Get &amp; update</a>
-    <a href="/nabu/about"{{if eq .Nav "about"}} aria-current="page"{{end}}>About</a>
-  </nav>
-</div></header>
-<main class="wrap">
+{{template "bar" .}}
+<main class="wrap" id="main">
 {{end}}
 
 {{define "foot"}}
 <footer class="foot">
-  <span class="grow">NABU {{.Version}} · Wikipedia content is CC BY-SA 4.0, by its volunteer authors.</span>
+  <span class="grow"><img src="/nabu/static/nabu.svg" alt="">NABU {{.Version}} · Wikipedia text is CC BY-SA 4.0, written by its volunteers.</span>
+  <a href="/nabu/about">About</a>
   {{if .Local}}<a href="#" data-action="shutdown" data-confirm="Stop NABU? Pages will stop loading until you start it again.">Turn off NABU</a>{{end}}
 </footer>
 </main>
 </body>
 </html>
+{{end}}
+
+{{define "bar"}}
+<a class="skip" href="#main">Skip to content</a>
+<header id="nabu-bar" role="banner">
+  <a class="brand" href="/" title="NABU library"><img src="/nabu/static/nabu.svg" alt="" width="28" height="28"><span class="label">NABU</span></a>
+  {{with .BarBook}}<a class="wiki-name" href="/{{.ID}}/" title="Main page">{{wikiname .Files.DB}}</a>{{end}}
+  <form class="nabu-search" action="{{if .BarBook}}/{{.BarBook.ID}}/search{{else}}/search{{end}}" method="get" role="search">
+    {{with .BarBook}}<input type="hidden" name="book" value="{{.ID}}">{{end}}
+    <input class="nabu-q" type="search" name="q" placeholder="{{if .BarBook}}Search {{wikiname .BarBook.Files.DB}}{{else}}Search Wikipedia{{end}}" aria-label="Search" autocomplete="off" spellcheck="false">
+    <button type="submit" aria-label="Search"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
+  </form>
+  <nav aria-label="NABU">
+    <a href="/"{{if eq .Nav "home"}} aria-current="page"{{end}} title="Library"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M4 4h4v16H4zM10 4h4v16h-4zM16.5 4.5l3.8 1 -3.6 14.6-3.8-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span class="label">Library</span></a>
+    <a href="/nabu/saved"{{if eq .Nav "saved"}} aria-current="page"{{end}} title="Saved articles and history"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span class="label">Saved</span>{{if .SavedCount}} <span class="count">{{.SavedCount}}</span>{{end}}</a>
+    {{with .BarBook}}<a href="/{{.ID}}/random" title="Random article" aria-label="Random article"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg></a>{{end}}
+    <a href="/nabu/updates"{{if eq .Nav "updates"}} aria-current="page"{{end}} title="Get &amp; update Wikipedia" aria-label="Get and update Wikipedia"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>{{if .UpdateCount}} <span class="count">{{.UpdateCount}}</span>{{end}}</a>
+    <button type="button" data-prefs aria-expanded="false" aria-controls="prefs" title="Reading settings" aria-label="Reading settings"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><text x="1" y="18" font-family="Georgia,serif" font-size="15" font-weight="700" fill="currentColor">A</text><text x="12" y="18" font-family="Georgia,serif" font-size="10" fill="currentColor">a</text></svg></button>
+  </nav>
+  <div class="panel" id="prefs" hidden role="dialog" aria-label="Reading settings">
+    <h2>Reading settings</h2>
+    <div class="row"><div class="label">Theme</div><div class="seg" data-pref="theme"><button type="button" data-v="">Auto</button><button type="button" data-v="day">Day</button><button type="button" data-v="night">Night</button></div></div>
+    <div class="row"><div class="label">Text size</div><div class="seg" data-pref="size"><button type="button" data-v="s" class="aa-s">A</button><button type="button" data-v="" class="aa-m">A</button><button type="button" data-v="l" class="aa-l">A</button><button type="button" data-v="xl" class="aa-xl">A</button></div></div>
+    <div class="row"><div class="label">Page width</div><div class="seg" data-pref="width"><button type="button" data-v="">Standard</button><button type="button" data-v="wide">Wide</button></div></div>
+    <div class="row"><div class="label">Article text</div><div class="seg" data-pref="font"><button type="button" data-v="">Sans-serif</button><button type="button" data-v="serif">Serif</button></div></div>
+    <p class="small muted" style="margin:10px 0 0">Saved in this browser.</p>
+  </div>
+</header>
 {{end}}
 
 {{define "searchbox"}}
@@ -47,11 +77,21 @@
 {{end}}
 
 {{define "dlbox"}}
-<div class="notice" id="dl"{{if eq .Download.State "idle"}} hidden{{end}}>
+<div class="notice lapis" id="dl"{{if eq .Download.State "idle"}} hidden{{end}}>
   <p><strong data-file>{{.Download.Release}}</strong> <span class="muted small" data-part>{{.Download.File}}</span></p>
   <div class="progress"><div style="width:{{pct .Download.Done .Download.Total}}%"></div></div>
   <p class="small" data-line></p>
   <p class="small" data-error style="color:var(--bad)"></p>
   <p><button class="btn" data-action="cancel" data-cancel hidden>Pause download</button></p>
 </div>
+{{end}}
+
+{{define "readlist"}}
+<ul class="reads{{if .Discover}} discover{{end}}">
+{{range .Items}}<li data-item="{{.Book}}|{{.Title}}">
+  <a class="t" href="{{.URL}}" dir="auto">{{.Title}}</a>
+  {{if .Extract}}<span class="x" dir="auto">{{.Extract}}</span>{{end}}
+  <span class="m">{{.Wiki}}{{if not .At.IsZero}} · {{since .At}}{{end}}{{if $.Remove}}<button type="button" data-action="{{$.Remove}}" data-book="{{.Book}}" data-title="{{.Title}}" aria-label="Remove">✕</button>{{end}}</span>
+</li>{{end}}
+</ul>
 {{end}}

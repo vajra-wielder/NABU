@@ -24,7 +24,7 @@
     if (!input || form.getAttribute('data-nabu-ready')) return;
     form.setAttribute('data-nabu-ready', '1');
     var bookField = form.querySelector('[name=book]');
-    var list = el('ul', form.closest('#nabu-bar') ? 'nabu-suggest' : 'suggest');
+    var list = el('ul', 'nabu-suggest');
     list.hidden = true;
     list.setAttribute('role', 'listbox');
     form.appendChild(list);
@@ -56,7 +56,6 @@
           var li = el('li'), a = el('a', '', res[i].title);
           a.href = res[i].url;
           a.setAttribute('role', 'option');
-          if (res[i].via) a.appendChild(el('small', '', '← ' + res[i].via));
           li.appendChild(a);
           list.appendChild(li);
         }
@@ -86,6 +85,7 @@
   }
 
   function init() {
+    initPrefs();
     var forms = document.querySelectorAll('form.nabu-search, .searchbox form');
     for (var i = 0; i < forms.length; i++) attach(forms[i]);
     // Press "/" anywhere to jump to search, as on Wikipedia.
@@ -96,6 +96,49 @@
       var q = document.querySelector('.nabu-q, .searchbox input[type=search]');
       if (q) { ev.preventDefault(); q.focus(); q.select(); }
     });
+  }
+
+  // Reading settings: theme, text size, width and font, kept in this
+  // browser. The <head> applies them before the first paint.
+  var KEYS = ['theme', 'size', 'width', 'font'];
+  function readPrefs() {
+    try { return JSON.parse(localStorage.getItem('nabu-prefs') || '{}') || {}; } catch (e) { return {}; }
+  }
+  function writePrefs(p) {
+    try { localStorage.setItem('nabu-prefs', JSON.stringify(p)); } catch (e) { /* private mode: session only */ }
+  }
+  function applyPrefs(p) {
+    var h = document.documentElement;
+    for (var i = 0; i < KEYS.length; i++) {
+      if (p[KEYS[i]]) h.setAttribute('data-' + KEYS[i], p[KEYS[i]]);
+      else h.removeAttribute('data-' + KEYS[i]);
+    }
+    var segs = document.querySelectorAll('.seg[data-pref]');
+    for (var j = 0; j < segs.length; j++) {
+      var key = segs[j].getAttribute('data-pref'), btns = segs[j].querySelectorAll('button');
+      for (var k = 0; k < btns.length; k++) {
+        btns[k].setAttribute('aria-pressed', (btns[k].getAttribute('data-v') || '') === (p[key] || '') ? 'true' : 'false');
+      }
+    }
+  }
+  function initPrefs() {
+    var btn = document.querySelector('[data-prefs]'), panel = document.getElementById('prefs');
+    if (!btn || !panel) return;
+    var prefs = readPrefs();
+    applyPrefs(prefs);
+    function show(on) { panel.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); }
+    btn.addEventListener('click', function (ev) { ev.stopPropagation(); show(panel.hidden); });
+    panel.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var b = ev.target.closest ? ev.target.closest('button[data-v]') : null;
+      if (!b) return;
+      var key = b.parentNode.getAttribute('data-pref');
+      prefs[key] = b.getAttribute('data-v') || '';
+      writePrefs(prefs);
+      applyPrefs(prefs);
+    });
+    document.addEventListener('click', function () { show(false); });
+    document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' || ev.key === 'Esc') show(false); });
   }
 
   // Pictures come from Wikimedia when online. When one cannot load

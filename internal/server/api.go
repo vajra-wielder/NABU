@@ -26,6 +26,9 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 	case "status":
 		writeJSON(w, s.status())
 		return
+	case "preview":
+		s.servePreview(w, r)
+		return
 	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "use POST", http.StatusMethodNotAllowed)
@@ -43,6 +46,9 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		Wiki         string `json:"wiki"`
 		Book         string `json:"book"`
 		Key          string `json:"key"`
+		Title        string `json:"title"`
+		Saved        *bool  `json:"saved"`
+		History      *bool  `json:"history"`
 		CheckOnStart *bool  `json:"check_on_start"`
 		AutoDownload *bool  `json:"auto_download"`
 		Pictures     *bool  `json:"pictures"`
@@ -103,10 +109,33 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		if body.Pictures != nil {
 			st.Pictures = *body.Pictures
 		}
+		if body.History != nil {
+			st.History = *body.History
+		}
 		err = update.SaveSettings(s.Lib.Dir, st)
 		s.settingsMu.Unlock()
 	case "rescan":
 		err = s.Lib.Rescan()
+	case "save":
+		b := s.Lib.Get(body.Book)
+		if b == nil || b.Reader() == nil || body.Title == "" {
+			err = errors.New("no such article")
+			break
+		}
+		on := body.Saved == nil || *body.Saved
+		ex := ""
+		if on {
+			if page, e := s.loadFollow(b, body.Title); e == nil {
+				ex = extract(s.renderPage(b, page).HTML, 220)
+			}
+		}
+		s.reads.setSaved(b.ID, body.Title, ex, on)
+	case "unsave":
+		s.reads.setSaved(body.Book, body.Title, "", false)
+	case "forget":
+		s.reads.forget(body.Book, body.Title)
+	case "clear-history":
+		s.reads.clearHistory()
 	case "shutdown":
 		writeJSON(w, map[string]bool{"ok": true})
 		if s.Shutdown != nil {

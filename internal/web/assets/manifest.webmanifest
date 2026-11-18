@@ -1,0 +1,11 @@
+{
+  "name": "NABU: Wikipedia, anywhere",
+  "short_name": "NABU",
+  "description": "Wikipedia read offline from Wikimedia's dumps on a pen drive.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f0e4",
+  "theme_color": "#1d3a8a",
+  "icons": [{ "src": "/nabu/static/nabu.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

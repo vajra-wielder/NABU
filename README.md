@@ -90,6 +90,21 @@ The browser opens on your library. Search from the box at the top of every page 
 <kbd>/</kbd>); capitals and accents don't matter, so "ecriture" finds "Écriture".
 Close the small NABU window, or click **Turn off NABU**, when you are done.
 
+**Reading.** Articles have Wikipedia's structure in NABU's colours: lapis blue, terracotta
+and parchment, with a Night theme for the evening.
+
+- **Contents sidebar.** On wide screens it follows you down the page.
+- **Link previews.** Hover a link to see how that article begins.
+- **Reading settings.** The **Aa** button sets the theme (Auto, Day, Night), text size,
+  page width, and serif or sans-serif body text. Settings are remembered per browser.
+- **Saved & recent.** **☆ Save** keeps an article for later. Saved articles and reading
+  history are stored *on the drive*, so they move with the stick to any computer. Only
+  reading on the computer running NABU is remembered, never that of devices reading
+  over Wi-Fi. History can be switched off or cleared.
+- **Home page.** It offers *Continue reading*, your saved articles and a few random
+  articles to explore.
+- **Installable.** In Chrome and Edge, NABU can be installed as an app window.
+
 **No Wikipedia yet?** The **Get & update** page lists the ten languages with the date
 and size of Wikimedia's newest dump, and downloads with one click. Downloads resume
 after dropped connections or restarts, and every file is checked against Wikimedia's
@@ -275,7 +290,10 @@ unrendered.
   tags and references, templates (`handlers.go`, `cite.go`), sanitising.
 - `internal/library`: finds dumps, prepares them in the background.
 - `internal/update`: Wikimedia release lookup, resumable verified downloads, settings.
-- `internal/server`, `internal/web`: pages, API, templates, CSS, JS, fonts.
+- `internal/server`, `internal/web`: pages, API, saved/history store, link previews,
+  templates; `theme.css` (palette and shared bar), `nabu.css` (NABU pages), `wiki.css`
+  (articles), `bar.js` (search and reading settings), `reader.js` (save, previews,
+  contents sidebar), fonts.
 - `docs/language_coverage.py`: the language selection.
 
 ## Limits

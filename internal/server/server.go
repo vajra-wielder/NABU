@@ -33,6 +33,10 @@ type Server struct {
 	Shutdown  func()
 
 	settingsMu sync.Mutex
+	reads      *readerStore
+	previews   *previewCache
+	discoverMu sync.Mutex
+	discover   map[string]discoverSet
 	tmpl       *template.Template
 	static     http.Handler
 	started    time.Time
@@ -40,7 +44,8 @@ type Server struct {
 
 // New builds a Server.
 func New(lib *library.Library, checker *update.Checker, dl *update.Manager) (*Server, error) {
-	s := &Server{Lib: lib, Checker: checker, Downloads: dl, started: time.Now()}
+	s := &Server{Lib: lib, Checker: checker, Downloads: dl, started: time.Now(),
+		reads: openReaderStore(lib.Dir), previews: newPreviewCache(256), discover: map[string]discoverSet{}}
 	t, err := template.New("").Funcs(funcs).ParseFS(web.Templates, "templates/*.html")
 	if err != nil {
 		return nil, err
@@ -80,6 +85,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveUpdates(w, r)
 	case p == "/nabu/about":
 		s.serveAbout(w, r)
+	case p == "/nabu/saved":
+		s.serveSaved(w, r)
 	case strings.HasPrefix(p, "/nabu/static/"):
 		w.Header().Set("Cache-Control", "public, max-age=86400")
 		if s.serveLegacyCSS(w, r) {
