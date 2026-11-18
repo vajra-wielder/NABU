@@ -1,10 +1,13 @@
 package library
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/vajra-wielder/nabu/internal/dump"
@@ -107,6 +110,7 @@ func (l *Library) BuildFullText(id string) error {
 	case FTQueued, FTBuilding:
 		return nil
 	}
+	l.setWanted(b.Files.DB, true)
 	b.ft = ftState{state: FTQueued, index: b.ft.index, stop: make(chan struct{})}
 	select {
 	case l.ftQueue <- b:
@@ -120,6 +124,7 @@ func (l *Library) BuildFullText(id string) error {
 // CancelFullText stops a queued or running build.
 func (l *Library) CancelFullText(id string) {
 	if b := l.Get(id); b != nil {
+		l.setWanted(b.Files.DB, false)
 		b.mu.Lock()
 		if b.ft.stop != nil && (b.ft.state == FTQueued || b.ft.state == FTBuilding) {
 			close(b.ft.stop)
@@ -192,4 +197,80 @@ func FullTextEstimate(dumpBytes int64, cores int) (minutes int, bytes int64) {
 	}
 	secs := float64(dumpBytes) / 5.4e6 * 3 / float64(cores) * 1.5 // 1.5: older machines and USB sticks
 	return int(secs/60) + 1, dumpBytes / 5
+}
+
+// The wikis whose readers built search inside articles are remembered on
+// the drive, so a newly downloaded dump of them gets it automatically,
+// even if the old copy is deleted before the new one is ready.
+func (l *Library) wantPath() string { return filepath.Join(l.Dir, ".nabu", "fulltext.json") }
+
+func (l *Library) loadWanted() {
+	l.wantMu.Lock()
+	defer l.wantMu.Unlock()
+	l.ftWant = map[string]bool{}
+	if b, err := os.ReadFile(l.wantPath()); err == nil {
+		var v struct{ Wikis []string }
+		if json.Unmarshal(b, &v) == nil {
+			for _, w := range v.Wikis {
+				l.ftWant[w] = true
+			}
+		}
+	}
+	// Indexes built before this was recorded count too.
+	ents, _ := os.ReadDir(filepath.Join(l.Dir, ".nabu", "index"))
+	for _, e := range ents {
+		if n := e.Name(); strings.HasSuffix(n, ".nfts") {
+			if i := strings.LastIndexByte(n, '-'); i > 0 {
+				l.ftWant[n[:i]] = true
+			}
+		}
+	}
+}
+
+func (l *Library) setWanted(db string, on bool) {
+	l.wantMu.Lock()
+	defer l.wantMu.Unlock()
+	if l.ftWant[db] == on {
+		return
+	}
+	if on {
+		l.ftWant[db] = true
+	} else {
+		delete(l.ftWant, db)
+	}
+	var v struct {
+		Wikis []string `json:"wikis"`
+	}
+	for w := range l.ftWant {
+		v.Wikis = append(v.Wikis, w)
+	}
+	sort.Strings(v.Wikis)
+	os.MkdirAll(filepath.Dir(l.wantPath()), 0o755)
+	if b, err := json.MarshalIndent(v, "", "  "); err == nil {
+		os.WriteFile(l.wantPath(), b, 0o644)
+	}
+}
+
+// WantsFullText reports whether search inside articles is kept for db.
+func (l *Library) WantsFullText(db string) bool {
+	l.wantMu.Lock()
+	defer l.wantMu.Unlock()
+	return l.ftWant[db]
+}
+
+// autoFullText queues search inside articles for a newly ready dump when
+// its wiki had it before, and only for the newest copy of that wiki.
+func (l *Library) autoFullText(b *Book) {
+	if !l.WantsFullText(b.Files.DB) || b.Reader() == nil {
+		return
+	}
+	for _, o := range l.Books() {
+		if o.Files.DB == b.Files.DB && o.Files.Date > b.Files.Date {
+			return
+		}
+	}
+	if st := b.FTStatus().State; st != FTNone {
+		return
+	}
+	l.BuildFullText(b.ID)
 }

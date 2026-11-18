@@ -87,6 +87,9 @@ type Library struct {
 
 	queue   chan *Book
 	ftQueue chan *Book
+
+	wantMu sync.Mutex
+	ftWant map[string]bool // wikis whose newest dump should get search inside articles
 }
 
 // Open scans dir and starts preparing any new dumps.
@@ -96,6 +99,7 @@ func Open(dir string) (*Library, error) {
 	}
 	l := &Library{Dir: dir, byID: map[string]*Book{}, queue: make(chan *Book, 256)}
 	l.ftQueue = make(chan *Book, 64)
+	l.loadWanted()
 	go l.worker()
 	go l.ftWorker()
 	return l, l.Rescan()
@@ -134,6 +138,7 @@ func (l *Library) Rescan() error {
 			if rd, err := dump.NewReader(f, ix); err == nil {
 				b.reader, b.state = rd, Ready
 				l.openFullText(b)
+				defer func(b *Book) { go l.autoFullText(b) }(b)
 			} else {
 				ix.Close()
 				b.state, b.err = Failed, err.Error()
@@ -219,6 +224,7 @@ func (l *Library) prepare(b *Book) {
 	}
 	b.reader, b.state, b.done = rd, Ready, b.total
 	l.openFullText(b)
+	go l.autoFullText(b)
 }
 
 // BuildBudget is the memory used for sorting titles while preparing a
