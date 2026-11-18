@@ -39,6 +39,8 @@ type Heading struct {
 // Output is a rendered page.
 type Output struct {
 	HTML         string
+	Coords       []Coord  // from {{coord}}, in page order
+	Templates    []string // names of templates used, as written
 	Categories   []string
 	ShortDesc    string
 	Headings     []Heading
@@ -81,6 +83,7 @@ type renderer struct {
 
 	refGroups map[string]*refGroup
 	refOrder  []string
+	seenTpl   map[string]bool
 }
 
 type placeholder struct {

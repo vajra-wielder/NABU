@@ -132,6 +132,7 @@ func (r *renderer) callTemplate(inner string, block bool) string {
 		}
 	}
 	c := &call{raw: nameRaw, name: normName(nameRaw), named: map[string]string{}, block: block}
+	r.noteTemplate(nameRaw)
 	for _, p := range parts[1:] {
 		if k := strings.IndexByte(p, '='); k > 0 && !strings.ContainsAny(p[:k], "[{<\x01") {
 			key := strings.ToLower(strings.TrimSpace(p[:k]))
@@ -299,6 +300,20 @@ func (r *renderer) fallback(c *call) string {
 	}
 	return ""
 }
+
+func (r *renderer) noteTemplate(name string) {
+	name = strings.TrimSpace(strings.ReplaceAll(name, "_", " "))
+	if r.seenTpl == nil {
+		r.seenTpl = map[string]bool{}
+	}
+	if name != "" && !r.seenTpl[name] && len(r.out.Templates) < 500 {
+		r.seenTpl[name] = true
+		r.out.Templates = append(r.out.Templates, name)
+	}
+}
+
+// IsInfobox reports whether a template name is an infobox.
+func IsInfobox(name string) bool { return isInfobox(normName(name)) }
 
 func isInfobox(n string) bool {
 	for _, p := range []string{"infobox", "ficha", "info/", "карточка", "基礎情報", "صندوق معلومات", "جعبه اطلاعات", "taxobox", "automatic taxobox", "speciesbox", "chembox", "drugbox", "geobox", "kotak info", "faktaboks", "boîte", "infoboks"} {

@@ -211,3 +211,43 @@ func (c *streamCache) get(k uint32, load func() ([]byte, error)) ([]byte, error)
 	call.wg.Done()
 	return call.data, call.err
 }
+
+// StreamCount is the number of bzip2 streams (of up to 100 pages).
+func (ix *Index) StreamCount() int { return len(ix.streams) }
+
+// StreamPages decompresses stream s and returns all its pages. It
+// bypasses the cache, so whole-dump scans don't evict what a reader is
+// looking at.
+func (r *Reader) StreamPages(s uint32) ([]*Page, error) {
+	pair, start, end, err := r.Index.streamRange(s)
+	if err != nil {
+		return nil, err
+	}
+	if pair >= len(r.data) {
+		return nil, ErrStale
+	}
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, bzip2.NewReader(io.NewSectionReader(r.data[pair], start, end-start))); err != nil {
+		return nil, fmt.Errorf("decompressing the dump (is the file complete?): %w", err)
+	}
+	data := buf.Bytes()
+	var pages []*Page
+	for {
+		i := bytes.Index(data, pageOpen)
+		if i < 0 {
+			break
+		}
+		data = data[i:]
+		j := bytes.Index(data, pageClose)
+		if j < 0 {
+			break
+		}
+		var xp xmlPage
+		if err := xml.Unmarshal(data[:j+len(pageClose)], &xp); err == nil {
+			pages = append(pages, &Page{Title: xp.Title, NS: xp.NS, ID: xp.ID, Redirect: xp.Redirect.Title,
+				Text: xp.Revision.Text, Timestamp: xp.Revision.Timestamp})
+		}
+		data = data[j+len(pageClose):]
+	}
+	return pages, nil
+}

@@ -414,6 +414,26 @@ func init() {
 	reg(drop, "flagicon", "flag icon", "flagicon image", "bandera", "drapeau", "bandeira", "флагификация")
 	reg(func(r *renderer, c *call) string { return "[[" + c.arg(0) + "]]" }, "flag", "flagcountry", "flagu", "flag country", "flagathlete", "flagdeco", "bandera2", "pays", "país", "drapeau2")
 
+	// Glossaries: {{glossary}} {{term|x}} {{defn|y}} {{glossary end}}, and
+	// NABU v0.1's one-line {{glossary|term|definition}}.
+	reg(func(r *renderer, c *call) string {
+		if len(c.pos) >= 2 {
+			return r.blockPH(`<dl class="glossary"><dt>` + r.inline(c.pos[0]) + "</dt><dd>" + r.fragment(c.pos[1]) + "</dd></dl>")
+		}
+		return ""
+	}, "glossary")
+	reg(drop, "glossary end", "end glossary")
+	reg(func(r *renderer, c *call) string {
+		t := firstNonEmpty(c.get("term", "content"), c.arg(1), c.arg(0))
+		if len(c.pos) >= 2 && c.arg(1) != "" {
+			t = c.arg(1) // {{term|1=anchor|2=shown text}}
+		}
+		return r.blockPH(`<dl class="glossary"><dt id="` + escAttr(Anchor(stripTags(r.inline(c.arg(0))))) + `">` + r.inline(t) + "</dt></dl>")
+	}, "term", "glossary term", "gloss term")
+	reg(func(r *renderer, c *call) string {
+		return r.blockPH(`<dl class="glossary"><dd>` + r.fragment(firstNonEmpty(c.get("defn"), c.arg(0))) + "</dd></dl>")
+	}, "defn", "glossary definition", "gloss defn")
+
 	// Images in template form.
 	reg(func(r *renderer, c *call) string {
 		var items []string
@@ -648,10 +668,13 @@ func roundLike(v float64, orig string) string {
 
 // --- {{coord}} -----------------------------------------------------------
 
-func coord(r *renderer, c *call) string {
+// ParseCoord reads the positional parameters of {{coord}}: decimal
+// ("51.5|-0.12"), degrees-minutes-seconds with hemispheres
+// ("51|30|N|0|7|W") or a mix.
+func ParseCoord(pos []string) (lat, lon float64, ok bool) {
 	var nums []float64
 	var hemis []string
-	for _, p := range c.pos {
+	for _, p := range pos {
 		p = strings.TrimSpace(p)
 		switch strings.ToUpper(p) {
 		case "N", "S", "E", "W", "O":
@@ -665,7 +688,7 @@ func coord(r *renderer, c *call) string {
 			nums = append(nums, f)
 		}
 	}
-	var lat, lon float64
+
 	switch {
 	case len(hemis) == 2 && len(nums) >= 2:
 		k := len(nums) / 2
@@ -679,8 +702,21 @@ func coord(r *renderer, c *call) string {
 	case len(nums) >= 2:
 		lat, lon = nums[0], nums[1]
 	default:
+		return 0, 0, false
+	}
+	if lat < -90 || lat > 90 || lon < -180 || lon > 180 {
+		return 0, 0, false
+	}
+	return lat, lon, true
+}
+
+func coord(r *renderer, c *call) string {
+	lat, lon, ok := ParseCoord(c.pos)
+	if !ok {
 		return ""
 	}
+	r.out.Coords = append(r.out.Coords, Coord{Lat: lat, Lon: lon,
+		Primary: strings.Contains(c.get("display"), "title")})
 	label := fmtDMS(lat, "N", "S") + " " + fmtDMS(lon, "E", "W")
 	href := fmt.Sprintf("https://www.openstreetmap.org/?mlat=%.5f&mlon=%.5f#map=10/%.5f/%.5f", lat, lon, lat, lon)
 	h := `<a class="external coord" rel="noopener" href="` + escAttr(href) + `">` + label + "</a>"
