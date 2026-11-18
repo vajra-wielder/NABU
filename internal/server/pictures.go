@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -27,8 +28,10 @@ func (s *Server) imagesFor(b *library.Book, st update.Settings) bool {
 		return true
 	}
 	if ps := s.Lib.Pictures(); ps != nil {
-		if store, _ := ps.Store(b.Files.DB, false); store != nil {
-			return true
+		for _, name := range []string{b.Files.DB, pictures.Commons} {
+			if store, _ := ps.Store(name, false); store != nil {
+				return true
+			}
 		}
 	}
 	return false
@@ -76,7 +79,12 @@ func (s *Server) servePicture(w http.ResponseWriter, r *http.Request) {
 // picLine describes a wiki's offline pictures in a sentence.
 func picLine(p library.PicStatus) string {
 	kept := func() string {
-		return count64(int64(p.Pictures)) + " pictures, " + update.HumanBytes(p.Bytes)
+		n, b := p.Pictures+p.Shared, p.Bytes+p.SBytes
+		s := count64(int64(n)) + " pictures, " + update.HumanBytes(b)
+		if p.Shared > 0 {
+			s += " (shared by all languages, plus this one's own)"
+		}
+		return s
 	}
 	what := "the main picture of each article"
 	if p.Mode == pictures.All {
@@ -109,8 +117,8 @@ func picLine(p library.PicStatus) string {
 	case library.PicFailed:
 		return "Keeping pictures stopped: " + p.Err
 	}
-	if p.Pictures > 0 {
-		return "Pictures kept from reading online: " + kept()
+	if p.Pictures+p.Shared > 0 {
+		return "Pictures on the drive: " + kept()
 	}
 	return "Pictures show when the computer is online."
 }
@@ -133,4 +141,15 @@ func humanDur(d time.Duration) string {
 		return strconv.Itoa(int(d.Hours()+0.5)) + " hours"
 	}
 	return strconv.Itoa(int(d.Hours()/24+0.5)) + " days"
+}
+
+// englishPicturesKept reports whether English Wikipedia's pictures (most
+// of which other languages use too) are on the drive.
+func (s *Server) englishPicturesKept() bool {
+	ps := s.Lib.Pictures()
+	if ps == nil {
+		return false
+	}
+	j, err := pictures.LoadJob(filepath.Join(ps.Dir, "enwiki"))
+	return err == nil && j.Done
 }

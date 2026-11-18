@@ -95,6 +95,31 @@ func PageNames(title, text string, site *dump.Siteinfo, lead bool) []string {
 	return names
 }
 
+// Stores are where a job keeps pictures: those on Commons in the shared
+// store, the wiki's own files and the missing ones in the wiki's.
+type Stores struct{ Wiki, Shared *Store }
+
+// Has reports whether either store knows the picture.
+func (s Stores) Has(name string) bool {
+	return s.Wiki.Has(name) || (s.Shared != nil && s.Shared.Has(name))
+}
+
+func (s Stores) put(info Info, data []byte) {
+	if data != nil && info.Shared && s.Shared != nil {
+		s.Shared.Put(info.Name, data)
+		return
+	}
+	s.Wiki.Put(info.Name, data)
+}
+
+// Sync flushes both stores.
+func (s Stores) Sync() {
+	s.Wiki.Sync()
+	if s.Shared != nil {
+		s.Shared.Sync()
+	}
+}
+
 // Progress is reported as a job runs.
 type Progress struct {
 	Job     Job
@@ -107,7 +132,7 @@ type Busy func() bool
 // Run goes through the dump from j.Stream on, keeping every picture the
 // store does not have yet. It returns when done, stopped (ctx), or on
 // an error that waiting will not cure. Network failures are waited out.
-func Run(ctx context.Context, j *Job, rd *dump.Reader, st *Store, f *Fetcher, host string, busy Busy, report func(Progress)) error {
+func Run(ctx context.Context, j *Job, rd *dump.Reader, st Stores, f *Fetcher, host string, busy Busy, report func(Progress)) error {
 	site := rd.Site()
 	j.Streams = rd.Index.StreamCount()
 	if j.Started.IsZero() {
@@ -177,7 +202,7 @@ func Run(ctx context.Context, j *Job, rd *dump.Reader, st *Store, f *Fetcher, ho
 	lastSave := time.Now()
 	save := func() {
 		j.Seconds = elapsed()
-		j.Save(st.Dir)
+		j.Save(st.Wiki.Dir)
 		st.Sync()
 		lastSave = time.Now()
 	}
@@ -213,12 +238,15 @@ func Run(ctx context.Context, j *Job, rd *dump.Reader, st *Store, f *Fetcher, ho
 	}
 	j.Done = true
 	save()
-	st.Compact()
+	st.Wiki.Compact()
+	if st.Shared != nil {
+		st.Shared.Compact()
+	}
 	return nil
 }
 
 // fetchAll keeps the given pictures, waiting out network trouble.
-func fetchAll(ctx context.Context, list []string, st *Store, f *Fetcher, host string, busy Busy, waiting func(string), j *Job) error {
+func fetchAll(ctx context.Context, list []string, st Stores, f *Fetcher, host string, busy Busy, waiting func(string), j *Job) error {
 	for len(list) > 0 {
 		n := len(list)
 		if n > apiBatch {
@@ -245,7 +273,7 @@ func fetchAll(ctx context.Context, list []string, st *Store, f *Fetcher, host st
 			info, ok := infos[Normalize(name)]
 			switch {
 			case !ok, info.Missing, info.Skip:
-				st.Put(name, nil)
+				st.Wiki.Put(name, nil)
 				j.Missing++
 			default:
 				info.Name = name
@@ -260,7 +288,7 @@ func fetchAll(ctx context.Context, list []string, st *Store, f *Fetcher, host st
 	return nil
 }
 
-func downloadAll(ctx context.Context, todo []Info, st *Store, f *Fetcher, busy Busy, waiting func(string), j *Job) error {
+func downloadAll(ctx context.Context, todo []Info, st Stores, f *Fetcher, busy Busy, waiting func(string), j *Job) error {
 	var mu sync.Mutex
 	next, fetched, missing := 0, 0, 0
 	take := func() (Info, bool) {
@@ -294,12 +322,12 @@ func downloadAll(ctx context.Context, todo []Info, st *Store, f *Fetcher, busy B
 					switch {
 					case err == nil:
 						mu.Lock()
-						st.Put(info.Name, data)
+						st.put(info, data)
 						fetched++
 						mu.Unlock()
 					case errors.Is(err, ErrNotFound), errors.Is(err, ErrSkipped):
 						mu.Lock()
-						st.Put(info.Name, nil)
+						st.Wiki.Put(info.Name, nil)
 						missing++
 						mu.Unlock()
 					case ctx.Err() != nil:

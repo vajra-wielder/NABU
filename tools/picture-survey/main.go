@@ -21,6 +21,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -80,6 +81,13 @@ type result struct {
 	OtherBytes float64 `json:"other_bytes"`
 	LeadN      int     `json:"lead_n"`
 	OtherN     int     `json:"other_n"`
+	Resolved   int     `json:"resolved"`    // sample pictures looked up
+	Local      int     `json:"local"`       // of those, the wiki's own files (not on Commons)
+	CheckedEn  int     `json:"checked_en"`  // shared ones checked against English
+	AlsoEn     int     `json:"also_en"`     // of those, also used by English articles
+
+	leads, others, distinct []string
+	host                    string
 }
 
 func sharedKind(n string) bool {
@@ -183,15 +191,131 @@ func main() {
 			}
 		}
 		fmt.Fprintf(os.Stderr, "%s: downloading sample pictures\n", wiki)
-		r.LeadBytes, r.LeadN = sampleBytes(ctx, f, site.Host(), leads, *npics, rng)
-		r.OtherBytes, r.OtherN = sampleBytes(ctx, f, site.Host(), others, *npics, rng)
-		fmt.Fprintf(os.Stderr, "%s: %d articles sampled, %d with pictures, %d pictures shown (%d distinct, %d flags/icons/logos); lead %.0f B (n=%d), other %.0f B (n=%d)\n",
-			wiki, r.Sampled, r.WithPic, r.Refs, r.Distinct, r.Shared, r.LeadBytes, r.LeadN, r.OtherBytes, r.OtherN)
+		r.leads, r.others, r.host = leads, others, site.Host()
+		for n := range seen {
+			r.distinct = append(r.distinct, n)
+		}
+		sort.Strings(r.distinct)
+		rng.Shuffle(len(r.distinct), func(i, j int) { r.distinct[i], r.distinct[j] = r.distinct[j], r.distinct[i] })
+		// Shared or local; and, for other languages, also used by English?
+		check := r.distinct
+		if len(check) > 300 {
+			check = check[:300]
+		}
+		infos, _ := f.Resolve(ctx, r.host, check)
+		var shared []string
+		for _, n := range check {
+			if info, ok := infos[pictures.Normalize(n)]; ok && !info.Missing {
+				r.Resolved++
+				if info.Shared {
+					shared = append(shared, n)
+				} else {
+					r.Local++
+				}
+			}
+		}
+		if wiki != "enwiki" {
+			r.CheckedEn, r.AlsoEn = usedOnEnglish(shared)
+		}
+		fmt.Fprintf(os.Stderr, "%s: %d articles sampled, %d with pictures, %d pictures shown (%d distinct, %d flags/icons/logos); %d of %d looked up are its own files; %d of %d shared ones also used by English\n",
+			wiki, r.Sampled, r.WithPic, r.Refs, r.Distinct, r.Shared, r.Local, r.Resolved, r.AlsoEn, r.CheckedEn)
 		results = append(results, r)
+		save(results)
 	}
-	out, _ := json.MarshalIndent(results, "", "  ")
-	os.WriteFile("picture-survey.json", out, 0o644)
+	for i := range results {
+		r := &results[i]
+		r.LeadBytes, r.LeadN = sampleBytes(context.Background(), f, r.host, r.leads, *npics, rng)
+		r.OtherBytes, r.OtherN = sampleBytes(context.Background(), f, r.host, r.others, *npics, rng)
+		fmt.Fprintf(os.Stderr, "%s: sizes: lead %.0f B (n=%d), other %.0f B (n=%d)\n", r.Wiki, r.LeadBytes, r.LeadN, r.OtherBytes, r.OtherN)
+		save(results)
+	}
 	report(results)
+}
+
+func save(rs []result) {
+	out, _ := json.MarshalIndent(rs, "", "  ")
+	os.WriteFile("picture-survey.json", out, 0o644)
+}
+
+// usedOnEnglish checks which Commons pictures English Wikipedia articles
+// use too (its imagelinks include Commons files).
+func usedOnEnglish(names []string) (checked, used int) {
+	for len(names) > 0 {
+		n := len(names)
+		if n > 50 {
+			n = 50
+		}
+		batch := names[:n]
+		names = names[n:]
+		titles := make([]string, len(batch))
+		for i, x := range batch {
+			titles[i] = "File:" + pictures.Normalize(x)
+		}
+		seen := map[string]bool{}
+		cont := ""
+		for round := 0; round < 40; round++ {
+			q := url.Values{"action": {"query"}, "format": {"json"}, "formatversion": {"2"}, "prop": {"fileusage"},
+				"funamespace": {"0"}, "fulimit": {"max"}, "fuprop": {"pageid"}, "titles": {strings.Join(titles, "|")}}
+			if cont != "" {
+				q.Set("fucontinue", cont)
+				q.Set("continue", "||")
+			}
+			var v struct {
+				Continue struct {
+					Fucontinue string `json:"fucontinue"`
+				} `json:"continue"`
+				Query struct {
+					Normalized []struct{ From, To string } `json:"normalized"`
+					Pages      []struct {
+						Title     string            `json:"title"`
+						FileUsage []json.RawMessage `json:"fileusage"`
+					} `json:"pages"`
+				} `json:"query"`
+			}
+			if err := apiGet("https://en.wikipedia.org/w/api.php?"+q.Encode(), &v); err != nil {
+				fmt.Fprintln(os.Stderr, "english usage:", err)
+				return checked, used
+			}
+			for _, p := range v.Query.Pages {
+				if len(p.FileUsage) > 0 {
+					seen[pictures.Normalize(strings.TrimPrefix(p.Title, "File:"))] = true
+				}
+			}
+			if cont = v.Continue.Fucontinue; cont == "" {
+				break
+			}
+		}
+		checked += len(batch)
+		used += len(seen)
+	}
+	return checked, used
+}
+
+var apiLast time.Time
+
+// apiGet: one request at a time, at most one every 0.5 s, waiting out 429s.
+func apiGet(u string, v interface{}) error {
+	for try := 0; try < 8; try++ {
+		if d := time.Until(apiLast.Add(500 * time.Millisecond)); d > 0 {
+			time.Sleep(d)
+		}
+		apiLast = time.Now()
+		req, _ := http.NewRequest("GET", u, nil)
+		req.Header.Set("User-Agent", ua)
+		resp, err := client.Do(req)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode == 429 || resp.StatusCode == 503 {
+			resp.Body.Close()
+			time.Sleep(time.Duration(10*(try+1)) * time.Second)
+			continue
+		}
+		err = json.NewDecoder(resp.Body).Decode(v)
+		resp.Body.Close()
+		return err
+	}
+	return fmt.Errorf("Wikimedia kept asking to slow down")
 }
 
 // articles asks the wiki how many articles it has.
@@ -250,14 +374,16 @@ func sampleBytes(ctx context.Context, f *pictures.Fetcher, host string, names []
 
 func report(rs []result) {
 	sort.Slice(rs, func(i, j int) bool { return rs[i].Articles > rs[j].Articles })
-	fmt.Println("| Wikipedia | Articles | Sampled | With a picture | Pictures per article | Main picture | Other pictures |")
-	fmt.Println("|---|---:|---:|---:|---:|---:|---:|")
+	fmt.Println("| Wikipedia | Articles | Sampled | With a picture | Pictures per article | Own files | Also used by English | Main picture | Other pictures |")
+	fmt.Println("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
 	for _, r := range rs {
 		if r.Sampled == 0 {
 			continue
 		}
-		fmt.Printf("| %s | %d | %d | %.0f%% | %.2f | %.1f KB | %.1f KB |\n", r.Wiki, r.Articles, r.Sampled,
-			100*float64(r.WithPic)/float64(r.Sampled), float64(r.Refs)/float64(r.Sampled), r.LeadBytes/1000, r.OtherBytes/1000)
+		fmt.Printf("| %s | %d | %d | %.0f%% | %.2f | %.0f%% | %.0f%% | %.1f KB | %.1f KB |\n", r.Wiki, r.Articles, r.Sampled,
+			100*float64(r.WithPic)/float64(r.Sampled), float64(r.Refs)/float64(r.Sampled),
+			100*float64(r.Local)/float64(max(r.Resolved, 1)), 100*float64(r.AlsoEn)/float64(max(r.CheckedEn, 1)),
+			r.LeadBytes/1000, r.OtherBytes/1000)
 	}
 	fmt.Println()
 	for _, r := range rs {

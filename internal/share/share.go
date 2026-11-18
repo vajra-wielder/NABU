@@ -122,6 +122,7 @@ func Inventory(d *drive.Layout) (parts []Part, files map[string][]File) {
 		one("search:"+db, d.FullText(f.Key()), filepath.Join(drive.Search, f.Key()+".nfts"))
 		walk("pictures:"+db, filepath.Join(d.Pictures, db), filepath.Join(drive.Pictures, db))
 	}
+	walk("pictures:commons", filepath.Join(d.Pictures, "commons"), filepath.Join(drive.Pictures, "commons"))
 	one("search", filepath.Join(d.Search, "wanted.json"), filepath.Join(drive.Search, "wanted.json"))
 	walk("collections", d.Collections, drive.Collections)
 	walk("personal", d.Personal, drive.Personal)
@@ -160,6 +161,9 @@ func Select(files map[string][]File, o Options) []File {
 	}
 	if o.Search {
 		out = append(out, files["search"]...)
+	}
+	if o.Pictures { // the pictures every language shares
+		out = append(out, files["pictures:commons"]...)
 	}
 	if o.Collections {
 		out = append(out, files["collections"]...)

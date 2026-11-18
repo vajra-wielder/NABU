@@ -31,7 +31,11 @@ func fakeWikimedia(t *testing.T) (*http.Client, *int32) {
 					pages = append(pages, `{"title":"File:Nowhere.jpg","missing":true}`)
 					continue
 				}
-				pages = append(pages, `{"title":"File:`+strings.ReplaceAll(name, "_", " ")+`","imageinfo":[{"mime":"image/png","thumburl":"https://upload.wikimedia.org/thumb/`+name+`/250px-`+name+`?utm=1"}]}`)
+				repo := "shared" // on Commons, except the wiki's own covers
+				if strings.HasPrefix(name, "Local") {
+					repo = "local"
+				}
+				pages = append(pages, `{"title":"File:`+strings.ReplaceAll(name, "_", " ")+`","imagerepository":"`+repo+`","imageinfo":[{"mime":"image/png","thumburl":"https://upload.wikimedia.org/thumb/`+name+`/250px-`+name+`?utm=1"}]}`)
 			}
 			w.Write([]byte(`{"query":{"pages":[` + strings.Join(pages, ",") + `]}}`))
 		case strings.HasPrefix(r.URL.Path, "/thumb/"):
@@ -84,6 +88,13 @@ func TestPicturesOnlineOfflineAndKept(t *testing.T) {
 	if r, _ := get(s, "/nabu/img/testwiki/Ishtar_Gate.jpg?w=250"); r.StatusCode != 404 {
 		t.Fatalf("picture never kept, offline: %d", r.StatusCode)
 	}
+	// Kept once, for every language: another Wikipedia shows it offline too.
+	if r, _ := get(s, "/nabu/img/fawiki/Babylon_map.png?w=250"); r.StatusCode != 200 {
+		t.Fatalf("shared picture for another language: %d", r.StatusCode)
+	}
+	if _, err := os.Stat(filepath.Join(svc.Dir, pictures.Commons, "recent.bin")); err != nil {
+		t.Fatal("Commons picture not in the shared store")
+	}
 	if atomic.LoadInt32(downloads) != n {
 		t.Fatal("went online while offline")
 	}
@@ -128,7 +139,7 @@ func TestWholeWikiPictures(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	if st.State != library.PicDone || st.Pictures < 2 {
+	if st.State != library.PicDone || st.Pictures+st.Shared < 2 {
 		t.Fatalf("whole-wiki download: %+v", st)
 	}
 	if !strings.Contains(picLine(st), "✓") {
@@ -150,11 +161,29 @@ func TestWholeWikiPictures(t *testing.T) {
 	if atomic.LoadInt32(downloads) != n {
 		t.Error("pictures downloaded twice")
 	}
+	// Another language's download finds the shared pictures already there.
+	n = atomic.LoadInt32(downloads)
+	if err := s.Lib.StartPictures("fawiki", pictures.All); err != nil {
+		t.Fatal(err)
+	}
+	for time.Now().Before(deadline) && s.Lib.PictureStatus("fawiki").State != library.PicDone {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if st := s.Lib.PictureStatus("fawiki"); st.State != library.PicDone || st.Shared < 2 {
+		t.Fatalf("fawiki: %+v", st)
+	}
 	if err := s.Lib.RemovePictures("testwiki"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(svc.Dir, "testwiki")); !os.IsNotExist(err) {
 		t.Fatal("pictures not removed")
+	}
+	if _, err := os.Stat(filepath.Join(svc.Dir, pictures.Commons)); err != nil {
+		t.Fatal("shared pictures removed while fawiki still uses them")
+	}
+	s.Lib.RemovePictures("fawiki")
+	if _, err := os.Stat(filepath.Join(svc.Dir, pictures.Commons)); !os.IsNotExist(err) {
+		t.Fatal("shared pictures left after the last language's were removed")
 	}
 }
 

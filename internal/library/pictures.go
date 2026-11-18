@@ -45,8 +45,10 @@ type PicStatus struct {
 	Err      string
 	Done     int // streams gone through
 	Total    int
-	Pictures int
+	Pictures int // this wiki's own pictures
 	Bytes    int64
+	Shared   int // pictures from Commons, shared by every language
+	SBytes   int64
 	ETA      time.Duration
 	PerHour  int
 }
@@ -65,6 +67,10 @@ func (l *Library) PictureStatus(db string) PicStatus {
 	if st, _ := l.pics.Store(db, false); st != nil {
 		stats := st.Stats()
 		s.Pictures, s.Bytes = stats.Pictures, stats.Bytes
+	}
+	if st, _ := l.pics.Store(pictures.Commons, false); st != nil {
+		stats := st.Stats()
+		s.Shared, s.SBytes = stats.Pictures, stats.Bytes
 	}
 	j, _ := pictures.LoadJob(l.picDir(db))
 	l.pj.mu.Lock()
@@ -243,7 +249,7 @@ func (l *Library) runPictures(ctx context.Context, db string) error {
 	if j.Dump != b.Files.Key() { // a newer dump arrived meanwhile
 		j = &pictures.Job{Mode: j.Mode, Dump: b.Files.Key()}
 	}
-	st, err := l.pics.Store(db, true)
+	st, err := l.pics.Stores(db)
 	if err != nil {
 		return err
 	}

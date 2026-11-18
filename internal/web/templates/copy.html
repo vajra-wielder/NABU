@@ -34,7 +34,7 @@
 <p class="opts">
   <label class="switch"><input type="checkbox" name="indexes" checked> Title indexes <span class="muted small">(so the copy opens at once; otherwise it rebuilds them on first start)</span></label>
   <label class="switch"><input type="checkbox" name="search" checked> Search inside articles</label>
-  <label class="switch"><input type="checkbox" name="pictures" checked> Pictures kept for reading offline</label>
+  <label class="switch"><input type="checkbox" name="pictures" checked data-size="{{index .Size "pictures:commons"}}"> Pictures kept for reading offline {{if index .Size "pictures:commons"}}<span class="muted small">(plus {{bytes (index .Size "pictures:commons")}} shared by all languages)</span>{{end}}</label>
 </p>
 
 <h2 class="section">Computers it will start on</h2>

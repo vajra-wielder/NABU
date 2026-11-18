@@ -188,7 +188,7 @@ func (s *Server) bookViews() []bookView {
 		if !v.Older && s.Lib.Pictures() != nil {
 			v.Pics = s.Lib.PictureStatus(b.Files.DB)
 			v.PicLine = picLine(v.Pics)
-			v.Lead, v.All = pictures.Estimate(b.Files.DB, v.Status.Articles)
+			v.Lead, v.All = pictures.Estimate(b.Files.DB, v.Status.Articles, s.englishPicturesKept())
 		}
 		if c := s.Checker.Get(b.Files.DB); c != nil && c.Release != nil && !v.Older &&
 			c.Release.Date > b.Files.Date && b.Files.Date != "latest" {

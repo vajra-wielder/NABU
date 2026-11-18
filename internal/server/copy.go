@@ -28,7 +28,7 @@ func (s *Server) serveCopy(w http.ResponseWriter, r *http.Request) {
 	}
 	var wikis []copyWiki
 	for _, p := range parts {
-		if len(p.Key) > 5 && p.Key[:5] == "wiki:" {
+		if len(p.Key) > 5 && p.Key[:5] == "wiki:" && p.Key != "wiki:commons" {
 			db := p.Key[5:]
 			wikis = append(wikis, copyWiki{DB: db, Name: wikiName(db), Dump: p.Bytes, Index: size["index:"+db],
 				Search: size["search:"+db], Pictures: size["pictures:"+db]})

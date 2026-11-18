@@ -212,7 +212,7 @@
       var cells = form.querySelectorAll('[data-wiki="' + wikis[i].value + '"]');
       for (var c = 0; c < cells.length; c++) if (checked(cells[c].getAttribute('data-part'))) sum += +cells[c].getAttribute('data-size');
     }
-    var more = form.querySelectorAll('[name="system"],[name="collections"],[name="personal"],[name="source"]');
+    var more = form.querySelectorAll('[name="system"],[name="collections"],[name="personal"],[name="source"],[name="pictures"]');
     for (i = 0; i < more.length; i++) if (more[i].checked) sum += +(more[i].getAttribute('data-size') || 0);
     form.querySelector('[data-total]').textContent = human(sum);
   }

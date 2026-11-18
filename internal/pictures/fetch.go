@@ -48,6 +48,7 @@ type Info struct {
 	Skip    bool // sound, video
 	URL     string
 	Mime    string
+	Shared  bool // on Wikimedia Commons, so the same for every language
 }
 
 // Fetcher downloads from Wikimedia within its rules. One Fetcher is
@@ -253,6 +254,7 @@ func (f *Fetcher) resolve(ctx context.Context, host string, names []string, out 
 				continue
 			}
 			p := r.Query.Pages[pi]
+			info.Shared = p.Repository == "shared"
 			switch {
 			case len(p.ImageInfo) == 0:
 				info.Missing = true
@@ -282,8 +284,9 @@ type apiResponse struct {
 		Normalized []struct{ From, To string } `json:"normalized"`
 		Redirects  []struct{ From, To string } `json:"redirects"`
 		Pages      []struct {
-			Title     string `json:"title"`
-			ImageInfo []struct {
+			Title      string `json:"title"`
+			Repository string `json:"imagerepository"`
+			ImageInfo  []struct {
 				ThumbURL string `json:"thumburl"`
 				Mime     string `json:"mime"`
 			} `json:"imageinfo"`

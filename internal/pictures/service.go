@@ -9,8 +9,14 @@ import (
 	"time"
 )
 
-// Service is NABU's pictures: the stores of the drive's wikis, and the
-// one Fetcher that talks to Wikimedia.
+// Commons is the store of pictures from Wikimedia Commons, which every
+// language uses under the same name: kept once, shared by all. Each wiki's
+// own store holds only its local files (on English mostly "fair use"
+// images) and what it knows to be missing.
+const Commons = "commons"
+
+// Service is NABU's pictures: the shared Commons store, the stores of the
+// drive's wikis, and the one Fetcher that talks to Wikimedia.
 type Service struct {
 	Dir   string // the drive's pictures folder
 	Fetch *Fetcher
@@ -72,6 +78,11 @@ func (s *Service) Get(ctx context.Context, db, host, name string, online, keep b
 	if err != nil {
 		return nil, err
 	}
+	if shared, _ := s.Store(Commons, false); shared != nil {
+		if data, known, err := shared.Get(name); err == nil && known && data != nil {
+			return data, nil
+		}
+	}
 	if st != nil {
 		data, known, err := st.Get(name)
 		if err == nil && known {
@@ -119,22 +130,52 @@ func (s *Service) Get(ctx context.Context, db, host, name string, online, keep b
 		return fail(err)
 	}
 	if keep {
-		if st, _ := s.Store(db, true); st != nil {
+		where := db
+		if info.Shared {
+			where = Commons
+		}
+		if st, _ := s.Store(where, true); st != nil {
 			st.Put(name, data)
 		}
 	}
 	return data, nil
 }
 
-// Remove deletes a wiki's pictures from the drive.
+// Stores opens a wiki's store and the shared one, for keeping pictures.
+func (s *Service) Stores(db string) (Stores, error) {
+	w, err := s.Store(db, true)
+	if err != nil {
+		return Stores{}, err
+	}
+	c, err := s.Store(Commons, true)
+	if err != nil {
+		return Stores{}, err
+	}
+	return Stores{Wiki: w, Shared: c}, nil
+}
+
+// Remove deletes a wiki's own pictures from the drive, and the shared
+// ones too once no other wiki's pictures are left.
 func (s *Service) Remove(db string) error {
 	s.mu.Lock()
-	if st, ok := s.stores[db]; ok {
-		st.Close()
-		delete(s.stores, db)
+	defer s.mu.Unlock()
+	drop := func(name string) error {
+		if st, ok := s.stores[name]; ok {
+			st.Close()
+			delete(s.stores, name)
+		}
+		return os.RemoveAll(filepath.Join(s.Dir, name))
 	}
-	s.mu.Unlock()
-	return os.RemoveAll(filepath.Join(s.Dir, db))
+	if err := drop(db); err != nil {
+		return err
+	}
+	ents, _ := os.ReadDir(s.Dir)
+	for _, e := range ents {
+		if e.IsDir() && e.Name() != Commons {
+			return nil // another language still uses the shared pictures
+		}
+	}
+	return drop(Commons)
 }
 
 // Sync flushes every open store.
