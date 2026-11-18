@@ -50,6 +50,23 @@
       <span class="progress" style="display:block"><span style="display:block;height:100%;width:{{pct $ft.Done $ft.Total}}%;background:linear-gradient(90deg,var(--lapis),var(--clay))"></span></span>
       {{else}}{{if $ft.Err}}<span style="color:var(--bad)">{{$ft.Err}}</span><br>{{end}}{{if $.Local}}<a href="#" data-action="fulltext" data-book="{{.ID}}" data-confirm="Build search inside articles for {{.Name}}? It reads the whole dump once; you can keep reading meanwhile.">Build search inside articles</a>{{else}}Titles searchable{{end}}{{end}}
     </p>
+    {{if .PicLine}}
+    <div class="small picline" data-pics="{{.Files.DB}}" data-pics-state="{{.Pics.State}}">
+      <p><span data-pics-line>{{.PicLine}}</span>
+      {{if or (eq .Pics.State "running") (eq .Pics.State "queued")}}<span class="progress" style="display:block"><span data-pics-bar style="display:block;height:100%;width:{{pct (int64 .Pics.Done) (int64 .Pics.Total)}}%;background:linear-gradient(90deg,var(--lapis),var(--clay))"></span></span>{{end}}</p>
+      {{if $.Local}}<p class="picbtns">
+      {{if or (eq .Pics.State "running") (eq .Pics.State "queued")}}
+        <a href="#" data-action="pictures-pause" data-wiki="{{.Files.DB}}">Pause</a>
+      {{else if eq .Pics.State "paused"}}
+        <a href="#" data-action="pictures-start" data-wiki="{{.Files.DB}}" data-mode="{{.Pics.Mode}}">Resume</a> ·
+        <a href="#" data-action="pictures-remove" data-wiki="{{.Files.DB}}" data-confirm="Delete the {{count (int64 .Pics.Pictures)}} pictures of {{.Name}} from the drive?">Delete pictures</a>
+      {{else}}
+        {{if ne .Pics.Mode "all"}}{{if ne .Pics.State "done"}}<a href="#" data-action="pictures-start" data-wiki="{{.Files.DB}}" data-mode="lead" data-confirm="Keep the main picture of each article of {{.Name}} on the drive, for reading offline? About {{bytes .Lead.Bytes}} and {{hours .Lead.Hours}} of downloading, in the background; it pauses and resumes by itself.">Keep main pictures</a> <span class="muted">(about {{bytes .Lead.Bytes}})</span> · {{end}}
+        <a href="#" data-action="pictures-start" data-wiki="{{.Files.DB}}" data-mode="all" data-confirm="Keep every picture of {{.Name}} on the drive, for reading offline? About {{bytes .All.Bytes}} and {{hours .All.Hours}} of downloading, in the background; it pauses and resumes by itself.">Keep all pictures</a> <span class="muted">(about {{bytes .All.Bytes}})</span>{{end}}
+        {{if .Pics.Pictures}} · <a href="#" data-action="pictures-remove" data-wiki="{{.Files.DB}}" data-confirm="Delete the {{count (int64 .Pics.Pictures)}} pictures of {{.Name}} from the drive?">Delete pictures</a>{{end}}
+      {{end}}</p>{{end}}
+    </div>
+    {{end}}
     <div class="actions">
       <a class="btn primary" href="{{.MainURL}}">Main page</a>
       <a class="btn" href="/{{.ID}}/random">Random article</a>

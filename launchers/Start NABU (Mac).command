@@ -9,17 +9,18 @@ case "$(uname -m)" in
   arm64) ARCH=arm64 ;;
   *)     ARCH=amd64 ;;
 esac
-BIN="$DIR/nabu/nabu-darwin-$ARCH"
+BIN="$DIR/programs/mac/nabu-darwin-$ARCH"
 
 # macOS 10.13 to 10.15 need the legacy build.
 MAJOR=$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)
 if [ -n "$MAJOR" ] && [ "$MAJOR" -lt 11 ] 2>/dev/null; then
-  BIN="$DIR/nabu/nabu-darwin-amd64-legacy"
+  BIN="$DIR/programs/mac/nabu-darwin-amd64-legacy"
 fi
 
 if [ ! -f "$BIN" ]; then
   echo "NABU could not find $BIN"
-  echo "The drive may be incomplete. Copy the whole NABU folder again."
+  echo "This copy of NABU has no programs for this computer. Copy the"
+  echo "\"programs/mac\" folder from a complete NABU drive next to this file."
   exit 1
 fi
 
@@ -36,4 +37,4 @@ if ! "$BIN" version >/dev/null 2>&1; then
   BIN="$TMP/nabu"
 fi
 
-exec "$BIN" --library "$DIR/library" "$@"
+exec "$BIN" --drive "$DIR" "$@"

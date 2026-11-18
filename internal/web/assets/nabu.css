@@ -83,7 +83,7 @@ label.switch input { margin-top: .3em; accent-color: var(--lapis); }
 
 /* Footer */
 footer.foot { margin: 64px 0 28px; padding-top: 18px; border-top: 1px solid var(--line); font-size: .85rem; color: var(--ink-soft); display: flex; gap: 8px 18px; flex-wrap: wrap; align-items: center; }
-footer.foot .grow { flex: 1; }
+footer.foot .grow { flex: 1 1 260px; }
 footer.foot img { width: 18px; height: 18px; vertical-align: -3px; margin-right: 6px; }
 
 @media (max-width: 600px) {
@@ -100,6 +100,10 @@ footer.foot img { width: 18px; height: 18px; vertical-align: -3px; margin-right:
 mark { background: var(--clay-soft); color: var(--ink); padding: 0 2px; border-radius: 3px; }
 .ftline { margin: 0; }
 .ftline .progress { height: 6px; margin: 6px 0 0; }
+.picline { margin: 6px 0 0; padding-top: 6px; border-top: 1px dashed var(--line); }
+.picline p { margin: 0 0 4px; }
+.picline .progress { height: 6px; margin: 6px 0 0; }
+.picbtns { color: var(--ink-faint); }
 
 /* Collections */
 .coll-title { margin: 8px 0 6px; }
@@ -107,3 +111,13 @@ mark { background: var(--clay-soft); color: var(--ink); padding: 0 2px; border-r
 .new-coll { border-style: dashed; }
 .new-coll form { display: flex; gap: 8px; }
 .new-coll input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; }
+
+/* Make a copy */
+.copytable { width: 100%; border-collapse: collapse; font-size: 15px; margin: 8px 0 12px; }
+.copytable th, .copytable td { text-align: start; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+.copytable th { font-weight: 600; color: var(--ink-soft); font-size: 13px; }
+.copyform .opts { display: flex; flex-direction: column; gap: 6px; }
+.copyform .dest { width: 100%; max-width: 640px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; }
+.copyform .drives { display: flex; flex-wrap: wrap; gap: 6px; }
+.copyform .total { font-size: 17px; }
+@media (max-width: 640px) { .copytable { font-size: 13px; } .copytable th, .copytable td { padding: 6px 4px; } }

@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"html/template"
 	"io/fs"
@@ -10,12 +11,14 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/vajra-wielder/nabu/internal/collect"
 	"github.com/vajra-wielder/nabu/internal/dump"
 	"github.com/vajra-wielder/nabu/internal/library"
+	"github.com/vajra-wielder/nabu/internal/pictures"
 	"github.com/vajra-wielder/nabu/internal/web"
 	"github.com/vajra-wielder/nabu/internal/wikitext"
 )
@@ -60,16 +63,44 @@ var linkRe = regexp.MustCompile(`<a href="/([a-z0-9_]+(?:-\d{8})?)/wiki/([^"]*)"
 // savedCopy renders page into a self-contained HTML document. Links to
 // other articles point at the original wiki online and carry a data-t
 // tag, through which the collection's own copies take over.
-func (s *Server) savedCopy(b *library.Book, page *dump.Page, collection string) ([]byte, collect.Item, error) {
+func (s *Server) savedCopy(b *library.Book, page *dump.Page, collection string) ([]byte, collect.Item, map[string][]byte, error) {
 	site := b.Site()
 	host := site.Host()
+	db := b.Files.DB
 	out := wikitext.Render(page.Text, &wikitext.Context{
-		Title:   page.Title,
-		Site:    site,
-		PageURL: func(t string) string { return articleURL(b, t) },
-		ImageURL: func(file string, width int) string {
-			return "https://" + host + "/wiki/Special:FilePath/" + wikiPath(file) + "?width=" + itoa(int64(width))
-		},
+		Title:    page.Title,
+		Site:     site,
+		PageURL:  func(t string) string { return articleURL(b, t) },
+		ImageURL: func(file string, width int) string { return imageURL(db, file) },
+	})
+	// Pictures go into the copy's own folder, from the drive or (online)
+	// from Wikimedia, so the copy shows them offline anywhere. One that
+	// cannot be had now points at Wikimedia, for when it is online.
+	files := map[string][]byte{}
+	picNames := map[string]string{}
+	st := s.settings()
+	online := st.Pictures && !s.Offline
+	out.HTML = picSrcRe.ReplaceAllStringFunc(out.HTML, func(m string) string {
+		name, err := url.PathUnescape(picSrcRe.FindStringSubmatch(m)[1])
+		if err != nil {
+			return m
+		}
+		if f, ok := picNames[name]; ok {
+			return `<img src="` + f + `"`
+		}
+		f := `https://` + host + `/wiki/Special:FilePath/` + wikiPath(name) + `?width=` + itoa(int64(pictures.Width))
+		if ps := s.Lib.Pictures(); ps != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			data, err := ps.Get(ctx, db, host, name, online, st.KeepPictures)
+			cancel()
+			if err == nil {
+				fn := strconv.Itoa(len(files)+1) + picExt(data)
+				files[fn] = data
+				f = collect.FilesToken + fn
+			}
+		}
+		picNames[name] = f
+		return `<img src="` + f + `"`
 	})
 	body := linkRe.ReplaceAllStringFunc(out.HTML, func(m string) string {
 		p := linkRe.FindStringSubmatch(m)
@@ -82,7 +113,7 @@ func (s *Server) savedCopy(b *library.Book, page *dump.Page, collection string) 
 	for _, name := range []string{"theme.css", "wiki.css"} {
 		c, err := fs.ReadFile(web.Assets, "assets/"+name)
 		if err != nil {
-			return nil, collect.Item{}, err
+			return nil, collect.Item{}, nil, err
 		}
 		css.Write(c)
 		css.WriteByte('\n')
@@ -96,7 +127,24 @@ func (s *Server) savedCopy(b *library.Book, page *dump.Page, collection string) 
 		"Edited": strings.SplitN(page.Timestamp, "T", 2)[0], "Saved": time.Now().Format("2 January 2006"),
 		"Original": "https://" + host + "/wiki/" + wikiPath(page.Title), "Body": template.HTML(body),
 	})
-	return buf.Bytes(), it, err
+	return buf.Bytes(), it, files, err
+}
+
+var picSrcRe = regexp.MustCompile(`<img src="/nabu/img/[^/"]+/([^"?]+)\?w=\d+"`)
+
+// picExt is the file extension for a picture's contents.
+func picExt(b []byte) string {
+	switch http.DetectContentType(b) {
+	case "image/png":
+		return ".png"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	case "image/svg+xml":
+		return ".svg"
+	}
+	return ".jpg"
 }
 
 // collectInto saves an article into a collection.
@@ -113,11 +161,11 @@ func (s *Server) collectInto(slug, bookID, title string) (*collect.Collection, e
 	if err != nil {
 		return nil, errors.New("no such article")
 	}
-	html, it, err := s.savedCopy(b, page, c.Name)
+	html, it, files, err := s.savedCopy(b, page, c.Name)
 	if err != nil {
 		return nil, err
 	}
-	return s.collections.Add(slug, it, html, []byte(page.Text))
+	return s.collections.Add(slug, it, html, []byte(page.Text), files)
 }
 
 type collectionRow struct {
@@ -234,6 +282,9 @@ func (s *Server) serveCollections(w http.ResponseWriter, r *http.Request) {
 		w.Write(b)
 	case strings.HasSuffix(file, ".wiki"):
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Write(b)
+	case strings.Contains(file, "_files/"):
+		w.Header().Set("Content-Type", http.DetectContentType(b))
 		w.Write(b)
 	default:
 		http.NotFound(w, r)

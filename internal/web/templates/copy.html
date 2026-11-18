@@ -1,0 +1,62 @@
+{{define "copy.html"}}{{template "head" .}}
+<h1 style="margin-top:32px">Make a copy</h1>
+<p class="muted prose">Put NABU on another USB stick or folder, to give to someone or to keep a spare. Choose what goes in: everything is optional except one Wikipedia and one kind of computer. Your saved articles, reading history and settings stay here unless you tick <em>Personal</em>.</p>
+
+{{if not .Local}}
+<div class="notice">Copies can only be made on the computer running NABU.</div>
+{{else}}
+<div class="notice" id="copybox"{{if not .Copy.State}} hidden{{end}}>
+  <strong data-copy-line>{{.Copy.State}}</strong>
+  <div class="progress"><div style="width:{{pct .Copy.Done .Copy.Total}}%"></div></div>
+  <p class="small muted" data-copy-file></p>
+  <p class="small" data-copy-error style="color:var(--bad)">{{.Copy.Err}}</p>
+  <button class="btn small" type="button" data-action="copy-cancel" data-copy-cancel{{if ne .Copy.State "copying"}} hidden{{end}}>Stop</button>
+</div>
+
+<form class="copyform" data-copy-form>
+<h2 class="section">Wikipedias</h2>
+<table class="copytable">
+  <thead><tr><th>Wikipedia</th><th>Text (dump)</th><th>Title index</th><th>Search inside articles</th><th>Pictures</th></tr></thead>
+  <tbody>
+  {{range .Wikis}}
+  <tr>
+    <td><label><input type="checkbox" name="wiki" value="{{.DB}}" checked data-size="{{.Dump}}"> {{.Name}}</label></td>
+    <td>{{bytes .Dump}}</td>
+    <td data-part="indexes" data-size="{{.Index}}" data-wiki="{{.DB}}">{{if .Index}}{{bytes .Index}}{{else}}—{{end}}</td>
+    <td data-part="search" data-size="{{.Search}}" data-wiki="{{.DB}}">{{if .Search}}{{bytes .Search}}{{else}}—{{end}}</td>
+    <td data-part="pictures" data-size="{{.Pictures}}" data-wiki="{{.DB}}">{{if .Pictures}}{{bytes .Pictures}}{{else}}—{{end}}</td>
+  </tr>
+  {{else}}
+  <tr><td colspan="5">No Wikipedia on this drive yet.</td></tr>
+  {{end}}
+  </tbody>
+</table>
+<p class="opts">
+  <label class="switch"><input type="checkbox" name="indexes" checked> Title indexes <span class="muted small">(so the copy opens at once; otherwise it rebuilds them on first start)</span></label>
+  <label class="switch"><input type="checkbox" name="search" checked> Search inside articles</label>
+  <label class="switch"><input type="checkbox" name="pictures" checked> Pictures kept for reading offline</label>
+</p>
+
+<h2 class="section">Computers it will start on</h2>
+<p class="opts">
+  <label class="switch"><input type="checkbox" name="system" value="windows" checked data-size="{{index .Size "system:windows"}}"> Windows <span class="muted small">{{bytes (index .Size "system:windows")}}</span></label>
+  <label class="switch"><input type="checkbox" name="system" value="mac" checked data-size="{{index .Size "system:mac"}}"> Mac <span class="muted small">{{bytes (index .Size "system:mac")}}</span></label>
+  <label class="switch"><input type="checkbox" name="system" value="linux" checked data-size="{{index .Size "system:linux"}}"> Linux and Chromebook <span class="muted small">{{bytes (index .Size "system:linux")}}</span></label>
+</p>
+
+<h2 class="section">Extras</h2>
+<p class="opts">
+  <label class="switch"><input type="checkbox" name="collections" checked data-size="{{index .Size "collections"}}"> Collections <span class="muted small">{{bytes (index .Size "collections")}}</span></label>
+  <label class="switch"><input type="checkbox" name="personal" data-size="{{index .Size "personal"}}"> Personal: saved articles, reading history, settings <span class="muted small">{{bytes (index .Size "personal")}}</span></label>
+  {{if index .Size "source"}}<label class="switch"><input type="checkbox" name="source" data-size="{{index .Size "source"}}"> Source code and build tools <span class="muted small">{{bytes (index .Size "source")}}</span></label>{{end}}
+</p>
+
+<h2 class="section">Where</h2>
+{{if .Drives}}<p class="drives">{{range .Drives}}<button type="button" class="btn small" data-dest="{{.Target}}">{{.Path}}{{if ge .Free 0}} · {{bytes .Free}} free{{end}}</button> {{end}}</p>{{end}}
+<p><input class="dest" type="text" name="to" placeholder="Folder to copy into, e.g. E:\NABU or /Volumes/STICK/NABU" required></p>
+<p class="total">Size of the copy: <strong data-total>…</strong></p>
+<p><button class="btn primary" type="submit">Make the copy</button></p>
+<p class="small muted">Copying onto a place that already has NABU only copies what changed, so this also updates a copy you made before. A stick formatted FAT32 cannot hold files over 4 GB; NABU's own downloads are already split, but if a dump was copied in by hand in one piece, format the stick as exFAT.</p>
+</form>
+{{end}}
+{{template "foot" .}}{{end}}

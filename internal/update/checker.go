@@ -16,11 +16,12 @@ type Settings struct {
 	AutoDownload bool `json:"auto_download"`  // fetch newer dumps unasked
 	Pictures     bool `json:"pictures"`       // load pictures from Wikimedia when online
 	History      bool `json:"history"`        // remember articles read on this computer
+	KeepPictures bool `json:"keep_pictures"`  // keep pictures seen online, for reading offline
 }
 
 // DefaultSettings: look for news and show pictures when online, but never
 // start a big download unasked.
-var DefaultSettings = Settings{CheckOnStart: true, Pictures: true, History: true}
+var DefaultSettings = Settings{CheckOnStart: true, Pictures: true, History: true, KeepPictures: true}
 
 // Checker remembers, per wiki, the newest release seen and when.
 type Checker struct {
@@ -40,7 +41,7 @@ type Checked struct {
 	Err     string    `json:"error,omitempty"`
 }
 
-func (c *Checker) cachePath() string { return filepath.Join(c.Dir, ".nabu", "releases.json") }
+func (c *Checker) cachePath() string { return filepath.Join(c.Dir, "releases.json") }
 
 // Load restores what was learned in earlier sessions.
 func (c *Checker) Load() {
@@ -110,20 +111,21 @@ func (c *Checker) Checking(wiki string) bool {
 	return c.running[wiki]
 }
 
-// LoadSettings reads settings from the library, falling back to defaults.
+// LoadSettings reads settings from the drive's personal folder, falling
+// back to defaults.
 func LoadSettings(dir string) Settings {
 	s := DefaultSettings
-	if b, err := os.ReadFile(filepath.Join(dir, ".nabu", "settings.json")); err == nil {
+	if b, err := os.ReadFile(filepath.Join(dir, "settings.json")); err == nil {
 		json.Unmarshal(b, &s)
 	}
 	return s
 }
 
-// SaveSettings writes settings into the library.
+// SaveSettings writes settings into the drive's personal folder.
 func SaveSettings(dir string, s Settings) error {
-	if err := os.MkdirAll(filepath.Join(dir, ".nabu"), 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	b, _ := json.MarshalIndent(s, "", "  ")
-	return os.WriteFile(filepath.Join(dir, ".nabu", "settings.json"), b, 0o644)
+	return os.WriteFile(filepath.Join(dir, "settings.json"), b, 0o644)
 }

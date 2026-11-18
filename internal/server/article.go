@@ -146,11 +146,9 @@ func (s *Server) renderPage(b *library.Book, page *dump.Page) *wikitext.Output {
 		Site:    site,
 		PageURL: func(t string) string { return articleURL(b, t) },
 	}
-	if s.settings().Pictures && !s.Offline {
-		host := site.Host()
-		ctx.ImageURL = func(file string, width int) string {
-			return "https://" + host + "/wiki/Special:FilePath/" + wikiPath(file) + "?width=" + itoa(int64(width))
-		}
+	if s.imagesFor(b, s.settings()) {
+		db := b.Files.DB
+		ctx.ImageURL = func(file string, width int) string { return imageURL(db, file) }
 	}
 	return wikitext.Render(page.Text, ctx)
 }
@@ -334,5 +332,5 @@ func (s *Server) preparing(w http.ResponseWriter, r *http.Request, b *library.Bo
 func (s *Server) settings() update.Settings {
 	s.settingsMu.Lock()
 	defer s.settingsMu.Unlock()
-	return update.LoadSettings(s.Lib.Dir)
+	return update.LoadSettings(s.Lib.Drive.Personal)
 }

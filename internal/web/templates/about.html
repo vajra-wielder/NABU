@@ -6,7 +6,7 @@
 
 <h2>How it works</h2>
 <p>A "multistream" dump is the XML of every page, compressed with bzip2 in small independent pieces of 100 pages. Wikimedia's index says which piece holds which page. The first time NABU sees a dump, it sorts that index into a compact search index on the drive. After that, opening a page means reading and unpacking one piece, about half a megabyte, then turning its wikitext into a web page.</p>
-<p>Dumps contain text, not pictures. When the computer is online, NABU can show pictures straight from Wikimedia Commons. Offline, a labelled frame shows where each picture belongs.</p>
+<p>Dumps contain text, not pictures. When the computer is online, NABU fetches pictures from Wikimedia, within its rules for programs, and keeps each one on the drive so it shows offline afterwards. A Wikipedia's pictures can also be kept all at once from its card on the home page. Pictures not kept yet show as a labelled frame when offline.</p>
 
 <h2 id="languages">Why these ten languages</h2>
 <p>NABU offers the smallest set of languages that, between them, are official or co-official in the countries covering the most land. Each language is picked for the extra area it adds:</p>
@@ -14,7 +14,8 @@
 <p>Together they cover about 91% of the land outside Antarctica. The calculation is in <code>docs/language_coverage.py</code>. Danish makes the list for Greenland's vast area.</p>
 
 <h2>This session</h2>
-<p>Library folder: <code>{{.Dir}}</code><br>
+<p>NABU folder: <code>{{.Root}}</code><br>
+Wikipedia dumps: <code>{{.Dir}}</code><br>
 Running for: {{.Uptime}}<br>
 {{if .LAN}}Shared on your network at: {{range $i, $a := .Addrs}}{{if $i}}, {{end}}<code>{{$a}}</code>{{end}}{{else}}Only this computer can open the library. Start NABU with <code>--lan</code> to share it on your Wi-Fi.{{end}}<br>
 Dump server: <code>{{.Mirror}}</code></p>

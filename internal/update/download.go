@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/vajra-wielder/nabu/internal/drive"
 	"github.com/vajra-wielder/nabu/internal/sysutil"
 )
 
@@ -56,7 +57,8 @@ type Status struct {
 
 // Manager runs one download at a time into a library directory.
 type Manager struct {
-	Dir        string
+	Dir        string // finished dumps go here
+	Work       string // downloads in progress
 	Client     *http.Client
 	OnFinish   func(rel *Release)
 	RetryDelay time.Duration
@@ -68,13 +70,13 @@ type Manager struct {
 	speed  atomic.Int64
 }
 
-// NewManager prepares downloads into dir.
-func NewManager(dir string, client *http.Client) *Manager {
-	return &Manager{Dir: dir, Client: client, RetryDelay: 2 * time.Second, status: Status{State: StateIdle}}
+// NewManager prepares downloads into the drive's wikipedia folder.
+func NewManager(d *drive.Layout, client *http.Client) *Manager {
+	return &Manager{Dir: d.Wikipedia, Work: d.Incoming(), Client: client, RetryDelay: 2 * time.Second, status: Status{State: StateIdle}}
 }
 
 func (m *Manager) incoming(key string) string {
-	return filepath.Join(m.Dir, ".nabu", "incoming", key)
+	return filepath.Join(m.Work, key)
 }
 
 // Status returns the current progress.
@@ -99,7 +101,7 @@ func (m *Manager) Busy() bool {
 
 // Paused lists partial downloads, with the release saved for resuming.
 func (m *Manager) Paused() []Release {
-	ents, _ := os.ReadDir(filepath.Join(m.Dir, ".nabu", "incoming"))
+	ents, _ := os.ReadDir(m.Work)
 	var out []Release
 	for _, e := range ents {
 		if !e.IsDir() {

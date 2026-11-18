@@ -20,6 +20,9 @@ offers to fetch it.
 - [Why read the raw dumps](#why-read-the-raw-dumps)
 - [Languages: ten that cover 91% of the land](#languages-ten-that-cover-91-of-the-land)
 - [Using a NABU drive](#using-a-nabu-drive)
+- [What is on the drive, and what you can leave out](#what-is-on-the-drive-and-what-you-can-leave-out)
+- [How much room it takes](#how-much-room-it-takes)
+- [Giving NABU to someone](#giving-nabu-to-someone)
 - [Making a NABU drive](#making-a-nabu-drive)
 - [Requisites (pinned, kept locally)](#requisites-pinned-kept-locally)
 - [How it works](#how-it-works)
@@ -41,7 +44,7 @@ which stream holds which page. NABU reads that file **as is**:
 | English Wikipedia | **25.4 GB** + 0.3 GB index | ~110 GB |
 | Conversion needed | none: the downloaded file is the library | — |
 | Fresh | the day Wikimedia publishes | weeks to months later |
-| Pictures | from Wikimedia when online; labelled frames offline | included |
+| Pictures | optional: kept on the drive as you read, or all at once (250 px) | included |
 
 To open an article, NABU finds the title in its search index, seeks to the right stream
 in the `.bz2` and decompresses about half a megabyte. That takes 20–40 ms, even from a
@@ -76,7 +79,7 @@ Amharic, Turkish, Swedish… each adds under 1.2%). Danish is there purely for G
 
 The reader itself is language-independent. Namespace names ("Datei", "پرونده"), the
 main page, right-to-left layout and the site name all come from each dump's own header.
-Any other Wikimedia dump copied into `library/` works too.
+Any other Wikimedia dump copied into `wikipedia/` works too.
 
 ## Using a NABU drive
 
@@ -104,7 +107,7 @@ and parchment, with a Night theme for the evening.
 - **Collections.** Named sections of articles (*Mesopotamia*, *Exam revision*, …).
   **Collect** on any article adds it to one or more collections. Each article is saved
   as **its own separate copy**: a complete HTML page with its styles inside, plus its
-  wikitext, in `library/collections/<name>/`. A copy stays readable after its dump is
+  wikitext and its pictures, in `collections/<name>/`. A copy stays readable after its dump is
   updated or deleted. The folder opens in any browser without NABU (`index.html` is its
   contents page, and links between articles of the same collection lead to each other
   offline), so it can be copied to another drive, zipped or e-mailed. Inside NABU, a
@@ -122,6 +125,14 @@ and parchment, with a Night theme for the evening.
   articles by distance.
 - **Page information.** Templates used, the wikitext source, and the article's
   structured data as JSON.
+- **Pictures, offline too.** Dumps hold text only, so NABU fetches pictures from
+  Wikimedia when the computer is online, and keeps each one it shows on the drive
+  (`pictures/`, about 20–25 KB each at 250 px), so it shows offline afterwards. To have
+  them all before going offline, each Wikipedia's card on the home page offers **Keep
+  main pictures** (the main picture of every article) or **Keep all pictures**, with
+  the size and time it will take. The download runs in the background, pauses when
+  NABU stops and continues on the next start, on any computer. After a dump update it
+  only fetches the new pictures. Collections save their articles' pictures with them.
 - **Installable.** In Chrome and Edge, NABU can be installed as an app window, or
   started in one with `--window`.
 
@@ -129,7 +140,7 @@ and parchment, with a Night theme for the evening.
 and size of Wikimedia's newest dump, and downloads with one click. Downloads resume
 after dropped connections or restarts, and every file is checked against Wikimedia's
 SHA-1 before it is used. Files over 4 GB are written in 4 GB pieces, so FAT32 sticks
-work. Already have the two files? Copy them into `library/`.
+work. Already have the two files? Copy them into `wikipedia/`.
 
 **Keeping up to date.** Wikimedia starts a full dump of every wiki on the 1st of each
 month; the multistream files are usually ready a few days to two weeks later. When started (unless `--offline`), NABU reads each wiki's
@@ -142,13 +153,102 @@ search inside articles, is rebuilt for the new one without asking. Saved article
 history and collections are kept: they are stored by title, not by dump.
 
 **First use of a new dump:** NABU sorts its titles into a search index on the drive
-(`library/.nabu/index/`, about 2–3% of the dump's size). It takes seconds for small
+(`indexes/`, about 2–3% of the dump's size). It takes seconds for small
 wikis and a few minutes for English, up to about 15 on an old laptop. It runs in the
 background with a progress bar, once per dump. You can also do it ahead of time on a
 fast machine with `nabu prepare`.
 
 **Drive format:** exFAT is best (every OS reads and writes it). FAT32 works too.
 Avoid NTFS: Macs can't write to it, so updates fail there.
+
+## What is on the drive, and what you can leave out
+
+Every part of NABU is its own folder, and each folder has an `ABOUT THIS FOLDER.txt`
+saying what it is. Only two things are needed: one Wikipedia, and the programs for the
+computers it will be used on. To make a smaller copy, leave folders out.
+
+```
+NABU/
+├── Start NABU (Windows).bat      the launchers: double-click the one for your computer
+├── Start NABU (Mac).command
+├── start-nabu-linux.sh
+├── READ ME FIRST.txt
+├── programs/
+│   ├── windows/                  NABU for Windows 7–11, Intel/AMD and ARM        30 MB
+│   ├── mac/                      NABU for macOS 10.13+, Intel and Apple silicon  20 MB
+│   └── linux/                    NABU for Linux, Chromebooks, Raspberry Pi       40 MB
+├── wikipedia/                    the dumps, two files per language   (needed)
+├── indexes/                      title indexes, 2–3% of the dumps
+├── search/                       search inside articles, ~20% of the dumps
+├── pictures/<wiki>/              pictures kept for reading offline
+├── collections/                  your collections (each opens without NABU)
+├── personal/                     saved articles, history, settings
+├── licenses/
+└── source/                       NABU's source and build tools (only if built with it)
+```
+
+| Leave out | Saves | What happens without it |
+|---|---|---|
+| a language's two files in `wikipedia/` | that dump | that Wikipedia is not on the drive |
+| `programs/windows`, `mac` or `linux` | 20–40 MB each | the drive doesn't start on that kind of computer; the launcher says which folder is missing |
+| `indexes/` | 2–3% of the dumps | nothing lost: NABU rebuilds them on first start (seconds to ~15 minutes per language) |
+| `search/` | ~20% of the dumps | search finds titles only; it can be built again from the search page |
+| `pictures/` (or one language's folder) | see below | pictures show only when the computer is online |
+| `collections/` | small | the collections |
+| `personal/` | tiny | **leave it out when giving NABU away**: your reading stays yours |
+| `source/` | ~200 MB | nothing needed for reading |
+
+Nothing has to be configured: NABU looks at what is there when it starts. A drive set
+up by an earlier NABU (everything in `library/`) is sorted into these folders
+automatically the first time a newer NABU starts on it, by renaming only.
+
+## How much room it takes
+
+Sizes for the newest dumps (November 2026). Index and search sizes are the measured
+ratios (2–3% and ~20% of the dump). *Pictures* are being measured by sampling each
+dump (`tools/picture-survey`).
+
+| Wikipedia | Text (needed) | Title index | Search inside articles | Main pictures | All pictures |
+|---|---:|---:|---:|---:|---:|
+| English | 25.4 GB | 650 MB | 5.1 GB | *being measured* | *being measured* |
+| French | 6.9 GB | 177 MB | 1.4 GB | *being measured* | *being measured* |
+| Russian | 5.9 GB | 151 MB | 1.2 GB | *being measured* | *being measured* |
+| Spanish | 5.1 GB | 131 MB | 1.0 GB | *being measured* | *being measured* |
+| Chinese | 3.4 GB | 87 MB | 696 MB | *being measured* | *being measured* |
+| Portuguese | 2.7 GB | 69 MB | 553 MB | *being measured* | *being measured* |
+| Arabic | 2.1 GB | 54 MB | 430 MB | *being measured* | *being measured* |
+| Persian | 1.5 GB | 38 MB | 307 MB | *being measured* | *being measured* |
+| Indonesian | 1.3 GB | 33 MB | 266 MB | *being measured* | *being measured* |
+| Danish | 512 MB | 13 MB | 102 MB | *being measured* | *being measured* |
+| **All ten** | **54.8 GB** | **1.4 GB** | **11.0 GB** | | |
+
+Programs for all three systems add about 90 MB. Every language plus title indexes, no
+pictures, fits a 64 GB stick; with search inside articles too, a 128 GB one.
+
+Downloading pictures follows Wikimedia's rules for programs: two at a time, at most
+16 Mbit/s, and a pause whenever Wikimedia asks for one. On an ordinary connection that
+is roughly 20,000 pictures an hour, so a small language is done in an evening and
+English's main pictures take several days of the computer being on. The download
+continues wherever NABU next runs, and any computer can carry on from where another
+stopped.
+
+## Giving NABU to someone
+
+On the computer running NABU, **Make a copy** (bottom of every page) copies NABU onto
+another stick or folder. Tick the languages, the kinds of computer and the extras
+(title indexes, search inside articles, pictures, collections); the page shows the
+size as you choose, and the drives attached to the computer with their free space.
+Your `personal/` folder stays behind unless you tick it. The copy is a complete NABU:
+the other person double-clicks the Start file for their computer.
+
+Copying onto a place that already has NABU copies only what changed, so the same
+button updates a friend's drive with a newer dump or more pictures. From a terminal:
+
+```bash
+nabu copy --to /media/STICK/NABU --wikis en,fr --systems windows --without search
+```
+
+Or copy folders by hand in a file manager: any subset of the folders above works.
 
 ## Making a NABU drive
 
@@ -168,21 +268,15 @@ their SHA-256. The second builds 11 programs into `dist/NABU/` (plus
 `dist/NABU-<version>.zip`, about 45 MB). Copy the *contents* of `dist/NABU/` to the root
 of the stick:
 
-```
-NABU drive/
-├── Start NABU (Windows).bat
-├── Start NABU (Mac).command
-├── start-nabu-linux.sh
-├── READ ME FIRST.txt
-├── nabu/            11 programs: Windows, macOS, Linux × Intel/AMD/ARM (+ legacy)
-├── library/         the dumps (NABU can download them)
-└── licenses/
-```
+The folders are laid out as in [What is on the drive](#what-is-on-the-drive-and-what-you-can-leave-out),
+with the 11 programs in `programs/windows`, `programs/mac` and `programs/linux`.
+`WITH_SOURCE=1 scripts/build.sh` also puts the source code and the pinned toolchain
+archives in `source/`, so the drive can rebuild NABU with no internet.
 
 Then add a Wikipedia from the **Get & update** page, or headless:
 
 ```bash
-nabu/nabu-linux-amd64 download en --library library
+programs/linux/nabu-linux-amd64 download en --drive .
 ```
 
 Pushing a tag such as `v1.0.0` makes GitHub Actions test on Windows, macOS and Linux
@@ -219,10 +313,14 @@ runs the tests under both versions.
                     │                          → find <page> → wikitext → HTML
                     ├─ /enwiki/search, /suggest  binary search of the sorted title index
                     ├─ /, /nabu/updates        library, downloads, settings
+                    ├─ /nabu/img/<wiki>/<file> picture: from the drive, or Wikimedia
+                    │                          (API 50 at a time → 250 px thumbnail)
                     └─ updater                 RSS + dumpstatus.json on dumps.wikimedia.org
                                                → resumable download → SHA-1 → 4 GB pieces
- library/*.xml.bz2 + *-index.txt.bz2   (exactly as Wikimedia publishes them)
- library/.nabu/index/*.nidx            NABU's sorted title index, built once per dump
+ wikipedia/*.xml.bz2 + *-index.txt.bz2  (exactly as Wikimedia publishes them)
+ indexes/*.nidx                         NABU's sorted title index, built once per dump
+ search/*.nfts                          search inside articles (optional)
+ pictures/<wiki>/pictures-NNN.pack      pictures, in packs under 4 GB (FAT32)
 ```
 
 - **Index** (`internal/dump`). Wikimedia's index lists pages in file order. NABU
@@ -280,7 +378,8 @@ gaps and release checklist are in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
 
 ```text
 nabu [flags]              start NABU and open the browser
-  --library DIR           folder with the dumps (launchers pass the drive's library/)
+  --drive DIR             the NABU folder (the launchers pass it)
+  --library DIR           read the dumps in another folder instead
   --port 8080             first port to try (next free one if busy)
   --lan                   share with phones and computers on the same network
   --no-browser            don't open a browser (servers, Raspberry Pi kiosks)
@@ -298,6 +397,12 @@ nabu export <wiki> [--out FILE] [--text]
                           every article's structured data as JSON lines: links,
                           categories, templates, coordinates, infoboxes, tables,
                           media, glossary (and plain text with --text)
+nabu pictures <wiki> [--all]
+                          keep a Wikipedia's pictures on the drive: the main one of
+                          each article, or all with --all (Ctrl+C pauses)
+nabu copy --to DIR [--wikis en,fr] [--systems windows,mac,linux]
+          [--without indexes,search,pictures,collections] [--with personal,source]
+                          copy NABU for someone else; only changes are copied
 nabu info                 list the dumps in the library and their state
 nabu version
 
@@ -334,6 +439,10 @@ unrendered.
 - `internal/fulltext`: search inside articles: tokenizer (CJK as character pairs),
   parallel index builder, ranked search, snippets, places nearby.
 - `internal/update`: Wikimedia release lookup, resumable verified downloads, settings.
+- `internal/drive`: the drive's folders, their notes, and moving an older drive's layout.
+- `internal/pictures`: picture packs (FAT32-safe), the Wikimedia fetcher within its bot
+  rules, whole-wiki picture downloads that resume.
+- `internal/share`: making a copy of NABU with the parts chosen.
 - `internal/collect`: collections: folders of standalone article copies, with
   `collection.json`, `collection.js` (the link map) and an `index.html` contents page.
 - `internal/server`, `internal/web`: pages, API, saved/history store, link previews,
@@ -346,9 +455,15 @@ unrendered.
 
 ## Limits
 
-- **Pictures need the internet.** Dumps contain text only. When online (and the
-  setting is on), pictures load from Wikimedia; offline, a frame shows each picture's
-  name and caption.
+- **Pictures take time to gather.** Dumps contain text only, and Wikimedia publishes
+  no picture dumps, so pictures come one by one within its limits: an evening for a
+  small language, days for English. Pictures not yet kept show a labelled frame
+  offline. They are 250 px wide (Wikipedia's thumbnail size), not full resolution.
+- **Pictures keep their own licences.** Most come from Wikimedia Commons under free
+  licences (CC BY-SA, CC BY, public domain) whose terms travel with each file's page.
+  Some Wikipedias, English above all, also show non-free "fair use" images (album
+  covers, logos, posters) that are only allowed in context; they are fine for reading,
+  but think twice before handing out copies of a drive with pictures in bulk.
 - **Templates are approximated.** The common reader-facing ones are implemented. Rare
   ones show their main text or are left out. Navigation boxes are not shown. Maths
   appears as its TeX source.

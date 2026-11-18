@@ -9,7 +9,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/vajra-wielder/nabu/internal/collect"
 	"github.com/vajra-wielder/nabu/internal/library"
+	"github.com/vajra-wielder/nabu/internal/share"
 	"github.com/vajra-wielder/nabu/internal/update"
 	"github.com/vajra-wielder/nabu/internal/web"
 )
@@ -37,6 +37,7 @@ type Server struct {
 	settingsMu  sync.Mutex
 	reads       *readerStore
 	collections *collect.Store
+	copier      share.Copier
 	previews    *previewCache
 	discoverMu  sync.Mutex
 	discover    map[string]discoverSet
@@ -48,8 +49,8 @@ type Server struct {
 // New builds a Server.
 func New(lib *library.Library, checker *update.Checker, dl *update.Manager) (*Server, error) {
 	s := &Server{Lib: lib, Checker: checker, Downloads: dl, started: time.Now(),
-		reads: openReaderStore(lib.Dir), previews: newPreviewCache(256), discover: map[string]discoverSet{},
-		collections: collect.New(filepath.Join(lib.Dir, "collections"))}
+		reads: openReaderStore(lib.Drive.Personal), previews: newPreviewCache(256), discover: map[string]discoverSet{},
+		collections: collect.New(lib.Drive.Collections)}
 	t, err := template.New("").Funcs(funcs).ParseFS(web.Templates, "templates/*.html")
 	if err != nil {
 		return nil, err
@@ -87,12 +88,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveSuggest(w, r)
 	case p == "/nabu/updates":
 		s.serveUpdates(w, r)
+	case p == "/nabu/copy":
+		s.serveCopy(w, r)
 	case p == "/nabu/about":
 		s.serveAbout(w, r)
 	case p == "/nabu/saved":
 		s.serveSaved(w, r)
 	case p == "/nabu/collections" || strings.HasPrefix(p, "/nabu/collections/"):
 		s.serveCollections(w, r)
+	case strings.HasPrefix(p, "/nabu/img/"):
+		s.servePicture(w, r)
 	case strings.HasPrefix(p, "/nabu/static/"):
 		w.Header().Set("Cache-Control", "public, max-age=86400")
 		if s.serveLegacyCSS(w, r) {

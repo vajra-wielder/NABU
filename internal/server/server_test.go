@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,11 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vajra-wielder/nabu/internal/drive"
 	"github.com/vajra-wielder/nabu/internal/library"
 	"github.com/vajra-wielder/nabu/internal/update"
 )
 
-func newTestServer(t *testing.T) *Server {
+func newTestServer(t *testing.T) *Server { return newTestServerWith(t, library.Config{}) }
+
+func newTestServerWith(t *testing.T, cfg library.Config) *Server {
 	t.Helper()
 	dir := t.TempDir()
 	for _, n := range []string{"testwiki", "fawiki"} {
@@ -27,7 +31,10 @@ func newTestServer(t *testing.T) *Server {
 			os.WriteFile(filepath.Join(dir, name), b, 0o644)
 		}
 	}
-	lib, err := library.Open(dir)
+	if cfg.Pictures != nil {
+		cfg.Pictures.Dir = filepath.Join(dir, "pictures")
+	}
+	lib, err := library.OpenDrive(drive.ForLibrary(dir), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,8 +48,8 @@ func newTestServer(t *testing.T) *Server {
 			t.Fatalf("%s never became ready: %+v", b.ID, b.Status())
 		}
 	}
-	c := &update.Checker{Dir: dir, Mirror: "http://127.0.0.1:1", Client: http.DefaultClient}
-	s, err := New(lib, c, update.NewManager(dir, http.DefaultClient))
+	c := &update.Checker{Dir: lib.Drive.Work, Mirror: "http://127.0.0.1:1", Client: http.DefaultClient}
+	s, err := New(lib, c, update.NewManager(lib.Drive, http.DefaultClient))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +342,7 @@ func TestCollections(t *testing.T) {
 
 	// The saved file is complete on its own: styles inside, links that the
 	// collection map can redirect, attribution.
-	raw, err := os.ReadFile(filepath.Join(s.Lib.Dir, "collections", slug, babylon.File))
+	raw, err := os.ReadFile(filepath.Join(s.Lib.Drive.Collections, slug, babylon.File))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,3 +391,39 @@ func TestCollections(t *testing.T) {
 		t.Fatal("delete failed")
 	}
 }
+
+func TestMakeACopy(t *testing.T) {
+	s := newTestServer(t)
+	r, page := get(s, "/nabu/copy")
+	if r.StatusCode != 200 || !strings.Contains(page, `value="testwiki"`) || !strings.Contains(page, "Make the copy") {
+		t.Fatalf("copy page: %d", r.StatusCode)
+	}
+	dest := filepath.Join(t.TempDir(), "NABU")
+	call(t, s, "copy-start", `{"to":`+strconvQuote(dest)+`,"copy":{"wikis":["fawiki"],"systems":["linux"],"indexes":true}}`)
+	for i := 0; i < 200 && s.copier.Status().State == "copying"; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if st := s.copier.Status(); st.State != "done" {
+		t.Fatalf("copy: %+v", st)
+	}
+	if _, err := os.Stat(filepath.Join(dest, "wikipedia", "fawiki-20261101-pages-articles-multistream.xml.bz2")); err != nil {
+		t.Fatal("dump not copied")
+	}
+	if _, err := os.Stat(filepath.Join(dest, "wikipedia", "testwiki-20261101-pages-articles-multistream.xml.bz2")); err == nil {
+		t.Fatal("unchosen Wikipedia copied")
+	}
+	if _, body := get(s, "/nabu/api/status"); !strings.Contains(body, `"copy":{"state":"done"`) {
+		t.Errorf("status: %s", body)
+	}
+	// From another device on the network: refused.
+	req := httptest.NewRequest("POST", "/nabu/api/copy-start", strings.NewReader(`{"to":"/tmp/x"}`))
+	req.Host, req.RemoteAddr = "localhost:8080", "192.168.1.9:1"
+	req.Header.Set("X-Nabu", "1")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	if w.Code != 403 {
+		t.Fatalf("copy from the network: %d", w.Code)
+	}
+}
+
+func strconvQuote(s string) string { b, _ := json.Marshal(s); return string(b) }

@@ -105,10 +105,27 @@ func (s *Store) path(slug string, parts ...string) (string, error) {
 	return p, nil
 }
 
-// File returns the on-disk path of a file inside a collection, or an
-// error if the name tries to leave it.
+// FilesToken stands, in a page given to Add, for the folder that holds
+// that page's pictures ("Babylon_files/").
+const FilesToken = "nabu-files-placeholder/"
+
+// filesDir is the folder of a saved page's pictures.
+func filesDir(file string) string { return strings.TrimSuffix(file, ".html") + "_files" }
+
+// File returns the on-disk path of a file inside a collection (or in a
+// page's picture folder, "Babylon_files/1.jpg"), or an error if the name
+// tries to leave it.
 func (s *Store) File(slug, name string) (string, error) {
-	if name == "" || name != filepath.Base(name) || strings.HasPrefix(name, ".") {
+	clean := func(n string) bool {
+		return n != "" && n == filepath.Base(n) && !strings.HasPrefix(n, ".") && !strings.ContainsAny(n, `\:`)
+	}
+	if dir, file, ok := strings.Cut(name, "/"); ok {
+		if !clean(dir) || !clean(file) || !strings.HasSuffix(dir, "_files") {
+			return "", ErrNotFound
+		}
+		return s.path(slug, dir, file)
+	}
+	if !clean(name) {
 		return "", ErrNotFound
 	}
 	return s.path(slug, name)
@@ -250,9 +267,10 @@ func (s *Store) Delete(slug string) error {
 }
 
 // Add saves an article into a collection: page is the self-contained
-// HTML, source the wikitext. Saving an article that is already there
-// replaces its copy (to refresh it from a newer dump).
-func (s *Store) Add(slug string, it Item, page, source []byte) (*Collection, error) {
+// HTML, source the wikitext, files its pictures (by file name, referred
+// to in page as FilesToken+name). Saving an article that is already
+// there replaces its copy (to refresh it from a newer dump).
+func (s *Store) Add(slug string, it Item, page, source []byte, files map[string][]byte) (*Collection, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c, err := s.load(slug)
@@ -271,6 +289,22 @@ func (s *Store) Add(slug string, it Item, page, source []byte) (*Collection, err
 		it.File = s.freeName(c, Slug(it.Title, 80))
 	}
 	dir, _ := s.path(slug)
+	fd := filepath.Join(dir, filesDir(it.File))
+	os.RemoveAll(fd)
+	if len(files) > 0 {
+		if err := os.MkdirAll(fd, 0o755); err != nil {
+			return nil, err
+		}
+		for name, data := range files {
+			if name != filepath.Base(name) || strings.HasPrefix(name, ".") {
+				continue
+			}
+			if err := writeAtomic(filepath.Join(fd, name), data); err != nil {
+				return nil, err
+			}
+		}
+	}
+	page = []byte(strings.ReplaceAll(string(page), FilesToken, html.EscapeString(urlPath(filesDir(it.File)))+"/"))
 	if err := writeAtomic(filepath.Join(dir, it.File), page); err != nil {
 		return nil, err
 	}
@@ -313,6 +347,7 @@ func (s *Store) Remove(slug, book, title string) error {
 			dir, _ := s.path(slug)
 			os.Remove(filepath.Join(dir, it.File))
 			os.Remove(filepath.Join(dir, strings.TrimSuffix(it.File, ".html")+".wiki"))
+			os.RemoveAll(filepath.Join(dir, filesDir(it.File)))
 			c.Items = append(c.Items[:i], c.Items[i+1:]...)
 			return s.save(c)
 		}

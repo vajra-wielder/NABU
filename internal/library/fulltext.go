@@ -46,7 +46,7 @@ type FTStatus struct {
 }
 
 func (l *Library) ftPath(f *dump.Files) string {
-	return filepath.Join(l.Dir, ".nabu", "index", f.Key()+".nfts")
+	return l.Drive.FullText(f.Key())
 }
 
 // openFullText opens an existing full-text index. The caller holds b.mu
@@ -158,7 +158,7 @@ func (l *Library) buildFullText(b *Book) {
 	b.mu.Unlock()
 
 	out := l.ftPath(b.Files)
-	tmp := filepath.Join(l.Dir, ".nabu", "tmp", b.Files.Key()+"-fts")
+	tmp := l.Drive.Temp(b.Files.Key() + "-fts")
 	os.MkdirAll(filepath.Dir(out), 0o755)
 	err := fulltext.Build(rd, out, tmp, fulltext.Options{
 		MemBudget: BuildBudget(),
@@ -202,7 +202,7 @@ func FullTextEstimate(dumpBytes int64, cores int) (minutes int, bytes int64) {
 // The wikis whose readers built search inside articles are remembered on
 // the drive, so a newly downloaded dump of them gets it automatically,
 // even if the old copy is deleted before the new one is ready.
-func (l *Library) wantPath() string { return filepath.Join(l.Dir, ".nabu", "fulltext.json") }
+func (l *Library) wantPath() string { return filepath.Join(l.Drive.Search, "wanted.json") }
 
 func (l *Library) loadWanted() {
 	l.wantMu.Lock()
@@ -217,7 +217,7 @@ func (l *Library) loadWanted() {
 		}
 	}
 	// Indexes built before this was recorded count too.
-	ents, _ := os.ReadDir(filepath.Join(l.Dir, ".nabu", "index"))
+	ents, _ := os.ReadDir(l.Drive.Search)
 	for _, e := range ents {
 		if n := e.Name(); strings.HasSuffix(n, ".nfts") {
 			if i := strings.LastIndexByte(n, '-'); i > 0 {

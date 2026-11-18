@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vajra-wielder/nabu/internal/share"
 	"github.com/vajra-wielder/nabu/internal/update"
 )
 
@@ -21,7 +22,7 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(r.URL.Path, "/nabu/api/")
 	switch name {
 	case "ping":
-		writeJSON(w, map[string]string{"app": "nabu", "version": Version, "library": s.Lib.Dir})
+		writeJSON(w, map[string]string{"app": "nabu", "version": Version, "library": s.Lib.Dir, "drive": s.Lib.Drive.Root})
 		return
 	case "status":
 		writeJSON(w, s.status())
@@ -49,17 +50,21 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Wiki         string `json:"wiki"`
-		Book         string `json:"book"`
-		Key          string `json:"key"`
-		Title        string `json:"title"`
-		Name         string `json:"name"`
-		Slug         string `json:"slug"`
-		Saved        *bool  `json:"saved"`
-		History      *bool  `json:"history"`
-		CheckOnStart *bool  `json:"check_on_start"`
-		AutoDownload *bool  `json:"auto_download"`
-		Pictures     *bool  `json:"pictures"`
+		Wiki         string        `json:"wiki"`
+		Book         string        `json:"book"`
+		Key          string        `json:"key"`
+		Title        string        `json:"title"`
+		Name         string        `json:"name"`
+		Slug         string        `json:"slug"`
+		Saved        *bool         `json:"saved"`
+		History      *bool         `json:"history"`
+		CheckOnStart *bool         `json:"check_on_start"`
+		AutoDownload *bool         `json:"auto_download"`
+		Pictures     *bool         `json:"pictures"`
+		KeepPictures *bool         `json:"keep_pictures"`
+		Mode         string        `json:"mode"`
+		To           string        `json:"to"`
+		Copy         share.Options `json:"copy"`
 	}
 	if r.ContentLength != 0 {
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&body); err != nil {
@@ -122,7 +127,7 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		s.Lib.Retry(body.Book)
 	case "settings":
 		s.settingsMu.Lock()
-		st := update.LoadSettings(s.Lib.Dir)
+		st := update.LoadSettings(s.Lib.Drive.Personal)
 		if body.CheckOnStart != nil {
 			st.CheckOnStart = *body.CheckOnStart
 		}
@@ -135,8 +140,27 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		if body.History != nil {
 			st.History = *body.History
 		}
-		err = update.SaveSettings(s.Lib.Dir, st)
+		if body.KeepPictures != nil {
+			st.KeepPictures = *body.KeepPictures
+		}
+		err = update.SaveSettings(s.Lib.Drive.Personal, st)
 		s.settingsMu.Unlock()
+	case "pictures-start":
+		err = s.Lib.StartPictures(body.Wiki, body.Mode)
+	case "pictures-pause":
+		s.Lib.PausePictures(body.Wiki)
+	case "pictures-remove":
+		err = s.Lib.RemovePictures(body.Wiki)
+	case "copy-start":
+		_, files := share.Inventory(s.Lib.Drive)
+		sel := share.Select(files, body.Copy)
+		if len(body.Copy.Wikis) == 0 || len(body.Copy.Systems) == 0 {
+			err = errors.New("choose at least one Wikipedia and one kind of computer")
+			break
+		}
+		err = s.copier.Start(s.Lib.Drive, body.To, sel)
+	case "copy-cancel":
+		s.copier.Cancel()
 	case "rescan":
 		err = s.Lib.Rescan()
 	case "save":
@@ -241,9 +265,19 @@ type bookStatus struct {
 }
 
 type apiStatus struct {
-	Download update.Status `json:"download"`
-	Books    []bookStatus  `json:"books"`
-	Checking bool          `json:"checking"`
+	Download update.Status   `json:"download"`
+	Books    []bookStatus    `json:"books"`
+	Checking bool            `json:"checking"`
+	Pictures []picStatus     `json:"pictures,omitempty"`
+	Copy     *share.Progress `json:"copy,omitempty"`
+}
+
+type picStatus struct {
+	Wiki  string `json:"wiki"`
+	State string `json:"state"`
+	Line  string `json:"line"`
+	Done  int    `json:"done"`
+	Total int    `json:"total"`
 }
 
 func (s *Server) status() apiStatus {
@@ -257,6 +291,20 @@ func (s *Server) status() apiStatus {
 	for _, wk := range s.wikisToCheck() {
 		if s.Checker.Checking(wk) {
 			st.Checking = true
+		}
+	}
+	if c := s.copier.Status(); c.State != "" {
+		st.Copy = &c
+	}
+	if s.Lib.Pictures() != nil {
+		seen := map[string]bool{}
+		for _, b := range s.Lib.Books() {
+			if seen[b.Files.DB] {
+				continue
+			}
+			seen[b.Files.DB] = true
+			p := s.Lib.PictureStatus(b.Files.DB)
+			st.Pictures = append(st.Pictures, picStatus{Wiki: b.Files.DB, State: p.State, Line: picLine(p), Done: p.Done, Total: p.Total})
 		}
 	}
 	return st

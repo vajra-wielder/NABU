@@ -9,20 +9,21 @@ set "ARCH=amd64"
 if /i "%PROCESSOR_ARCHITECTURE%"=="x86" if not defined PROCESSOR_ARCHITEW6432 set "ARCH=386"
 if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "ARCH=arm64"
 if /i "%PROCESSOR_ARCHITEW6432%"=="ARM64" set "ARCH=arm64"
-set "BIN=%~dp0nabu\nabu-windows-%ARCH%.exe"
+set "BIN=%~dp0programs\windows\nabu-windows-%ARCH%.exe"
 
 rem Windows 7, 8 and 8.1 need the legacy build.
 set "WINMAJOR="
 for /f "tokens=4 delims=. []" %%i in ('ver') do set "WINMAJOR=%%i"
-if defined WINMAJOR if %WINMAJOR% LSS 10 set "BIN=%~dp0nabu\nabu-windows-386-legacy.exe"
+if defined WINMAJOR if %WINMAJOR% LSS 10 set "BIN=%~dp0programs\windows\nabu-windows-386-legacy.exe"
 
 if not exist "%BIN%" (
   echo NABU could not find its program file:
   echo   %BIN%
-  echo The drive may be incomplete. Copy the whole NABU folder again.
+  echo This copy of NABU has no programs for this computer. Copy the
+  echo "programs\windows" folder from a complete NABU drive next to this file.
   pause
   exit /b 1
 )
 
-"%BIN%" --library "%~dp0library" %*
+"%BIN%" --drive "%~dp0." %*
 if errorlevel 1 pause

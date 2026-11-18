@@ -21,7 +21,7 @@ func TestStore(t *testing.T) {
 		t.Fatal("two collections share a folder")
 	}
 	it := Item{Book: "enwiki", Title: "AC/DC: Live?", Dump: "20261101"}
-	c, err = s.Add(c.Slug, it, []byte("<html>v1</html>"), []byte("'''AC/DC'''"))
+	c, err = s.Add(c.Slug, it, []byte("<html>v1</html>"), []byte("'''AC/DC'''"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,16 +30,23 @@ func TestStore(t *testing.T) {
 		t.Fatalf("unsafe file name %q", f)
 	}
 	// Same title in different case gets a different file (FAT32, macOS).
-	c, _ = s.Add(c.Slug, Item{Book: "enwiki", Title: "Ac/dc: live?"}, []byte("x"), nil)
+	c, _ = s.Add(c.Slug, Item{Book: "enwiki", Title: "Ac/dc: live?"}, []byte("x"), nil, nil)
 	if strings.EqualFold(c.Items[0].File, c.Items[1].File) {
 		t.Fatal("file names collide when case is ignored")
 	}
 	// Saving again replaces the copy, keeping its file.
-	c, _ = s.Add(c.Slug, it, []byte("<html>v2</html>"), nil)
+	c, _ = s.Add(c.Slug, it, []byte("<html>v2</html>"), nil, map[string][]byte{"1.jpg": []byte("JPEG")})
 	if len(c.Items) != 2 || c.Items[0].File != f {
 		t.Fatalf("re-save: %+v", c.Items)
 	}
 	dir := filepath.Join(s.Dir, c.Slug)
+	pic, err := s.File(c.Slug, strings.TrimSuffix(f, ".html")+"_files/1.jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(pic); string(b) != "JPEG" {
+		t.Fatalf("picture not saved: %q", b)
+	}
 	if b, _ := os.ReadFile(filepath.Join(dir, f)); string(b) != "<html>v2</html>" {
 		t.Fatalf("copy not replaced: %s", b)
 	}
@@ -57,7 +64,7 @@ func TestStore(t *testing.T) {
 		t.Errorf("collection.js: %s", js)
 	}
 	// Paths cannot leave the collection.
-	for _, bad := range []string{"../x", "..", ".hidden", "a/b"} {
+	for _, bad := range []string{"../x", "..", ".hidden", "a/b", "a_files/../x", "a_files/b/c", "..\\x"} {
 		if _, err := s.File(c.Slug, bad); err == nil {
 			t.Errorf("File accepted %q", bad)
 		}

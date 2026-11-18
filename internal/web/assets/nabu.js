@@ -90,6 +90,20 @@
         if (ftBefore[b.id] && !ftBusy && ftPreps.length) { location.reload(); return; }
         ftBefore[b.id] = ftBusy;
       }
+      // Offline pictures: live progress; the buttons change with the state.
+      for (var p = 0; p < (st.pictures || []).length; p++) {
+        var pc = st.pictures[p];
+        var row = document.querySelector('[data-pics="' + pc.wiki + '"]');
+        if (!row) continue;
+        var was = row.getAttribute('data-pics-state');
+        var busy = pc.state === 'running' || pc.state === 'queued';
+        if ((was === 'running' || was === 'queued') !== busy) { location.reload(); return; }
+        if (busy) preparing = true;
+        var ln = row.querySelector('[data-pics-line]');
+        if (ln) ln.textContent = pc.line;
+        var bar = row.querySelector('[data-pics-bar]');
+        if (bar && pc.total > 0) bar.style.width = (100 * pc.done / pc.total).toFixed(1) + '%';
+      }
       var checking = document.querySelector('[data-checking]');
       if (checking) checking.hidden = !st.checking;
       if ((wasActive && !active) || (wasChecking && !st.checking)) { setTimeout(function () { location.reload(); }, 600); return; }
@@ -121,7 +135,8 @@
       wiki: b.getAttribute('data-wiki') || '',
       key: b.getAttribute('data-key') || '',
       book: b.getAttribute('data-book') || '',
-      title: b.getAttribute('data-title') || ''
+      title: b.getAttribute('data-title') || '',
+      mode: b.getAttribute('data-mode') || ''
     };
     b.disabled = true;
     post(action, body, function (ok) {
@@ -177,4 +192,77 @@
       post('settings', body);
     });
   }
+})();
+
+// "Make a copy" page: live total, destination buttons, progress.
+(function () {
+  var form = document.querySelector('[data-copy-form]');
+  if (!form) return;
+  function human(n) {
+    if (n >= 1073741824) return (n / 1073741824).toFixed(1) + ' GB';
+    if (n >= 1048576) return Math.round(n / 1048576) + ' MB';
+    return Math.max(1, Math.round(n / 1024)) + ' KB';
+  }
+  function checked(name) { var e = form.querySelector('[name="' + name + '"]'); return e && e.checked; }
+  function total() {
+    var sum = 0, i, wikis = form.querySelectorAll('[name="wiki"]');
+    for (i = 0; i < wikis.length; i++) {
+      if (!wikis[i].checked) continue;
+      sum += +wikis[i].getAttribute('data-size');
+      var cells = form.querySelectorAll('[data-wiki="' + wikis[i].value + '"]');
+      for (var c = 0; c < cells.length; c++) if (checked(cells[c].getAttribute('data-part'))) sum += +cells[c].getAttribute('data-size');
+    }
+    var more = form.querySelectorAll('[name="system"],[name="collections"],[name="personal"],[name="source"]');
+    for (i = 0; i < more.length; i++) if (more[i].checked) sum += +(more[i].getAttribute('data-size') || 0);
+    form.querySelector('[data-total]').textContent = human(sum);
+  }
+  form.addEventListener('change', total);
+  total();
+  var dests = form.querySelectorAll('[data-dest]');
+  for (var i = 0; i < dests.length; i++) dests[i].addEventListener('click', function (ev) {
+    form.querySelector('[name="to"]').value = ev.currentTarget.getAttribute('data-dest');
+  });
+  var box = document.getElementById('copybox');
+  function poll() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/nabu/api/status');
+    xhr.onload = function () {
+      var st; try { st = JSON.parse(xhr.responseText); } catch (e) { return; }
+      var c = st.copy;
+      if (!c) return;
+      box.hidden = false;
+      var pct = c.total > 0 ? 100 * c.done / c.total : 0;
+      var line = {copying: 'Copying… ', done: 'Copy finished ✓ ', failed: 'Copy stopped. ', cancelled: 'Copy stopped; start again to go on. '}[c.state] || '';
+      line += human(c.done) + ' of ' + human(c.total) + ' (' + pct.toFixed(0) + '%) to ' + c.dest;
+      if (c.state === 'copying' && c.eta > 0) line += ' · about ' + Math.ceil(c.eta / 6e10) + ' min left';
+      box.querySelector('[data-copy-line]').textContent = line;
+      box.querySelector('.progress > div').style.width = pct.toFixed(1) + '%';
+      box.querySelector('[data-copy-file]').textContent = c.state === 'copying' ? c.file : (c.state === 'done' ? 'It is ready: eject the drive and give it away. It starts like this one.' : '');
+      box.querySelector('[data-copy-error]').textContent = c.error || '';
+      box.querySelector('[data-copy-cancel]').hidden = c.state !== 'copying';
+      box.className = 'notice' + (c.state === 'failed' ? ' bad' : c.state === 'done' ? ' ok' : '');
+      if (c.state === 'copying') setTimeout(poll, 1000);
+    };
+    xhr.send();
+  }
+  poll();
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var vals = function (n) { var r = [], e = form.querySelectorAll('[name="' + n + '"]'); for (var i = 0; i < e.length; i++) if (e[i].checked) r.push(e[i].value); return r; };
+    var body = {
+      to: form.querySelector('[name="to"]').value,
+      copy: { wikis: vals('wiki'), systems: vals('system'), indexes: checked('indexes'), search: checked('search'),
+        pictures: checked('pictures'), collections: checked('collections'), personal: checked('personal'), source: checked('source') }
+    };
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/nabu/api/copy-start');
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.setRequestHeader('X-Nabu', '1');
+    xhr.onload = function () {
+      if (xhr.status !== 200) { var m = xhr.responseText; try { m = JSON.parse(m).error || m; } catch (e) {} alert(m); return; }
+      window.scrollTo(0, 0);
+      poll();
+    };
+    xhr.send(JSON.stringify(body));
+  });
 })();

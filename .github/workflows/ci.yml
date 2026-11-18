@@ -46,4 +46,4 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/NABU-*.zip --title "NABU $GITHUB_REF_NAME" --notes "Unzip onto a pen drive, add a Wikipedia .zim file to library/, and double-click the Start file for your computer."
+        run: gh release create "$GITHUB_REF_NAME" dist/NABU-*.zip --title "NABU $GITHUB_REF_NAME" --notes "Unzip onto a pen drive and double-click the Start file for your computer. NABU then offers to download a Wikipedia (or copy a Wikimedia multistream dump and its index into wikipedia/)."

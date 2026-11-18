@@ -11,12 +11,14 @@ import (
 
 	"github.com/vajra-wielder/nabu/internal/dump"
 	"github.com/vajra-wielder/nabu/internal/library"
+	"github.com/vajra-wielder/nabu/internal/pictures"
 	"github.com/vajra-wielder/nabu/internal/sysutil"
 	"github.com/vajra-wielder/nabu/internal/update"
 )
 
 var funcs = template.FuncMap{
 	"bytes": update.HumanBytes,
+	"hours": func(h float64) string { return humanDur(time.Duration(h * float64(time.Hour))) },
 	"count": humanCount,
 	"date":  dump.HumanDate,
 	"since": humanSince,
@@ -160,6 +162,10 @@ type bookView struct {
 	Newer   *update.Release
 	Older   bool // a newer edition of the same wiki is on the drive
 	MainURL string
+	Pics    library.PicStatus
+	PicLine string
+	Lead    pictures.Size // estimates for keeping pictures
+	All     pictures.Size
 }
 
 func (s *Server) bookViews() []bookView {
@@ -178,6 +184,11 @@ func (s *Server) bookViews() []bookView {
 			if v.Name == b.Files.DB && v.Site.Sitename != "" {
 				v.Name = v.Site.Sitename + " (" + b.Files.DB + ")"
 			}
+		}
+		if !v.Older && s.Lib.Pictures() != nil {
+			v.Pics = s.Lib.PictureStatus(b.Files.DB)
+			v.PicLine = picLine(v.Pics)
+			v.Lead, v.All = pictures.Estimate(b.Files.DB, v.Status.Articles)
 		}
 		if c := s.Checker.Get(b.Files.DB); c != nil && c.Release != nil && !v.Older &&
 			c.Release.Date > b.Files.Date && b.Files.Date != "latest" {
@@ -200,6 +211,7 @@ func (s *Server) serveHome(w http.ResponseWriter, r *http.Request) {
 		"Addrs":    s.Addrs,
 		"LAN":      s.LAN,
 		"Dir":      s.Lib.Dir,
+		"Root":     s.Lib.Drive.Root,
 	})
 }
 
@@ -260,6 +272,7 @@ func (s *Server) serveUpdates(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serveAbout(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "about.html", map[string]interface{}{
 		"Dir":    s.Lib.Dir,
+		"Root":   s.Lib.Drive.Root,
 		"Uptime": time.Since(s.started).Round(time.Second).String(),
 		"Addrs":  s.Addrs,
 		"LAN":    s.LAN,

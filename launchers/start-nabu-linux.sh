@@ -10,11 +10,12 @@ case "$(uname -m)" in
   armv6*|armv7*|arm*)    ARCH=arm ;;
   *) echo "Sorry, NABU has no build for this processor ($(uname -m))."; exit 1 ;;
 esac
-BIN="$DIR/nabu/nabu-linux-$ARCH"
+BIN="$DIR/programs/linux/nabu-linux-$ARCH"
 
 if [ ! -f "$BIN" ]; then
   echo "NABU could not find $BIN"
-  echo "The drive may be incomplete. Copy the whole NABU folder again."
+  echo "This copy of NABU has no programs for this computer. Copy the"
+  echo "\"programs/linux\" folder from a complete NABU drive next to this file."
   exit 1
 fi
 
@@ -26,4 +27,4 @@ if ! "$BIN" version >/dev/null 2>&1; then
   BIN="$TMP/nabu"
 fi
 
-exec "$BIN" --library "$DIR/library" "$@"
+exec "$BIN" --drive "$DIR" "$@"

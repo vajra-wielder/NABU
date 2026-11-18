@@ -230,7 +230,12 @@ func (r *Reader) StreamPages(s uint32) ([]*Page, error) {
 	if _, err := io.Copy(&buf, bzip2.NewReader(io.NewSectionReader(r.data[pair], start, end-start))); err != nil {
 		return nil, fmt.Errorf("decompressing the dump (is the file complete?): %w", err)
 	}
-	data := buf.Bytes()
+	return ParsePages(buf.Bytes()), nil
+}
+
+// ParsePages decodes the <page> elements of decompressed dump XML; an
+// incomplete last page is left out.
+func ParsePages(data []byte) []*Page {
 	var pages []*Page
 	for {
 		i := bytes.Index(data, pageOpen)
@@ -249,5 +254,5 @@ func (r *Reader) StreamPages(s uint32) ([]*Page, error) {
 		}
 		data = data[j+len(pageClose):]
 	}
-	return pages, nil
+	return pages
 }

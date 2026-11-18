@@ -15,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/vajra-wielder/nabu/internal/drive"
 )
 
 // Trimmed from a real dumps.wikimedia.org/simplewiki/20261101/dumpstatus.json.
@@ -98,7 +100,7 @@ func TestLatestAndDownload(t *testing.T) {
 		t.Fatalf("release: %+v", rel)
 	}
 	dir := t.TempDir()
-	m := NewManager(dir, srv.Client())
+	m := NewManager(drive.ForLibrary(dir), srv.Client())
 	m.RetryDelay = 10 * time.Millisecond
 	done := make(chan struct{})
 	m.OnFinish = func(*Release) { close(done) }
@@ -147,7 +149,7 @@ func TestCorruptDownloadRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	m := NewManager(dir, srv.Client())
+	m := NewManager(drive.ForLibrary(dir), srv.Client())
 	m.Start(rel)
 	deadline := time.Now().Add(10 * time.Second)
 	for m.Busy() && time.Now().Before(deadline) {

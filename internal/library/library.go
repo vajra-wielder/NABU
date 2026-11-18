@@ -11,7 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vajra-wielder/nabu/internal/drive"
 	"github.com/vajra-wielder/nabu/internal/dump"
+	"github.com/vajra-wielder/nabu/internal/pictures"
 )
 
 // Book states.
@@ -79,7 +81,8 @@ func (b *Book) Site() *dump.Siteinfo {
 
 // Library is the set of books in a folder.
 type Library struct {
-	Dir   string
+	Dir   string        // the dumps (the drive's wikipedia folder)
+	Drive *drive.Layout // where everything else goes
 	mu    sync.RWMutex
 	books []*Book
 	byID  map[string]*Book
@@ -90,15 +93,34 @@ type Library struct {
 
 	wantMu sync.Mutex
 	ftWant map[string]bool // wikis whose newest dump should get search inside articles
+
+	pics   *pictures.Service
+	online func() bool
+	pj     *picJobs
 }
 
-// Open scans dir and starts preparing any new dumps.
-func Open(dir string) (*Library, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+// Open scans a folder of dumps (see drive.ForLibrary) and starts
+// preparing any new ones.
+func Open(dir string) (*Library, error) { return OpenDrive(drive.ForLibrary(dir), Config{}) }
+
+// Config connects a library to the rest of NABU.
+type Config struct {
+	Pictures *pictures.Service // offline pictures (optional)
+	Online   func() bool       // whether NABU may use the internet now
+}
+
+// OpenDrive opens the library of a NABU drive.
+func OpenDrive(d *drive.Layout, cfg Config) (*Library, error) {
+	if err := os.MkdirAll(d.Wikipedia, 0o755); err != nil {
 		return nil, err
 	}
-	l := &Library{Dir: dir, byID: map[string]*Book{}, queue: make(chan *Book, 256)}
+	l := &Library{Dir: d.Wikipedia, Drive: d, byID: map[string]*Book{}, queue: make(chan *Book, 256)}
 	l.ftQueue = make(chan *Book, 64)
+	l.pics, l.online = cfg.Pictures, cfg.Online
+	l.pj = &picJobs{state: map[string]*picState{}, queue: make(chan string, 64)}
+	if l.pics != nil {
+		go l.picWorker()
+	}
 	l.loadWanted()
 	go l.worker()
 	go l.ftWorker()
@@ -106,7 +128,7 @@ func Open(dir string) (*Library, error) {
 }
 
 func (l *Library) indexPath(f *dump.Files) string {
-	return filepath.Join(l.Dir, ".nabu", "index", f.Key()+".nidx")
+	return l.Drive.TitleIndex(f.Key())
 }
 
 // Rescan looks for added or removed dumps.
@@ -138,7 +160,7 @@ func (l *Library) Rescan() error {
 			if rd, err := dump.NewReader(f, ix); err == nil {
 				b.reader, b.state = rd, Ready
 				l.openFullText(b)
-				defer func(b *Book) { go l.autoFullText(b) }(b)
+				defer func(b *Book) { go l.autoFullText(b); go l.autoPictures(b) }(b)
 			} else {
 				ix.Close()
 				b.state, b.err = Failed, err.Error()
@@ -201,7 +223,7 @@ func (l *Library) prepare(b *Book) {
 
 	out := l.indexPath(b.Files)
 	os.MkdirAll(filepath.Dir(out), 0o755)
-	tmp := filepath.Join(l.Dir, ".nabu", "tmp", b.Files.Key())
+	tmp := l.Drive.Temp(b.Files.Key())
 	err := dump.Build(b.Files, out, tmp, BuildBudget(), func(done, total int64) {
 		b.mu.Lock()
 		b.done, b.total = done, total
@@ -225,6 +247,7 @@ func (l *Library) prepare(b *Book) {
 	b.reader, b.state, b.done = rd, Ready, b.total
 	l.openFullText(b)
 	go l.autoFullText(b)
+	go l.autoPictures(b)
 }
 
 // BuildBudget is the memory used for sorting titles while preparing a
@@ -315,6 +338,24 @@ func (l *Library) Remove(id string) error {
 
 // Close releases every file.
 func (l *Library) Close() {
+	// A picture download saves its place and stops first.
+	if l.pics != nil {
+		l.pj.mu.Lock()
+		if l.pj.cancel != nil {
+			l.pj.cancel()
+		}
+		l.pj.mu.Unlock()
+		for i := 0; i < 100; i++ {
+			l.pj.mu.Lock()
+			r := l.pj.running
+			l.pj.mu.Unlock()
+			if r == "" {
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		l.pics.Close()
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for _, b := range l.books {

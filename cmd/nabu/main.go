@@ -28,8 +28,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vajra-wielder/nabu/internal/drive"
 	"github.com/vajra-wielder/nabu/internal/dump"
 	"github.com/vajra-wielder/nabu/internal/library"
+	"github.com/vajra-wielder/nabu/internal/pictures"
 	"github.com/vajra-wielder/nabu/internal/server"
 	"github.com/vajra-wielder/nabu/internal/sysutil"
 	"github.com/vajra-wielder/nabu/internal/update"
@@ -56,8 +58,17 @@ func main() {
 			err = cmdInfo(rest)
 		case "export":
 			err = cmdExport(rest)
+		case "pictures":
+			err = cmdPictures(rest)
+		case "copy":
+			err = cmdCopy(rest)
 		case "version":
 			fmt.Printf("NABU %s (%s/%s, %s)\n", version, runtime.GOOS, runtime.GOARCH, runtime.Version())
+		case "about-folders": // used by scripts/build.sh
+			var o *opts
+			if o, _, err = parse("about-folders", rest); err == nil {
+				drive.Find(o.drive, o.library).WriteNotes(true)
+			}
 		case "serve":
 			err = cmdServe(rest)
 		case "help":
@@ -90,6 +101,12 @@ func usage() {
   nabu export <wiki>       write every article's structured data as JSON
                            lines (links, categories, templates, places,
                            infoboxes, tables, media, glossary)
+  nabu pictures <wiki> [--all]  keep a Wikipedia's pictures on the drive for
+                           reading offline (main picture of each article,
+                           or every picture with --all)
+  nabu copy --to <folder>  copy NABU for someone else (see --wikis,
+                           --systems, --without, --with); your saved
+                           articles and history stay behind
   nabu info                list the dumps in the library
   nabu version             print the version
 
@@ -106,7 +123,14 @@ type opts struct {
 	fullText  bool
 	out       string
 	withText  bool
+	all       bool
+	to        string
+	wikis     string
+	systems   string
+	without   string
+	with      string
 	library   string
+	drive     string
 	port      int
 	lan       bool
 	noBrowser bool
@@ -115,7 +139,8 @@ type opts struct {
 }
 
 func bindFlags(fs *flag.FlagSet, o *opts) {
-	fs.StringVar(&o.library, "library", "", "folder holding the dumps (default: the drive's library folder)")
+	fs.StringVar(&o.drive, "drive", "", "the NABU folder (default: found from where the program is)")
+	fs.StringVar(&o.library, "library", "", "a folder of dumps to read instead of the NABU folder's wikipedia folder")
 	fs.IntVar(&o.port, "port", 8080, "port to listen on; the next free one is used if taken")
 	fs.BoolVar(&o.lan, "lan", false, "share the library with other devices on the local network")
 	fs.BoolVar(&o.noBrowser, "no-browser", false, "do not open the web browser")
@@ -124,8 +149,14 @@ func bindFlags(fs *flag.FlagSet, o *opts) {
 	fs.BoolVar(&o.rebuild, "rebuild", false, "delete and rebuild the indexes (after a damaged or changed dump)")
 	fs.BoolVar(&o.window, "window", false, "open NABU in its own app window instead of a browser tab")
 	fs.BoolVar(&o.fullText, "full-text", false, "prepare: also build search inside articles")
-	fs.StringVar(&o.out, "out", "", "export: output file (default: <wiki>-<date>-pages.jsonl in the library)")
+	fs.StringVar(&o.out, "out", "", "export: output file (default: <wiki>-<date>-pages.jsonl in the NABU folder)")
 	fs.BoolVar(&o.withText, "text", false, "export: include each article's plain text")
+	fs.BoolVar(&o.all, "all", false, "pictures: every picture, not only the main one of each article")
+	fs.StringVar(&o.to, "to", "", "copy: the folder to copy NABU into")
+	fs.StringVar(&o.wikis, "wikis", "", "copy: Wikipedias to include, e.g. en,fr (default: all)")
+	fs.StringVar(&o.systems, "systems", "windows,mac,linux", "copy: computers the copy starts on")
+	fs.StringVar(&o.without, "without", "", "copy: parts to leave out: indexes,search,pictures,collections")
+	fs.StringVar(&o.with, "with", "", "copy: extra parts: personal,source")
 }
 
 func parse(name string, args []string) (*opts, *flag.FlagSet, error) {
@@ -151,37 +182,16 @@ func parse(name string, args []string) (*opts, *flag.FlagSet, error) {
 	return o, fs, err
 }
 
-// findLibrary locates the library folder. The launchers pass --library;
-// this is for running the program by hand.
-func findLibrary(flagValue string) string {
-	if flagValue != "" {
-		if abs, err := filepath.Abs(flagValue); err == nil {
-			return abs
-		}
-		return flagValue
+// findDrive works out where NABU's folders are (the launchers pass
+// --drive) and moves a drive set up by an earlier version to the current
+// layout.
+func findDrive(o *opts) *drive.Layout {
+	d := drive.Find(o.drive, o.library)
+	for _, n := range d.Migrate() {
+		fmt.Println("  Updated the drive's layout:", n)
 	}
-	var candidates []string
-	if exe, err := os.Executable(); err == nil {
-		if real, err := filepath.EvalSymlinks(exe); err == nil {
-			exe = real
-		}
-		dir := filepath.Dir(exe)
-		candidates = append(candidates, filepath.Join(dir, "library"), filepath.Join(dir, "..", "library"))
-	}
-	if wd, err := os.Getwd(); err == nil {
-		candidates = append(candidates, filepath.Join(wd, "library"))
-	}
-	for _, c := range candidates {
-		if st, err := os.Stat(c); err == nil && st.IsDir() {
-			abs, _ := filepath.Abs(c)
-			return abs
-		}
-	}
-	if len(candidates) > 0 {
-		abs, _ := filepath.Abs(candidates[len(candidates)-1])
-		return abs
-	}
-	return "library"
+	d.WriteNotes(false)
+	return d
 }
 
 func httpClient() *http.Client {
@@ -198,7 +208,8 @@ func cmdServe(args []string) error {
 		}
 		return err
 	}
-	dir := findLibrary(o.library)
+	d := findDrive(o)
+	dir := d.Wikipedia
 
 	// Started twice (a double double-click)? Just show the running one.
 	if url, ok := alreadyRunning(o.port, dir); ok {
@@ -211,9 +222,12 @@ func cmdServe(args []string) error {
 
 	var rebuildFT []string
 	if o.rebuild {
-		rebuildFT = removeIndexes(dir)
+		rebuildFT = removeIndexes(d)
 	}
-	lib, err := library.Open(dir)
+	client := httpClient()
+	pics := pictures.NewService(d.Pictures, pictures.NewFetcher(client, update.UserAgent))
+	online := func() bool { return !o.offline && update.LoadSettings(d.Personal).Pictures }
+	lib, err := library.OpenDrive(d, library.Config{Pictures: pics, Online: online})
 	if err != nil {
 		return fmt.Errorf("cannot open the library folder %s: %w", dir, err)
 	}
@@ -222,10 +236,9 @@ func cmdServe(args []string) error {
 		go rebuildFullText(lib, rebuildFT)
 	}
 
-	client := httpClient()
-	checker := &update.Checker{Dir: dir, Mirror: o.mirror, Client: client}
+	checker := &update.Checker{Dir: d.Work, Mirror: o.mirror, Client: client}
 	checker.Load()
-	dl := update.NewManager(dir, client)
+	dl := update.NewManager(d, client)
 	dl.OnFinish = func(*update.Release) { lib.Rescan() }
 
 	srv, err := server.New(lib, checker, dl)
@@ -253,7 +266,7 @@ func cmdServe(args []string) error {
 	defer stop()
 	srv.Shutdown = stop
 
-	banner(url, lib, dir, srv.Addrs)
+	banner(url, lib, d.Root, srv.Addrs)
 	go func() {
 		time.Sleep(200 * time.Millisecond)
 		if !o.noBrowser {
@@ -267,7 +280,7 @@ func cmdServe(args []string) error {
 		}
 	}()
 	if !o.offline {
-		go startupCheck(ctx, lib, checker, dl, dir)
+		go startupCheck(ctx, lib, checker, dl, d)
 	}
 	err = srv.Run(ctx, ln)
 	dl.Cancel()
@@ -315,7 +328,7 @@ func banner(url string, lib *library.Library, dir string, addrs []string) {
 	for _, a := range addrs {
 		fmt.Println("  On your network:       ", a)
 	}
-	fmt.Println("  Library folder:        ", dir)
+	fmt.Println("  NABU folder:           ", dir)
 	books := lib.Books()
 	if len(books) == 0 {
 		fmt.Println("  Wikipedias:             none yet; the browser page will help you get one")
@@ -338,8 +351,9 @@ func banner(url string, lib *library.Library, dir string, addrs []string) {
 
 // startupCheck asks Wikimedia whether newer dumps of the Wikipedias on
 // the drive exist (the "ping on activation").
-func startupCheck(ctx context.Context, lib *library.Library, c *update.Checker, dl *update.Manager, dir string) {
-	settings := update.LoadSettings(dir)
+func startupCheck(ctx context.Context, lib *library.Library, c *update.Checker, dl *update.Manager, d *drive.Layout) {
+	settings := update.LoadSettings(d.Personal)
+	dir := d.Wikipedia
 	if !settings.CheckOnStart {
 		return
 	}
@@ -424,7 +438,8 @@ func cmdDownload(args []string) error {
 	if fs.NArg() != 1 {
 		return errors.New("usage: nabu download <wiki>, e.g. nabu download enwiki")
 	}
-	dir := findLibrary(o.library)
+	d := findDrive(o)
+	dir := d.Wikipedia
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -438,7 +453,7 @@ func cmdDownload(args []string) error {
 		return err
 	}
 	fmt.Printf("Downloading %s (dump of %s, %s) into %s\n", rel.Wiki, dump.HumanDate(rel.Date), update.HumanBytes(rel.Size()), dir)
-	m := update.NewManager(dir, client)
+	m := update.NewManager(d, client)
 	if err := m.Start(rel); err != nil {
 		return err
 	}
@@ -478,7 +493,8 @@ func cmdPrepare(args []string) error {
 	if err != nil {
 		return err
 	}
-	dir := findLibrary(o.library)
+	d := findDrive(o)
+	dir := d.Wikipedia
 	eds, notes := dump.Scan(dir)
 	for _, n := range notes {
 		fmt.Println("Note:", n)
@@ -487,7 +503,7 @@ func cmdPrepare(args []string) error {
 		return fmt.Errorf("no dumps found in %s", dir)
 	}
 	for _, f := range eds {
-		out := filepath.Join(dir, ".nabu", "index", f.Key()+".nidx")
+		out := d.TitleIndex(f.Key())
 		if ix, err := dump.OpenIndex(out, f); err == nil {
 			fmt.Printf("%s: ready (%d pages)\n", f.Key(), ix.Meta.Records)
 			ix.Close()
@@ -495,7 +511,7 @@ func cmdPrepare(args []string) error {
 		}
 		os.MkdirAll(filepath.Dir(out), 0o755)
 		start := time.Now()
-		tmp := filepath.Join(dir, ".nabu", "tmp", f.Key())
+		tmp := d.Temp(f.Key())
 		err := dump.Build(f, out, tmp, library.BuildBudget(), func(done, total int64) {
 			fmt.Printf("\r%s: preparing %5.1f%%", f.Key(), 100*float64(done)/float64(total))
 		})
@@ -508,7 +524,7 @@ func cmdPrepare(args []string) error {
 	}
 	if o.fullText {
 		for _, f := range eds {
-			if err := prepareFullText(dir, f); err != nil {
+			if err := prepareFullText(d, f); err != nil {
 				return err
 			}
 		}
@@ -521,12 +537,12 @@ func cmdInfo(args []string) error {
 	if err != nil {
 		return err
 	}
-	dir := findLibrary(o.library)
-	eds, notes := dump.Scan(dir)
-	fmt.Println("Library:", dir)
+	d := findDrive(o)
+	eds, notes := dump.Scan(d.Wikipedia)
+	fmt.Println("NABU folder:", d.Root)
 	for _, f := range eds {
 		state := "not prepared yet"
-		out := filepath.Join(dir, ".nabu", "index", f.Key()+".nidx")
+		out := d.TitleIndex(f.Key())
 		if ix, err := dump.OpenIndex(out, f); err == nil {
 			si := ix.Site()
 			state = fmt.Sprintf("%s, %s, %d pages (%d in main namespace), main page %q", si.Sitename, si.Lang, ix.Meta.Records, ix.Meta.Articles, si.MainPage())

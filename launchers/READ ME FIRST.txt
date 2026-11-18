@@ -42,7 +42,7 @@ computer running NABU with --lan.)
 GETTING OR UPDATING WIKIPEDIA
 -----------------------------
 
-Each Wikipedia is two files from Wikimedia in the "library" folder:
+Each Wikipedia is two files from Wikimedia in the "wikipedia" folder:
 
   enwiki-20261101-pages-articles-multistream.xml.bz2        (the articles)
   enwiki-20261101-pages-articles-multistream-index.txt.bz2  (where each one is)
@@ -60,8 +60,36 @@ Sizes of the ten Wikipedias NABU offers (November 2026):
   Indonesian 1.3 GB   Danish 0.5 GB              All ten: about 55 GB
 Together these languages are official across ~91% of the world's land.
 
-Dumps contain the text of every article. Pictures are shown from
-Wikimedia when the computer is online, and as labelled frames when not.
+Dumps contain the text of every article. Pictures come from Wikimedia
+when the computer is online, and NABU keeps each one it shows on the
+drive, so it shows offline afterwards. To keep them all before going
+offline, use "Keep main pictures" or "Keep all pictures" on the home
+page: it downloads in the background and goes on each time NABU runs.
+
+
+WHAT IS ON THE DRIVE
+--------------------
+
+Each part is its own folder, with a note inside saying what it is:
+
+  programs\windows, programs\mac, programs\linux   NABU for each computer
+  wikipedia     the Wikipedias (needed)
+  indexes       title indexes (rebuilt by NABU if missing)
+  search        search inside articles (optional)
+  pictures      pictures kept for reading offline (optional)
+  collections   your collections; each opens in any browser
+  personal      your saved articles, history and settings
+
+To make a smaller copy, leave folders out: everything except one
+Wikipedia and the programs for your computer is optional.
+
+
+GIVE IT TO SOMEONE
+------------------
+
+Click "Make a copy" at the bottom of any NABU page. Choose languages,
+computers and extras; NABU copies them onto another stick, and leaves
+your "personal" folder behind unless you tick it.
 
 
 SHARE WITH A ROOM

@@ -34,7 +34,7 @@ type readerStore struct {
 const maxHistory = 300
 
 func openReaderStore(dir string) *readerStore {
-	st := &readerStore{path: filepath.Join(dir, ".nabu", "reader.json")}
+	st := &readerStore{path: filepath.Join(dir, "reader.json")}
 	if b, err := os.ReadFile(st.path); err == nil {
 		json.Unmarshal(b, st)
 	}
