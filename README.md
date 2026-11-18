@@ -31,7 +31,7 @@ offers to fetch it.
 
 ## Why read the raw dumps
 
-Wikimedia publishes every Wikipedia, about twice a month, as
+Wikimedia publishes every Wikipedia, once a month (on the 1st), as
 `<wiki>-<date>-pages-articles-multistream.xml.bz2`. That is the wikitext of every
 page, compressed with bzip2 in independent streams of 100 pages, plus an index saying
 which stream holds which page. NABU reads that file **as is**:
@@ -101,10 +101,22 @@ and parchment, with a Night theme for the evening.
   history are stored *on the drive*, so they move with the stick to any computer. Only
   reading on the computer running NABU is remembered, never that of devices reading
   over Wi-Fi. History can be switched off or cleared.
+- **Collections.** Named sections of articles (*Mesopotamia*, *Exam revision*, …).
+  **Collect** on any article adds it to one or more collections. Each article is saved
+  as **its own separate copy**: a complete HTML page with its styles inside, plus its
+  wikitext, in `library/collections/<name>/`. A copy stays readable after its dump is
+  updated or deleted. The folder opens in any browser without NABU (`index.html` is its
+  contents page, and links between articles of the same collection lead to each other
+  offline), so it can be copied to another drive, zipped or e-mailed. Inside NABU, a
+  collection can also be read as **one book**, with chapters and a table of contents,
+  and printed or saved as PDF. **Refresh copies** re-saves every article from the
+  newest dump.
 - **Home page.** It offers *Continue reading*, your saved articles and a few random
   articles to explore.
 - **Search inside articles.** An optional index of every word (built once per dump,
   in the background) adds ranked results with highlighted snippets to the search page.
+  Once built for a wiki, it is rebuilt automatically whenever a newer dump of that wiki
+  arrives, and the old one is deleted with the old dump.
 - **Places.** Articles with coordinates show a **Location** panel: an offline world
   map with the place marked and, with search inside articles built, the nearest
   articles by distance.
@@ -118,6 +130,16 @@ and size of Wikimedia's newest dump, and downloads with one click. Downloads res
 after dropped connections or restarts, and every file is checked against Wikimedia's
 SHA-1 before it is used. Files over 4 GB are written in 4 GB pieces, so FAT32 sticks
 work. Already have the two files? Copy them into `library/`.
+
+**Keeping up to date.** Wikimedia starts a full dump of every wiki on the 1st of each
+month; the multistream files are usually ready a few days to two weeks later. When started (unless `--offline`), NABU reads each wiki's
+`latest/…-rss.xml` feed and the dump's `dumpstatus.json` to see whether a newer
+*finished* dump exists, and shows **Update available** with its date and size. With
+*download updates automatically* on, it fetches it in the background. The old dump stays
+readable until the new one is downloaded, verified and indexed, then is deleted (with
+its indexes) to free the space. Anything built for the old dump, the title index and
+search inside articles, is rebuilt for the new one without asking. Saved articles,
+history and collections are kept: they are stored by title, not by dump.
 
 **First use of a new dump:** NABU sorts its titles into a search index on the drive
 (`library/.nabu/index/`, about 2–3% of the dump's size). It takes seconds for small
@@ -312,6 +334,8 @@ unrendered.
 - `internal/fulltext`: search inside articles: tokenizer (CJK as character pairs),
   parallel index builder, ranked search, snippets, places nearby.
 - `internal/update`: Wikimedia release lookup, resumable verified downloads, settings.
+- `internal/collect`: collections: folders of standalone article copies, with
+  `collection.json`, `collection.js` (the link map) and an `index.html` contents page.
 - `internal/server`, `internal/web`: pages, API, saved/history store, link previews,
   templates; `theme.css` (palette and shared bar), `nabu.css` (NABU pages), `wiki.css`
   (articles), `bar.js` (search and reading settings), `reader.js` (save, previews,
@@ -331,7 +355,10 @@ unrendered.
 - **Search inside articles is optional.** It needs a one-time pass over the whole
   dump. Simple English (395 MB) takes about a minute on 3 cores and adds a 79 MB
   index (~20% of the dump). English Wikipedia should take roughly 1–1.5 hours on a
-  4-core laptop and add about 5 GB. Title search needs none of this.
+  4-core laptop and add about 5 GB. Title search needs none of this. It is built once
+  per dump, on any computer, and travels with the drive: other computers use it as is.
+- **Collection copies are snapshots.** They don't change when the dump is updated
+  (that is the point); use **Refresh copies** to bring them up to date.
 - **Category pages** show their description but not member lists, which aren't in the
   articles dump.
 - **Unsigned programs.** Windows SmartScreen may warn (*More info → Run anyway*). On a

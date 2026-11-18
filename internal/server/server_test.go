@@ -304,3 +304,83 @@ func TestSearchInsideArticlesAndPlaces(t *testing.T) {
 		}
 	}
 }
+
+func TestCollections(t *testing.T) {
+	s := newTestServer(t)
+	call := func(action, remote string, body string) (int, string) {
+		req := httptest.NewRequest("POST", "/nabu/api/"+action, strings.NewReader(body))
+		req.Host, req.RemoteAddr = "localhost:8080", remote
+		req.Header.Set("X-Nabu", "1")
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+		return w.Code, w.Body.String()
+	}
+	code, body := call("collection-create", "127.0.0.1:1", `{"name":"Ancient Iraq","book":"testwiki","title":"Babylon"}`)
+	if code != 200 {
+		t.Fatalf("create: %d %s", code, body)
+	}
+	if code, _ := call("collection-create", "192.168.1.5:1", `{"name":"From the network"}`); code != 403 {
+		t.Fatalf("a device on the network created a collection: %d", code)
+	}
+	slug := s.collections.List()[0].Slug
+	if code, body := call("collection-add", "127.0.0.1:1", `{"slug":"`+slug+`","book":"testwiki","title":"nabu"}`); code != 200 {
+		t.Fatalf("add: %d %s", code, body)
+	}
+	_, list := get(s, "/nabu/api/collections?book=testwiki&title=Babylon")
+	if !strings.Contains(list, `"name":"Ancient Iraq","count":2,"has":true`) {
+		t.Fatalf("collections API: %s", list)
+	}
+	c, _ := s.collections.Get(slug)
+	babylon := c.Items[0]
+
+	// The saved file is complete on its own: styles inside, links that the
+	// collection map can redirect, attribution.
+	raw, err := os.ReadFile(filepath.Join(s.Lib.Dir, "collections", slug, babylon.File))
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(raw)
+	for _, want := range []string{"<style>", "--lapis", `class="infobox"`, `href="https://en.wikipedia.org/wiki/Nabu" data-t="testwiki|Nabu"`,
+		`<script src="collection.js">`, "CC BY-SA 4.0", "index.html"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("saved copy lacks %q", want)
+		}
+	}
+	if strings.Contains(page, `src="/nabu/static`) || strings.Contains(page, `href="/nabu/static`) {
+		t.Error("saved copy depends on NABU's server")
+	}
+	// Served through NABU, wiki links point at the local copy.
+	r, served := get(s, "/nabu/collections/"+slug+"/"+babylon.File)
+	if r.StatusCode != 200 || !strings.Contains(served, `href="/testwiki/wiki/Nabu" data-t=`) {
+		t.Errorf("served copy: %d", r.StatusCode)
+	}
+	for path, want := range map[string]string{
+		"/nabu/collections/" + slug + "/":           "Read as one book",
+		"/nabu/collections/" + slug + "/index.html": "Ancient Iraq",
+		"/nabu/collections/" + slug + "/book":       `href="#ch2"`, // Babylon's link to Nabu becomes a chapter link
+		"/nabu/saved":                               "Ancient Iraq",
+	} {
+		if r, b := get(s, path); r.StatusCode != 200 || !strings.Contains(b, want) {
+			t.Errorf("%s: %d lacks %q", path, r.StatusCode, want)
+		}
+	}
+	if r, _ := get(s, "/nabu/collections/"+slug+"/..%2Fcollection.json"); r.StatusCode != 404 {
+		t.Errorf("path escape: %d", r.StatusCode)
+	}
+	if r, _ := get(s, "/testwiki/wiki/Babylon"); r.StatusCode != 200 {
+		t.Fatal("article page broke")
+	} else if _, b := get(s, "/testwiki/wiki/Babylon"); !strings.Contains(b, "data-collect") {
+		t.Error("article has no Collect button")
+	}
+	if code, body := call("collection-refresh", "127.0.0.1:1", `{"slug":"`+slug+`"}`); code != 200 || !strings.Contains(body, `"refreshed":2`) {
+		t.Errorf("refresh: %d %s", code, body)
+	}
+	call("collection-remove", "127.0.0.1:1", `{"slug":"`+slug+`","book":"testwiki","title":"Nabu"}`)
+	if c, _ := s.collections.Get(slug); len(c.Items) != 1 {
+		t.Fatalf("remove: %+v", c.Items)
+	}
+	call("collection-delete", "127.0.0.1:1", `{"slug":"`+slug+`"}`)
+	if len(s.collections.List()) != 0 {
+		t.Fatal("delete failed")
+	}
+}

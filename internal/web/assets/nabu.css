@@ -100,3 +100,10 @@ footer.foot img { width: 18px; height: 18px; vertical-align: -3px; margin-right:
 mark { background: var(--clay-soft); color: var(--ink); padding: 0 2px; border-radius: 3px; }
 .ftline { margin: 0; }
 .ftline .progress { height: 6px; margin: 6px 0 0; }
+
+/* Collections */
+.coll-title { margin: 8px 0 6px; }
+.coll-items .m a { font-size: .85rem; }
+.new-coll { border-style: dashed; }
+.new-coll form { display: flex; gap: 8px; }
+.new-coll input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; }

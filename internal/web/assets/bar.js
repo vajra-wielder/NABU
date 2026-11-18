@@ -149,6 +149,13 @@
       t.parentNode.className = 'pic broken';
     }
   }, true);
+  // Pictures that failed before this script ran.
+  var imgs = document.getElementsByTagName('img');
+  for (var ii = 0; ii < imgs.length; ii++) {
+    if (imgs[ii].complete && !imgs[ii].naturalWidth && imgs[ii].parentNode.className === 'pic') {
+      imgs[ii].parentNode.className = 'pic broken';
+    }
+  }
 
   if (!Element.prototype.closest) {
     Element.prototype.closest = function (s) {

@@ -1,6 +1,6 @@
 {{define "updates.html"}}{{template "head" .}}
 <h1 style="margin-top:32px">Get &amp; update Wikipedia</h1>
-<p class="muted prose">Wikimedia publishes a new snapshot ("dump") of every Wikipedia about twice a month. NABU downloads the compressed
+<p class="muted prose">Wikimedia publishes a new snapshot ("dump") of every Wikipedia once a month, on the 1st. NABU downloads the compressed
 <code>pages-articles-multistream</code> dump and its index straight from <code>{{.Mirror}}</code>, checks every byte against Wikimedia's SHA-1 checksums, and reads it in place. No conversion and no extra copy.</p>
 
 {{template "dlbox" .}}

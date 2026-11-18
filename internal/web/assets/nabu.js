@@ -110,7 +110,14 @@
     var action = b.getAttribute('data-action');
     var confirmText = b.getAttribute('data-confirm');
     if (confirmText && !confirm(confirmText)) return;
+    var promptText = b.getAttribute('data-prompt'), answer = '';
+    if (promptText) {
+      answer = window.prompt(promptText, b.getAttribute('data-value') || '');
+      if (answer === null || !answer.replace(/\s/g, '')) return;
+    }
     var body = {
+      slug: b.getAttribute('data-slug') || '',
+      name: answer,
       wiki: b.getAttribute('data-wiki') || '',
       key: b.getAttribute('data-key') || '',
       book: b.getAttribute('data-book') || '',
@@ -131,7 +138,9 @@
         setTimeout(poll, 800);
         return;
       }
-      if (action === 'unsave' || action === 'forget') {
+      if (b.getAttribute('data-goto')) { location.href = b.getAttribute('data-goto'); return; }
+      if (action === 'collection-refresh') { alert('Copies refreshed from the newest dumps on the drive.'); }
+      if (action === 'unsave' || action === 'forget' || action === 'collection-remove') {
         var li = b.closest ? b.closest('li') : null;
         if (li) { li.parentNode.removeChild(li); return; }
       }
@@ -139,6 +148,24 @@
       if (action === 'fulltext') { setTimeout(function () { location.reload(); }, 300); return; }
       location.reload();
     });
+  });
+
+  // New collection (Saved page).
+  var cf = document.querySelector('[data-create-collection]');
+  if (cf) cf.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var name = cf.querySelector('input').value;
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/nabu/api/collection-create');
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.setRequestHeader('X-Nabu', '1');
+    xhr.onload = function () {
+      var res = {};
+      try { res = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status >= 400) { alert(res.error || 'Could not create the collection.'); return; }
+      location.href = '/nabu/collections/' + encodeURIComponent(res.result.slug) + '/';
+    };
+    xhr.send(JSON.stringify({ name: name }));
   });
 
   // Settings switches: <input type=checkbox data-setting="pictures">.

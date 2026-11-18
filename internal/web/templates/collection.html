@@ -1,0 +1,26 @@
+{{define "collection.html"}}{{template "head" .}}
+<p style="margin-top:28px"><a href="/nabu/saved#collections">← Saved &amp; collections</a></p>
+<h1 class="coll-title" dir="auto">{{.C.Name}}</h1>
+<p class="muted">{{len .C.Items}} saved article{{if ne (len .C.Items) 1}}s{{end}} · each one a separate copy on the drive, in <code>{{.Folder}}</code>. Open <a href="/nabu/collections/{{.C.Slug}}/index.html">its contents page</a> in any browser, even without NABU, or copy the folder to share it.</p>
+<div class="toolbar">
+  {{if .C.Items}}<a class="btn primary" href="/nabu/collections/{{.C.Slug}}/book">Read as one book</a>{{end}}
+  {{if .Local}}
+  {{if .C.Items}}<button class="btn" data-action="collection-refresh" data-slug="{{.C.Slug}}" title="Save every article again from the newest dump on the drive">Refresh copies</button>{{end}}
+  <button class="btn" data-action="collection-rename" data-slug="{{.C.Slug}}" data-prompt="New name for this collection:" data-value="{{.C.Name}}">Rename</button>
+  <button class="btn danger" data-action="collection-delete" data-slug="{{.C.Slug}}" data-confirm="Delete the collection “{{.C.Name}}” and its {{len .C.Items}} saved copies from the drive?" data-goto="/nabu/saved#collections">Delete collection</button>
+  {{end}}
+</div>
+{{if .Items}}
+<ul class="reads coll-items">
+{{range .Items}}<li>
+  <a class="t" href="{{.SavedURL}}" dir="auto">{{.Title}}</a>
+  <span class="m">{{.Wiki}} · saved from the dump of {{.DumpDate}} · {{since .Saved}}</span>
+  <span class="m">
+    <a href="{{.SavedURL}}">Saved copy</a>
+    {{if .LiveURL}} · <a href="{{.LiveURL}}">Current version</a>{{if .Newer}} <span class="badge new">newer dump: {{.Newer}}</span>{{end}}{{end}}
+    {{if $.Local}}<button type="button" data-action="collection-remove" data-slug="{{$.C.Slug}}" data-book="{{.Book}}" data-title="{{.Title}}" aria-label="Remove from collection">✕</button>{{end}}
+  </span>
+</li>{{end}}
+</ul>
+{{else}}<div class="empty"><p class="muted">Empty. Open any article and use <strong>Collect</strong> at its top to save it here.</p></div>{{end}}
+{{template "foot" .}}{{end}}

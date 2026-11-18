@@ -171,5 +171,6 @@ func (s *Server) serveSaved(w http.ResponseWriter, r *http.Request) {
 		"Saved":     s.itemViews(saved, 0),
 		"History":   s.itemViews(history, 0),
 		"Settings":  s.settings(),
+		"Colls":     s.collections.List(),
 	})
 }

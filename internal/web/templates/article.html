@@ -17,6 +17,7 @@
     <div class="side-toc" dir="{{.Dir}}">{{.Side}}</div>{{end}}
     <div class="tools{{if not .Side}} first{{end}}">
       <button type="button" class="save-side" data-save aria-pressed="{{if .Saved}}true{{else}}false{{end}}">{{if .Saved}}★ Saved{{else}}☆ Save article{{end}}</button>
+      <button type="button" data-collect-side>▤ Add to a collection</button>
       <a href="/{{.Book.ID}}/random">⚄ Random article</a>
       <a href="{{.Source}}">‹/› View source</a>
       <a href="{{.Online}}" rel="noopener">↗ View on the web</a>
@@ -32,6 +33,9 @@
         {{with .Map}}<a href="#location" class="loc-link">⌖ {{.Label}}</a>{{end}}
         {{if .From}}<span class="redirect-note">(Redirected from <a href="/{{.Book.ID}}/wiki/{{.From}}?redirect=no">{{.From}}</a>)</span>{{end}}
         <span class="head-tools">
+          <span class="collect-wrap"><button type="button" class="btn" data-collect aria-expanded="false" title="Save a separate copy into a collection"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 6h6l2 2h8v11H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 11v5m-2.5-2.5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="label">Collect</span></button>
+          <div class="panel collect-panel" hidden role="dialog" aria-label="Collections"><h2>Add to a collection</h2><p class="small muted">Each collection keeps its own copy of the article.</p><ul class="coll-list"></ul>
+          <form class="coll-new"><input type="text" placeholder="New collection…" maxlength="80" aria-label="New collection name"><button class="btn small primary" type="submit">Create</button></form></div></span>
           <button type="button" class="btn save" data-save aria-pressed="{{if .Saved}}true{{else}}false{{end}}" title="Save to read later (kept on the drive)"><svg class="star" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span class="label">{{if .Saved}}Saved{{else}}Save{{end}}</span></button>
         </span>
       </div>

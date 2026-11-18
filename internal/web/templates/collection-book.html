@@ -1,0 +1,25 @@
+{{define "collection-book.html"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+{{template "meta" .}}
+<title>{{.C.Name}} · NABU</title>
+<link rel="stylesheet" href="/nabu/static/wiki.css">
+<script src="/nabu/static/bar.js" defer></script>
+</head>
+<body class="wiki">
+{{template "bar" .}}
+<div class="reader book-reader"><main class="page" id="main">
+  <p class="tagline"><a href="/nabu/collections/{{.C.Slug}}/">← {{.C.Name}}</a> · <button class="btn small" type="button" onclick="window.print()">Print or save as PDF</button></p>
+  <h1 class="firstHeading book-title" dir="auto">{{.C.Name}}</h1>
+  <nav class="book-toc"><b>Contents</b><ol>{{range .Chapters}}<li><a href="#{{.Anchor}}" dir="auto">{{.Title}}</a></li>{{end}}</ol></nav>
+  {{range .Chapters}}
+  <section class="chapter" id="{{.Anchor}}">
+    <h1 class="firstHeading" dir="auto">{{.Title}}</h1>
+    <article class="mw-body">{{.Body}}</article>
+  </section>
+  {{end}}
+  <footer class="page-foot"><p>Text from Wikipedia by its contributors, under the CC BY-SA 4.0 licence. Collected with NABU.</p></footer>
+</main></div>
+</body>
+</html>
+{{end}}

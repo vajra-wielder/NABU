@@ -173,3 +173,20 @@ cite.citation { font-style: normal; }
 .pageinfo { clear: both; margin-top: 1.6em; font-size: 85%; color: var(--ink-soft); border-top: 1px solid var(--line); padding-top: 8px; }
 .pageinfo summary { cursor: pointer; font-weight: 600; }
 .pageinfo code { font-size: .9em; }
+
+/* Collect panel and collection books */
+.collect-wrap { position: relative; }
+.collect-panel { right: 0; top: 34px; text-align: left; }
+.coll-list { list-style: none; margin: 8px 0; padding: 0; max-height: 40vh; overflow: auto; }
+.coll-list li { padding: 3px 0; }
+.coll-list label { cursor: pointer; display: flex; gap: 8px; align-items: center; }
+.coll-list input { accent-color: var(--lapis); }
+.coll-list small { color: var(--ink-faint); }
+.coll-new { display: flex; gap: 6px; margin-top: 8px; }
+.coll-new input { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; }
+[data-collect][aria-pressed="true"] { background: var(--lapis-soft); border-color: var(--lapis); color: var(--lapis); }
+.book-reader { grid-template-columns: minmax(0, var(--read-width)) !important; justify-content: center; }
+.book-toc { display: inline-block; border: 1px solid var(--line); background: var(--surface); padding: 8px 18px 8px 12px; margin: .6em 0 .5em; border-radius: 10px; }
+.book-toc ol { list-style: decimal; padding-inline-start: 1.6em; margin: .3em 0 0; }
+.chapter { border-top: 3px double var(--line-strong); margin-top: 2.5em; padding-top: .5em; }
+@media print { .chapter { break-before: page; border: 0; } .book-toc { break-after: page; } .tagline .btn { display: none; } }

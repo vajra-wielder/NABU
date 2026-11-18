@@ -37,6 +37,74 @@
     });
   }
 
+  // Collections: each keeps its own saved copy of this article.
+  var cBtn = document.querySelector('[data-collect]'), cPanel = document.querySelector('.collect-panel');
+  if (cBtn && cPanel) {
+    var list = cPanel.querySelector('.coll-list'), form = cPanel.querySelector('.coll-new');
+    var load = function () {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/nabu/api/collections?book=' + encodeURIComponent(book) + '&title=' + encodeURIComponent(title));
+      xhr.onload = function () {
+        var rows = [];
+        try { rows = JSON.parse(xhr.responseText); } catch (e) { return; }
+        list.innerHTML = '';
+        if (!rows.length) {
+          var li0 = document.createElement('li');
+          li0.className = 'muted small';
+          li0.textContent = 'No collections yet: name one below.';
+          list.appendChild(li0);
+        }
+        var any = false;
+        for (var i = 0; i < rows.length; i++) {
+          var li = document.createElement('li'), lab = document.createElement('label'), cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = rows[i].has;
+          any = any || rows[i].has;
+          cb.setAttribute('data-slug', rows[i].slug);
+          cb.addEventListener('change', function () {
+            var box = this;
+            box.disabled = true;
+            post(box.checked ? 'collection-add' : 'collection-remove', { slug: box.getAttribute('data-slug'), book: book, title: title }, function (ok) {
+              box.disabled = false;
+              if (!ok) { box.checked = !box.checked; alert('Collections can only be changed on the computer running NABU.'); }
+              load();
+            });
+          });
+          lab.appendChild(cb);
+          lab.appendChild(document.createTextNode(' ' + rows[i].name + ' '));
+          var n = document.createElement('small');
+          n.textContent = '(' + rows[i].count + ')';
+          lab.appendChild(n);
+          li.appendChild(lab);
+          list.appendChild(li);
+        }
+        cBtn.setAttribute('aria-pressed', any ? 'true' : 'false');
+      };
+      xhr.send();
+    };
+    var showC = function (on) {
+      cPanel.hidden = !on;
+      cBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+      if (on) load();
+    };
+    cBtn.addEventListener('click', function (ev) { ev.stopPropagation(); showC(cPanel.hidden); });
+    cPanel.addEventListener('click', function (ev) { ev.stopPropagation(); });
+    document.addEventListener('click', function () { showC(false); });
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var input = form.querySelector('input'), name = input.value.replace(/^\s+|\s+$/g, '');
+      if (!name) return;
+      post('collection-create', { name: name, book: book, title: title }, function (ok) {
+        if (!ok) { alert('Could not create it here; collections are made on the computer running NABU.'); return; }
+        input.value = '';
+        load();
+      });
+    });
+    var sideC = document.querySelector('[data-collect-side]');
+    if (sideC) sideC.addEventListener('click', function (ev) { ev.stopPropagation(); window.scrollTo(0, 0); showC(true); });
+    load();
+  }
+
   var printBtn = document.querySelector('[data-print]');
   if (printBtn) printBtn.addEventListener('click', function () { window.print(); });
 

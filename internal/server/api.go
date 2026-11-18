@@ -32,6 +32,9 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 	case "page":
 		s.servePageData(w, r)
 		return
+	case "collections":
+		s.serveCollectionsAPI(w, r)
+		return
 	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "use POST", http.StatusMethodNotAllowed)
@@ -50,6 +53,8 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		Book         string `json:"book"`
 		Key          string `json:"key"`
 		Title        string `json:"title"`
+		Name         string `json:"name"`
+		Slug         string `json:"slug"`
 		Saved        *bool  `json:"saved"`
 		History      *bool  `json:"history"`
 		CheckOnStart *bool  `json:"check_on_start"`
@@ -63,6 +68,21 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var err error
+	if strings.HasPrefix(name, "collection-") {
+		res, err := s.collectionAction(name, map[string]string{"book": body.Book, "title": body.Title, "name": body.Name, "slug": body.Slug})
+		if err == errNoAction {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, map[string]interface{}{"ok": true, "result": res})
+		return
+	}
 	switch name {
 	case "check":
 		if s.Offline {
