@@ -21,7 +21,9 @@ func isCJK(r rune) bool {
 		unicode.Is(unicode.Thai, r) || unicode.Is(unicode.Lao, r) || unicode.Is(unicode.Khmer, r) || unicode.Is(unicode.Myanmar, r)
 }
 
-func isWord(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.Is(unicode.Mn, r) }
+func isWord(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.Is(unicode.Mn, r)
+}
 
 // Tokenize calls emit for every search term in s, in order: folded words
 // of two or more characters (case and accents removed, as in title

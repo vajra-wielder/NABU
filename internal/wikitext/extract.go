@@ -241,7 +241,7 @@ var (
 	bareURLText = regexp.MustCompile(`(?:https?|ftp)://\S+`)
 	headEqRe    = regexp.MustCompile(`(?m)^=+|=+\s*$`)
 	quoteRunRe  = regexp.MustCompile(`''+`)
-	tableMarkRe = regexp.MustCompile(`(?m)^\s*(\{\||\|\}|\|-.*$|\|\+)`)
+	tableMarkRe = regexp.MustCompile(`(?m)^\s*(\{\|.*$|\|\}|\|-.*$|\|\+)`)
 	cellAttrRe  = regexp.MustCompile(`(?m)(^|\|\||!!|^[|!])\s*[a-z-]+="[^"]*"[^|\n]*\|`)
 )
 
@@ -296,7 +296,7 @@ func PlainText(src string, site *dump.Siteinfo) string {
 			if _, ok := site.NamespaceKey(target[:c]); ok {
 				continue
 			}
-			if langCodeRe.MatchString(strings.ToLower(target[:c])) {
+			if _, iw := interwiki[strings.ToLower(target[:c])]; iw || langCodeRe.MatchString(strings.ToLower(target[:c])) {
 				continue
 			}
 		}

@@ -27,7 +27,7 @@ func TestExtract(t *testing.T) {
 			t.Errorf("%s: got %q want %q", name, got, want)
 		}
 	}
-	check("links", d.Links, "Ishtar Gate", "Iraq", "Mesopotamia", "Euphrates")
+	check("links", d.Links, "Iraq", "Mesopotamia", "Euphrates", "Ishtar Gate")
 	check("categories", d.Categories, "Ancient cities")
 	check("media", d.Media, "Ishtar Gate.jpg")
 	if len(d.Coordinates) != 2 || !d.Coordinates[0].Primary || d.Coordinates[0].Lat < 32.5 || d.Coordinates[0].Lon < 44.4 {
