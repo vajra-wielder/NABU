@@ -205,32 +205,53 @@ automatically the first time a newer NABU starts on it, by renaming only.
 ## How much room it takes
 
 Sizes for the newest dumps (November 2026). Index and search sizes are the measured
-ratios (2–3% and ~20% of the dump). *Pictures* are being measured by sampling each
-dump (`tools/picture-survey`).
+ratios (2–3% and ~20% of the dump). Picture sizes come from sampling every dump
+(`tools/picture-survey`, details in [docs/PICTURES-SURVEY.md](docs/PICTURES-SURVEY.md));
+treat them as ±20%.
+
+Pictures are kept once for every language. Most pictures live on Wikimedia Commons and
+are used by many Wikipedias, so NABU keeps them in one shared folder
+(`pictures/commons`) and a language that uses a picture English already has does not
+download it again. The pictures columns show each language on its own, and in brackets
+what it adds once English's pictures are kept.
 
 | Wikipedia | Text (needed) | Title index | Search inside articles | Main pictures | All pictures |
 |---|---:|---:|---:|---:|---:|
-| English | 25.4 GB | 650 MB | 5.1 GB | *being measured* | *being measured* |
-| French | 6.9 GB | 177 MB | 1.4 GB | *being measured* | *being measured* |
-| Russian | 5.9 GB | 151 MB | 1.2 GB | *being measured* | *being measured* |
-| Spanish | 5.1 GB | 131 MB | 1.0 GB | *being measured* | *being measured* |
-| Chinese | 3.4 GB | 87 MB | 696 MB | *being measured* | *being measured* |
-| Portuguese | 2.7 GB | 69 MB | 553 MB | *being measured* | *being measured* |
-| Arabic | 2.1 GB | 54 MB | 430 MB | *being measured* | *being measured* |
-| Persian | 1.5 GB | 38 MB | 307 MB | *being measured* | *being measured* |
-| Indonesian | 1.3 GB | 33 MB | 266 MB | *being measured* | *being measured* |
-| Danish | 512 MB | 13 MB | 102 MB | *being measured* | *being measured* |
-| **All ten** | **54.8 GB** | **1.4 GB** | **11.0 GB** | | |
+| English | 25.4 GB | 650 MB | 5.1 GB | 82 GB | 181 GB |
+| French | 6.9 GB | 177 MB | 1.4 GB | 30 GB (16 GB) | 95 GB (51 GB) |
+| Russian | 5.9 GB | 151 MB | 1.2 GB | 14 GB (7 GB) | 60 GB (33 GB) |
+| Spanish | 5.1 GB | 131 MB | 1.0 GB | 22 GB (9 GB) | 57 GB (23 GB) |
+| Chinese | 3.4 GB | 87 MB | 696 MB | 15 GB (5 GB) | 45 GB (16 GB) |
+| Portuguese | 2.7 GB | 69 MB | 553 MB | 15 GB (7 GB) | 33 GB (14 GB) |
+| Arabic | 2.1 GB | 54 MB | 430 MB | 7 GB (2 GB) | 19 GB (6 GB) |
+| Persian | 1.5 GB | 38 MB | 307 MB | 15 GB (6 GB) | 26 GB (10 GB) |
+| Indonesian | 1.3 GB | 33 MB | 266 MB | 10 GB (4 GB) | 26 GB (11 GB) |
+| Danish | 512 MB | 13 MB | 102 MB | 4 GB (2 GB) | 10 GB (4 GB) |
+| **All ten** | **54.8 GB** | **1.4 GB** | **11.0 GB** | **140 GB** | **350 GB** |
 
-Programs for all three systems add about 90 MB. Every language plus title indexes, no
-pictures, fits a 64 GB stick; with search inside articles too, a 128 GB one.
+The all-ten pictures totals count shared pictures once (without sharing they would be
+212 GB and 551 GB). They are a little high: pictures two other languages share without
+English are still counted twice.
+
+Programs for all three systems add about 90 MB. Totals for all ten languages:
+
+| What is on the drive | Size | Fits |
+|---|---:|---|
+| Text and title indexes | 56 GB | 64 GB stick |
+| + search inside articles | 67 GB | 128 GB |
+| + main pictures | 207 GB | 256 GB |
+| + all pictures | 417 GB | 512 GB |
+| English only, everything, all pictures | 212 GB | 256 GB |
+
+Pictures are kept 250 pixels wide, the size of a picture beside the text, about 25–30 KB
+each.
 
 Downloading pictures follows Wikimedia's rules for programs: two at a time, at most
 16 Mbit/s, and a pause whenever Wikimedia asks for one. On an ordinary connection that
-is roughly 20,000 pictures an hour, so a small language is done in an evening and
-English's main pictures take several days of the computer being on. The download
-continues wherever NABU next runs, and any computer can carry on from where another
-stopped.
+is roughly 20,000 pictures an hour: a small language is done in an evening, English's
+3.3 million main pictures take about a week of the computer being on, and every
+picture of all ten languages (12 million) about a month. The download continues
+wherever NABU next runs, and any computer can carry on from where another stopped.
 
 ## Giving NABU to someone
 

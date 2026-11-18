@@ -12,11 +12,23 @@ type Survey struct {
 	AlsoEnglish float64 // share of its Commons pictures that English articles use too
 }
 
-// surveys are filled in from the survey; defaultSurvey is for any other
-// wiki.
-var surveys = map[string]Survey{}
+// surveys were measured in November 2026 (docs/PICTURES-SURVEY.md).
+// Picture sizes are pooled over all ten wikis: about fifteen of each per
+// wiki is too few to tell them apart. defaultSurvey is for any other wiki.
+var surveys = map[string]Survey{
+	"enwiki": {LeadShare: 0.453, PerArticle: 0.963, LeadBytes: 24800, OtherBytes: 31000, SharedShare: 0.073, OwnShare: 0.080},
+	"ruwiki": {LeadShare: 0.255, PerArticle: 1.008, LeadBytes: 24800, OtherBytes: 31000, SharedShare: 0.047, OwnShare: 0.048, AlsoEnglish: 0.48},
+	"arwiki": {LeadShare: 0.200, PerArticle: 0.521, LeadBytes: 24800, OtherBytes: 31000, SharedShare: 0.031, OwnShare: 0.030, AlsoEnglish: 0.69},
+	"eswiki": {LeadShare: 0.410, PerArticle: 1.000, LeadBytes: 24800, OtherBytes: 31000, SharedShare: 0.070, OwnShare: 0.000, AlsoEnglish: 0.60},
+	"ptwiki": {LeadShare: 0.510, PerArticle: 1.065, LeadBytes: 24800, OtherBytes: 31000, SharedShare: 0.055, OwnShare: 0.080, AlsoEnglish: 0.61},
+	"zhwiki": {LeadShare: 0.392, PerArticle: 1.115, LeadBytes: 24800, OtherBytes: 31000, SharedShare: 0.092, OwnShare: 0.037, AlsoEnglish: 0.67},
+	"frwiki": {LeadShare: 0.439, PerArticle: 1.266, LeadBytes: 24800, OtherBytes: 31000, SharedShare: 0.062, OwnShare: 0.047, AlsoEnglish: 0.48},
+	"fawiki": {LeadShare: 0.574, PerArticle: 1.006, LeadBytes: 24800, OtherBytes: 31000, SharedShare: 0.099, OwnShare: 0.174, AlsoEnglish: 0.72},
+	"idwiki": {LeadShare: 0.489, PerArticle: 1.232, LeadBytes: 24800, OtherBytes: 31000, SharedShare: 0.092, OwnShare: 0.113, AlsoEnglish: 0.64},
+	"dawiki": {LeadShare: 0.466, PerArticle: 1.146, LeadBytes: 24800, OtherBytes: 31000, SharedShare: 0.054, OwnShare: 0.000, AlsoEnglish: 0.56},
+}
 
-var defaultSurvey = Survey{LeadShare: 0.5, PerArticle: 2.0, LeadBytes: 22000, OtherBytes: 16000, SharedShare: 0.2, OwnShare: 0.05, AlsoEnglish: 0.4}
+var defaultSurvey = Survey{LeadShare: 0.45, PerArticle: 1.05, LeadBytes: 24800, OtherBytes: 31000, SharedShare: 0.07, OwnShare: 0.06, AlsoEnglish: 0.6}
 
 // PerHour is how many pictures NABU keeps in an hour within Wikimedia's
 // limits on an ordinary connection (2 at a time).
