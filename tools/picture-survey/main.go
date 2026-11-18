@@ -36,6 +36,8 @@ const ua = "NABU-picture-survey/1.0 (https://github.com/vajra-wielder/nabu)"
 
 var client = &http.Client{Timeout: 90 * time.Second}
 
+var outFile = flag.String("json", "", "where to write the results (default picture-survey.json)")
+
 func rangeGet(url string, from, n int64) ([]byte, error) {
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("User-Agent", ua)
@@ -104,6 +106,7 @@ func main() {
 	samples := flag.Int("samples", 12, "random stretches of each dump")
 	window := flag.Int64("window", 700_000, "bytes per stretch")
 	npics := flag.Int("pics", 30, "pictures of each kind to download per wiki")
+	skipOverlap := flag.Bool("skip-overlap", false, "do not look up own files and overlap with English")
 	flag.Parse()
 	wikis := flag.Args()
 	if len(wikis) == 0 {
@@ -190,7 +193,6 @@ func main() {
 				}
 			}
 		}
-		fmt.Fprintf(os.Stderr, "%s: downloading sample pictures\n", wiki)
 		r.leads, r.others, r.host = leads, others, site.Host()
 		for n := range seen {
 			r.distinct = append(r.distinct, n)
@@ -199,6 +201,9 @@ func main() {
 		rng.Shuffle(len(r.distinct), func(i, j int) { r.distinct[i], r.distinct[j] = r.distinct[j], r.distinct[i] })
 		// Shared or local; and, for other languages, also used by English?
 		check := r.distinct
+		if *skipOverlap {
+			check = nil
+		}
 		if len(check) > 300 {
 			check = check[:300]
 		}
@@ -214,7 +219,7 @@ func main() {
 				}
 			}
 		}
-		if wiki != "enwiki" {
+		if wiki != "enwiki" && !*skipOverlap {
 			r.CheckedEn, r.AlsoEn = usedOnEnglish(shared)
 		}
 		fmt.Fprintf(os.Stderr, "%s: %d articles sampled, %d with pictures, %d pictures shown (%d distinct, %d flags/icons/logos); %d of %d looked up are its own files; %d of %d shared ones also used by English\n",
@@ -234,7 +239,11 @@ func main() {
 
 func save(rs []result) {
 	out, _ := json.MarshalIndent(rs, "", "  ")
-	os.WriteFile("picture-survey.json", out, 0o644)
+	name := "picture-survey.json"
+	if *outFile != "" {
+		name = *outFile
+	}
+	os.WriteFile(name, out, 0o644)
 }
 
 // usedOnEnglish checks which Commons pictures English Wikipedia articles

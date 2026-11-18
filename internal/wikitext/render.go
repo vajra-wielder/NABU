@@ -119,11 +119,16 @@ func (r *renderer) resolve(s string) string {
 			if n >= len(r.ph) {
 				return ""
 			}
-			p := &r.ph[n]
-			if p.lazy != nil {
-				p.html, p.lazy = p.lazy(), nil
+			if f := r.ph[n].lazy; f != nil {
+				// Mark it done first: a block that contains itself (a
+				// reference list inside one of its own notes) comes out
+				// empty inside, instead of recursing forever. By index,
+				// since f may add placeholders and move the slice.
+				r.ph[n].lazy = nil
+				h := f()
+				r.ph[n].html = h
 			}
-			return p.html
+			return r.ph[n].html
 		})
 	}
 	return s

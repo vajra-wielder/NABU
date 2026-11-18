@@ -195,3 +195,19 @@ func TestNoTOCAndDepth(t *testing.T) {
 	deep := strings.Repeat("{{x|", 200) + strings.Repeat("}}", 200) + strings.Repeat("[[", 300) + strings.Repeat("''", 500)
 	render(t, deep)
 }
+
+// A reference list inside one of its own notes once recursed until the
+// program crashed (found on a Persian Wikipedia article).
+func TestReferenceListInsideItsNote(t *testing.T) {
+	for _, src := range []string{
+		"Text.<ref>Note with a list: <references/></ref>\n\n<references/>",
+		"Text.<ref group=n>See {{reflist|group=n}}</ref>\n\n{{reflist|group=n}}",
+	} {
+		out := Render(src, &Context{Title: "T", Site: site(t)})
+		if !strings.Contains(out.HTML, "references") {
+			t.Errorf("%q: no reference list: %s", src, out.HTML)
+		}
+	}
+	// The only list inside the note: nothing to show, but no crash.
+	Render("A<ref>x<references/></ref>", &Context{Title: "T", Site: site(t)})
+}
