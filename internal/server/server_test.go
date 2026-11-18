@@ -260,3 +260,47 @@ func TestReadingFeatures(t *testing.T) {
 		t.Error("manifest missing")
 	}
 }
+
+func TestSearchInsideArticlesAndPlaces(t *testing.T) {
+	s := newTestServer(t)
+	// Before building: the search page offers to build it.
+	if _, b := get(s, "/testwiki/search?list=1&q=scribes"); !strings.Contains(b, "Build search inside articles") {
+		t.Fatal("no offer to build full-text search")
+	}
+	req := httptest.NewRequest("POST", "/nabu/api/fulltext", strings.NewReader(`{"book":"testwiki"}`))
+	req.Host, req.RemoteAddr = "localhost:8080", "127.0.0.1:1"
+	req.Header.Set("X-Nabu", "1")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("build request: %d %s", w.Code, w.Body.String())
+	}
+	b := s.Lib.Get("testwiki")
+	deadline := time.Now().Add(20 * time.Second)
+	for b.FullText() == nil && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if b.FullText() == nil {
+		t.Fatalf("full-text index never became ready: %+v", b.FTStatus())
+	}
+	_, body := get(s, "/testwiki/search?list=1&q=god+of+scribes")
+	for _, want := range []string{"In article text", "<mark>scribes</mark>", `href="/testwiki/wiki/Nabu"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("search page lacks %q:\n%.3000s", want, body)
+		}
+	}
+	// Location panel with the offline map and places nearby.
+	_, body = get(s, "/testwiki/wiki/Babylon")
+	for _, want := range []string{`id="location"`, "world.svg", "32.536°N", "Places nearby", `href="/testwiki/wiki/Nabu"`, "Templates used", "Infobox settlement"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("article lacks %q", want)
+		}
+	}
+	// Structured data, as NABU v0.1's database held it.
+	r, body := get(s, "/nabu/api/page?book=testwiki&title=Babylonia")
+	for _, want := range []string{`"title":"Babylon"`, `"links":[`, `"Mesopotamia"`, `"categories":["Ancient cities"]`, `"media":["Babylon map.png"]`, `"coordinates":[{"lat":32.53`, `"infoboxes":[{"name":"Infobox settlement"`, `"tables":["{|`} {
+		if r.StatusCode != 200 || !strings.Contains(body, want) {
+			t.Errorf("page data lacks %s:\n%.600s", want, body)
+		}
+	}
+}

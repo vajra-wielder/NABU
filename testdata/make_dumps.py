@@ -58,6 +58,7 @@ BABYLON = """{{Short description|Ancient city in Mesopotamia}}
 | leader_name1 = [[Hammurabi]]
 | empty_value =
 }}
+{{coord|32|32|11|N|44|25|15|E|display=title}}
 '''Babylon''' was a city of [[Mesopotamia|ancient Mesopotamia]] on the [[Euphrates]].<ref name="brit">{{cite web |url=https://example.org/babylon |title=Babylon |website=Encyclopaedia |access-date=2026-01-01}}</ref> Its god of scribes was [[Nabu]]s.<ref name="brit"/>
 
 == History ==
@@ -97,7 +98,7 @@ def pages_en():
     yield ("Main Page", 0, None, "Welcome to the '''test wiki'''. See [[Babylon]].")
     yield ("Babylon", 0, None, BABYLON)
     yield ("Babylonia", 0, "Babylon", "#REDIRECT [[Babylon]]")
-    yield ("Nabu", 0, None, "'''Nabu''' was the god of scribes.\n\n== Worship ==\nIn [[Babylon]].")
+    yield ("Nabu", 0, None, "'''Nabu''' was the god of scribes.\n\n== Worship ==\nIn [[Babylon]] and at Borsippa {{coord|32.39|44.34}}.")
     yield ("Écriture", 0, None, "French word for writing.")
     yield ("God of scribes", 0, "Nabu", "#REDIRECT [[Nabu#Worship]]")
     yield ("Template:Infobox settlement", 10, None, "<includeonly>...</includeonly>")

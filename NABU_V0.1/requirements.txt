@@ -1,4 +1,0 @@
-lxml
-mwparserfromhell
-Pillow
-PyQt5

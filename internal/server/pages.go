@@ -41,6 +41,16 @@ var funcs = template.FuncMap{
 		return m
 	},
 	"seconds": func(d time.Duration) int64 { return int64(d / time.Second) },
+	"int64":   func(n int) int64 { return int64(n) },
+	"dur": func(d time.Duration) string {
+		switch {
+		case d < 2*time.Minute:
+			return itoa(int64(d/time.Second)) + " s"
+		case d < 2*time.Hour:
+			return itoa(int64(d/time.Minute)) + " min"
+		}
+		return strconv.FormatFloat(d.Hours(), 'f', 1, 64) + " h"
+	},
 }
 
 // wikiName names a wiki for people: "Русский · Russian Wikipedia".

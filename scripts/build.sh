@@ -62,6 +62,7 @@ cp launchers/"Start NABU (Windows).bat" launchers/"Start NABU (Mac).command" \
 chmod +x "$OUT/Start NABU (Mac).command" "$OUT/start-nabu-linux.sh" "$OUT"/nabu/nabu-darwin-* "$OUT"/nabu/nabu-linux-*
 cp LICENSE "$OUT/licenses/NABU-MIT.txt"
 cp internal/web/assets/fonts/OFL-LICENSE.txt "$OUT/licenses/Libertinus-OFL.txt"
+cp internal/web/assets/WORLD-MAP-LICENSE.txt "$OUT/licenses/World-map.txt"
 
 if command -v zip >/dev/null; then
   (cd dist && zip -qr "NABU-$VERSION.zip" NABU)

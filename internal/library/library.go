@@ -34,6 +34,8 @@ type Book struct {
 	err     string
 	started time.Time
 	reader  *dump.Reader
+
+	ft ftState
 }
 
 // Status is a snapshot for display.
@@ -83,7 +85,8 @@ type Library struct {
 	byID  map[string]*Book
 	Notes []string
 
-	queue chan *Book
+	queue   chan *Book
+	ftQueue chan *Book
 }
 
 // Open scans dir and starts preparing any new dumps.
@@ -92,7 +95,9 @@ func Open(dir string) (*Library, error) {
 		return nil, err
 	}
 	l := &Library{Dir: dir, byID: map[string]*Book{}, queue: make(chan *Book, 256)}
+	l.ftQueue = make(chan *Book, 64)
 	go l.worker()
+	go l.ftWorker()
 	return l, l.Rescan()
 }
 
@@ -128,6 +133,7 @@ func (l *Library) Rescan() error {
 		if ix, err := dump.OpenIndex(l.indexPath(f), f); err == nil {
 			if rd, err := dump.NewReader(f, ix); err == nil {
 				b.reader, b.state = rd, Ready
+				l.openFullText(b)
 			} else {
 				ix.Close()
 				b.state, b.err = Failed, err.Error()
@@ -146,6 +152,7 @@ func (l *Library) Rescan() error {
 			b.reader.Close()
 			b.reader = nil
 		}
+		b.closeFullText()
 		b.mu.Unlock()
 	}
 	sort.SliceStable(books, func(i, j int) bool { return books[i].ID < books[j].ID })
@@ -211,6 +218,7 @@ func (l *Library) prepare(b *Book) {
 		return
 	}
 	b.reader, b.state, b.done = rd, Ready, b.total
+	l.openFullText(b)
 }
 
 // BuildBudget is the memory used for sorting titles while preparing a
@@ -278,11 +286,17 @@ func (l *Library) Remove(id string) error {
 		b.mu.Unlock()
 		return fmt.Errorf("it is being prepared; try again when that finishes")
 	}
+	if b.ft.state == FTBuilding {
+		b.mu.Unlock()
+		return fmt.Errorf("its full-text index is being built; cancel that first")
+	}
+	b.closeFullText()
 	if b.reader != nil {
 		b.reader.Close()
 		b.reader = nil
 	}
 	b.mu.Unlock()
+	os.Remove(l.ftPath(b.Files))
 	for _, p := range b.Files.Pairs {
 		for _, f := range p.Data {
 			os.Remove(f)
@@ -299,6 +313,11 @@ func (l *Library) Close() {
 	defer l.mu.Unlock()
 	for _, b := range l.books {
 		b.mu.Lock()
+		if b.ft.stop != nil {
+			close(b.ft.stop)
+			b.ft.stop = nil
+		}
+		b.closeFullText()
 		if b.reader != nil {
 			b.reader.Close()
 			b.reader = nil

@@ -1,8 +1,29 @@
 {{define "search.html"}}{{template "head" .}}
 <div style="margin-top:28px">{{template "searchbox" .}}</div>
 <h2>Results for “{{.Query}}”</h2>
-<p class="muted small">Searching titles in {{wikiname .Book.Files.DB}}.</p>
+<p class="muted small">{{if eq .Text.Status.State "ready"}}Searching titles and article text{{else}}Searching titles{{end}} in {{wikiname .Book.Files.DB}}.</p>
 {{if .Error}}<div class="notice bad"><p>{{.Error}}</p></div>{{end}}
+{{with .Text}}
+<h2 class="section">In article text</h2>
+{{if eq .Status.State "ready"}}
+  {{if .Ignored}}<p class="small muted">Too common to search: {{range $i, $w := .Ignored}}{{if $i}}, {{end}}“{{$w}}”{{end}}.</p>{{end}}
+  {{if .Results}}
+  <p class="small muted">{{count (int64 .Total)}} articles contain {{if gt (len $.Query) 0}}every word{{end}}{{if gt .Pages 1}} · page {{.Page}} of {{.Pages}}{{end}}</p>
+  <ol class="textresults" dir="auto">
+  {{range .Results}}<li><a href="{{.URL}}">{{.Title}}</a><p>{{.Snippet}}</p></li>{{end}}
+  </ol>
+  <p class="toolbar">{{if .Prev}}<a class="btn" href="{{.Prev}}">← Previous</a>{{end}}{{if .Next}}<a class="btn" href="{{.Next}}">Next →</a>{{end}}</p>
+  {{else}}<p class="muted">No article contains all of these words.</p>{{end}}
+{{else if .Building}}
+  <div class="notice lapis" data-prep-ft="{{$.Book.ID}}"><p><strong>Building search inside articles…</strong> {{pct .Status.Done .Status.Total}}% read{{if .Status.ETA}}, about {{dur .Status.ETA}} left{{end}}.</p>
+  <div class="progress"><div style="width:{{pct .Status.Done .Status.Total}}%"></div></div></div>
+{{else}}
+  <div class="notice"><p><strong>Search inside articles</strong> needs a one-time index of every word in this Wikipedia: about {{.Minutes}} min on this computer, about {{bytes .Size}} on the drive. You can keep reading meanwhile.</p>
+  {{if .Status.Err}}<p class="small" style="color:var(--bad)">{{.Status.Err}}</p>{{end}}
+  {{if $.Local}}<p><button class="btn primary" data-action="fulltext" data-book="{{$.Book.ID}}">Build search inside articles</button></p>{{end}}</div>
+{{end}}
+<h2 class="section">Titles</h2>
+{{end}}
 {{if .Results}}
 <ul class="results" dir="auto">
 {{range .Results}}<li><a href="{{.URL}}">{{.Title}}</a></li>{{end}}

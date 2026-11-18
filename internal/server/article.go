@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -131,6 +132,9 @@ func (s *Server) serveArticle(w http.ResponseWriter, r *http.Request, b *library
 		"Side":       side,
 		"Saved":      s.reads.isSaved(b.ID, page.Title),
 		"Summary":    summary,
+		"Map":        s.articleMap(b, page.Title, out),
+		"Templates":  out.Templates,
+		"DataURL":    "/nabu/api/page?book=" + url.QueryEscape(b.ID) + "&title=" + url.QueryEscape(page.Title),
 	})
 }
 
@@ -234,9 +238,14 @@ func (s *Server) serveSearch(w http.ResponseWriter, r *http.Request, b *library.
 		}
 	}
 	res, err := rd.Index.Prefix(q, 60, nsOK)
+	pageNo, _ := strconv.Atoi(r.URL.Query().Get("p"))
+	if pageNo < 1 {
+		pageNo = 1
+	}
 	data := map[string]interface{}{
 		"Book": b, "Site": rd.Site(), "Query": q, "PageTitle": q,
 		"Results": s.links(b, res),
+		"Text":    s.searchText(b, q, pageNo),
 		"Online":  "https://" + rd.Site().Host() + "/w/index.php?search=" + url.QueryEscape(q),
 	}
 	if err != nil {

@@ -57,8 +57,16 @@ func TestBuildSearchNearby(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	if ix.Meta.Docs < 240 || ix.Meta.Geo != 0 {
+	if ix.Meta.Docs < 240 || ix.Meta.Geo != 2 {
 		t.Fatalf("meta %+v", ix.Meta)
+	}
+	// Places nearby: Babylon's own point, then Borsippa (Nabu) ~17 km away.
+	near, err := ix.Nearby(32.536, 44.420, 5, "")
+	if err != nil || len(near) != 2 || near[0].Title != "Babylon" || near[1].Title != "Nabu" || near[1].Km < 10 || near[1].Km > 25 {
+		t.Fatalf("nearby: %+v %v", near, err)
+	}
+	if near, _ := ix.Nearby(32.536, 44.420, 5, "Babylon"); len(near) != 1 || near[0].Title != "Nabu" {
+		t.Fatalf("nearby should skip the article itself: %+v", near)
 	}
 	res, err := ix.Search("god of scribes", 0, 10)
 	if err != nil || res.Total != 2 || (res.Hits[0].Title != "Nabu" && res.Hits[1].Title != "Nabu") {

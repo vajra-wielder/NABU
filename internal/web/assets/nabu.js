@@ -45,6 +45,8 @@
 
   var box = document.getElementById('dl');
   var preps = document.querySelectorAll('[data-prep]');
+  var ftPreps = document.querySelectorAll('[data-prep-ft]');
+  var ftBefore = {};
   var wasActive = false, wasChecking = false;
   var readyBefore = {};
 
@@ -81,6 +83,12 @@
         if (el && b.total > 0) el.style.width = (100 * b.done / b.total).toFixed(1) + '%';
         if (readyBefore[b.id] === false && b.state === 'ready' && preps.length) { location.reload(); return; }
         readyBefore[b.id] = b.state === 'ready';
+        var ftBusy = b.ft === 'building' || b.ft === 'queued';
+        if (ftBusy) preparing = true;
+        var fe = document.querySelectorAll('[data-prep-ft="' + b.id + '"] .progress > *');
+        for (var f = 0; f < fe.length; f++) if (b.ft_total > 0) fe[f].style.width = (100 * b.ft_done / b.ft_total).toFixed(1) + '%';
+        if (ftBefore[b.id] && !ftBusy && ftPreps.length) { location.reload(); return; }
+        ftBefore[b.id] = ftBusy;
       }
       var checking = document.querySelector('[data-checking]');
       if (checking) checking.hidden = !st.checking;
@@ -92,7 +100,7 @@
     xhr.onerror = function () { setTimeout(poll, 5000); };
     xhr.send();
   }
-  if (box || preps.length || document.querySelector('[data-checking]')) poll();
+  if (box || preps.length || ftPreps.length || document.querySelector('[data-checking]')) poll();
 
   // Buttons: <button data-action="download" data-wiki="enwiki">.
   document.addEventListener('click', function (ev) {
@@ -128,6 +136,7 @@
         if (li) { li.parentNode.removeChild(li); return; }
       }
       if (action === 'download' || action === 'resume') window.scrollTo(0, 0);
+      if (action === 'fulltext') { setTimeout(function () { location.reload(); }, 300); return; }
       location.reload();
     });
   });

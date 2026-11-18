@@ -29,6 +29,9 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 	case "preview":
 		s.servePreview(w, r)
 		return
+	case "page":
+		s.servePageData(w, r)
+		return
 	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "use POST", http.StatusMethodNotAllowed)
@@ -130,6 +133,10 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		s.reads.setSaved(b.ID, body.Title, ex, on)
+	case "fulltext":
+		err = s.Lib.BuildFullText(body.Book)
+	case "fulltext-cancel":
+		s.Lib.CancelFullText(body.Book)
 	case "unsave":
 		s.reads.setSaved(body.Book, body.Title, "", false)
 	case "forget":
@@ -202,11 +209,15 @@ func (s *Server) removeOld(id string) error {
 }
 
 type bookStatus struct {
-	ID    string `json:"id"`
-	State string `json:"state"`
-	Done  int64  `json:"done"`
-	Total int64  `json:"total"`
-	Err   string `json:"error,omitempty"`
+	ID      string `json:"id"`
+	State   string `json:"state"`
+	Done    int64  `json:"done"`
+	Total   int64  `json:"total"`
+	Err     string `json:"error,omitempty"`
+	FT      string `json:"ft,omitempty"`
+	FTDone  int64  `json:"ft_done,omitempty"`
+	FTTotal int64  `json:"ft_total,omitempty"`
+	FTETA   int64  `json:"ft_eta,omitempty"`
 }
 
 type apiStatus struct {
@@ -219,7 +230,9 @@ func (s *Server) status() apiStatus {
 	st := apiStatus{Download: s.Downloads.Status()}
 	for _, b := range s.Lib.Books() {
 		x := b.Status()
-		st.Books = append(st.Books, bookStatus{ID: b.ID, State: x.State, Done: x.Done, Total: x.Total, Err: x.Err})
+		f := b.FTStatus()
+		st.Books = append(st.Books, bookStatus{ID: b.ID, State: x.State, Done: x.Done, Total: x.Total, Err: x.Err,
+			FT: f.State, FTDone: f.Done, FTTotal: f.Total, FTETA: int64(f.ETA.Seconds())})
 	}
 	for _, wk := range s.wikisToCheck() {
 		if s.Checker.Checking(wk) {

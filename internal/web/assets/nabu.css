@@ -91,3 +91,12 @@ footer.foot img { width: 18px; height: 18px; vertical-align: -3px; margin-right:
   .searchbox select { display: none; }
   .table th.hide-sm, .table td.hide-sm { display: none; }
 }
+
+/* Search inside articles */
+.textresults { list-style: none; padding: 0; margin: 0; }
+.textresults li { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.textresults a { font-family: var(--serif); font-size: 1.25rem; }
+.textresults p { margin: 4px 0 0; color: var(--ink-soft); font-size: .95rem; }
+mark { background: var(--clay-soft); color: var(--ink); padding: 0 2px; border-radius: 3px; }
+.ftline { margin: 0; }
+.ftline .progress { height: 6px; margin: 6px 0 0; }

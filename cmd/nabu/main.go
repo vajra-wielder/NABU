@@ -54,6 +54,8 @@ func main() {
 			err = cmdPrepare(rest)
 		case "info":
 			err = cmdInfo(rest)
+		case "export":
+			err = cmdExport(rest)
 		case "version":
 			fmt.Printf("NABU %s (%s/%s, %s)\n", version, runtime.GOOS, runtime.GOARCH, runtime.Version())
 		case "serve":
@@ -83,7 +85,11 @@ func usage() {
   nabu [flags]             start NABU and open it in the browser
   nabu catalog             newest dump of each offered Wikipedia
   nabu download <wiki>     download a dump (enwiki, frwiki, ... or en, fr, ...)
-  nabu prepare             build the search index of every dump now
+  nabu prepare [--full-text]  build the title index of every dump now
+                           (and search inside articles with --full-text)
+  nabu export <wiki>       write every article's structured data as JSON
+                           lines (links, categories, templates, places,
+                           infoboxes, tables, media, glossary)
   nabu info                list the dumps in the library
   nabu version             print the version
 
@@ -95,6 +101,11 @@ Flags:
 }
 
 type opts struct {
+	rebuild   bool
+	window    bool
+	fullText  bool
+	out       string
+	withText  bool
 	library   string
 	port      int
 	lan       bool
@@ -110,6 +121,11 @@ func bindFlags(fs *flag.FlagSet, o *opts) {
 	fs.BoolVar(&o.noBrowser, "no-browser", false, "do not open the web browser")
 	fs.BoolVar(&o.offline, "offline", false, "never connect to the internet (no update checks, no pictures)")
 	fs.StringVar(&o.mirror, "mirror", update.DefaultMirror, "Wikimedia dump server or mirror")
+	fs.BoolVar(&o.rebuild, "rebuild", false, "delete and rebuild the indexes (after a damaged or changed dump)")
+	fs.BoolVar(&o.window, "window", false, "open NABU in its own app window instead of a browser tab")
+	fs.BoolVar(&o.fullText, "full-text", false, "prepare: also build search inside articles")
+	fs.StringVar(&o.out, "out", "", "export: output file (default: <wiki>-<date>-pages.jsonl in the library)")
+	fs.BoolVar(&o.withText, "text", false, "export: include each article's plain text")
 }
 
 func parse(name string, args []string) (*opts, *flag.FlagSet, error) {
@@ -117,7 +133,21 @@ func parse(name string, args []string) (*opts, *flag.FlagSet, error) {
 	o := &opts{}
 	bindFlags(fs, o)
 	fs.Usage = usage
-	err := fs.Parse(args)
+	// Accept flags before or after other arguments
+	// ("nabu download en --library x" as well as "nabu download --library x en").
+	var pos []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return o, fs, err
+		}
+		rest := fs.Args()
+		if len(rest) == 0 {
+			break
+		}
+		pos = append(pos, rest[0])
+		args = rest[1:]
+	}
+	err := fs.Parse(append([]string{"--"}, pos...))
 	return o, fs, err
 }
 
@@ -179,11 +209,18 @@ func cmdServe(args []string) error {
 		return nil
 	}
 
+	var rebuildFT []string
+	if o.rebuild {
+		rebuildFT = removeIndexes(dir)
+	}
 	lib, err := library.Open(dir)
 	if err != nil {
 		return fmt.Errorf("cannot open the library folder %s: %w", dir, err)
 	}
 	defer lib.Close()
+	if len(rebuildFT) > 0 {
+		go rebuildFullText(lib, rebuildFT)
+	}
 
 	client := httpClient()
 	checker := &update.Checker{Dir: dir, Mirror: o.mirror, Client: client}
@@ -220,7 +257,11 @@ func cmdServe(args []string) error {
 	go func() {
 		time.Sleep(200 * time.Millisecond)
 		if !o.noBrowser {
-			if err := sysutil.OpenBrowser(url); err != nil {
+			open := sysutil.OpenBrowser
+			if o.window {
+				open = sysutil.OpenAppWindow
+			}
+			if err := open(url); err != nil {
 				fmt.Println("  Open this address in your web browser:", url)
 			}
 		}
@@ -464,6 +505,13 @@ func cmdPrepare(args []string) error {
 			return err
 		}
 		fmt.Printf("\r%s: prepared in %v                \n", f.Key(), time.Since(start).Round(time.Second))
+	}
+	if o.fullText {
+		for _, f := range eds {
+			if err := prepareFullText(dir, f); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

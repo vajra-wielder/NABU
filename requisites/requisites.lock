@@ -22,5 +22,10 @@ toolchain go 1.20.14 windows-amd64 50b3d7821d15780b45273c3e7648a808fb4d4e9f7cd14
 # Typeface: committed in internal/web/assets/fonts/.
 font @fontsource/libertinus-serif 5.3.0 any sha512-re9MYtKfLFxZxlcfV127IqG87wM7kYF9o//xfZufzsr2z22+tfKu5xRJwS9oMksI1fuyh5H9OWQFtVYM8ypiDg== https://registry.npmjs.org/@fontsource/libertinus-serif/-/libertinus-serif-5.3.0.tgz
 #
+# World map outline for article locations: committed as
+# internal/web/assets/world.svg, converted from land-110m.json (Natural
+# Earth 4.1.0, public domain) in the world-atlas package (ISC licence).
+map world-atlas 2.0.2 any sha512-IXfV0qwlKXpckz1FhwXVwKRjiIhOnWttOskm5CtxMsjgE/MXAYRHWJqgXOpM8IkcPBoXnyTU5lFHcYa5ChG0LQ== https://registry.npmjs.org/world-atlas/-/world-atlas-2.0.2.tgz
+#
 # Test dumps: committed in testdata/, made by testdata/make_dumps.py with
 # Python 3's built-in bz2 module (not needed to build or run NABU).

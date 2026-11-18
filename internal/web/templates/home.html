@@ -43,6 +43,13 @@
       {{if .Newer}}<a class="badge new" href="/nabu/updates">newer dump: {{date .Newer.Date}}</a>{{end}}
     </div>
     {{if eq .Status.State "ready"}}
+    {{$ft := .FTStatus}}
+    <p class="small ftline" data-prep-ft="{{.ID}}">
+      {{if eq $ft.State "ready"}}<span class="badge ok">search inside articles ✓</span>{{if $ft.Meta}} {{count (int64 $ft.Meta.Docs)}} articles, {{count (int64 $ft.Meta.Geo)}} places{{end}}
+      {{else if or (eq $ft.State "building") (eq $ft.State "queued")}}Building search inside articles… {{pct $ft.Done $ft.Total}}%{{if $ft.ETA}}, about {{dur $ft.ETA}} left{{end}}{{if $.Local}} · <a href="#" data-action="fulltext-cancel" data-book="{{.ID}}">cancel</a>{{end}}
+      <span class="progress" style="display:block"><span style="display:block;height:100%;width:{{pct $ft.Done $ft.Total}}%;background:linear-gradient(90deg,var(--lapis),var(--clay))"></span></span>
+      {{else}}{{if $ft.Err}}<span style="color:var(--bad)">{{$ft.Err}}</span><br>{{end}}{{if $.Local}}<a href="#" data-action="fulltext" data-book="{{.ID}}" data-confirm="Build search inside articles for {{.Name}}? It reads the whole dump once; you can keep reading meanwhile.">Build search inside articles</a>{{else}}Titles searchable{{end}}{{end}}
+    </p>
     <div class="actions">
       <a class="btn primary" href="{{.MainURL}}">Main page</a>
       <a class="btn" href="/{{.ID}}/random">Random article</a>

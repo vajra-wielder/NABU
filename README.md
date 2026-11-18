@@ -103,7 +103,15 @@ and parchment, with a Night theme for the evening.
   over Wi-Fi. History can be switched off or cleared.
 - **Home page.** It offers *Continue reading*, your saved articles and a few random
   articles to explore.
-- **Installable.** In Chrome and Edge, NABU can be installed as an app window.
+- **Search inside articles.** An optional index of every word (built once per dump,
+  in the background) adds ranked results with highlighted snippets to the search page.
+- **Places.** Articles with coordinates show a **Location** panel: an offline world
+  map with the place marked and, with search inside articles built, the nearest
+  articles by distance.
+- **Page information.** Templates used, the wikitext source, and the article's
+  structured data as JSON.
+- **Installable.** In Chrome and Edge, NABU can be installed as an app window, or
+  started in one with `--window`.
 
 **No Wikipedia yet?** The **Get & update** page lists the ten languages with the date
 and size of Wikimedia's newest dump, and downloads with one click. Downloads resume
@@ -256,12 +264,23 @@ nabu [flags]              start NABU and open the browser
   --no-browser            don't open a browser (servers, Raspberry Pi kiosks)
   --offline               never touch the network (no update checks, no pictures)
   --mirror URL            a Wikimedia dump mirror instead of dumps.wikimedia.org
+  --window                open in an app window of its own (Chrome, Edge, Brave, Chromium)
+  --rebuild               delete and rebuild every index (after a damaged or changed dump)
 nabu catalog [wiki…]      newest dump date and size of each offered Wikipedia
 nabu download <wiki>      download a dump: en, fr, … or enwiki, zh_yuewiki, …
                           (Ctrl+C pauses; run again to resume)
-nabu prepare              build the search index of every dump now
+nabu prepare [--full-text]
+                          build the title index of every dump now, and with
+                          --full-text also search inside articles
+nabu export <wiki> [--out FILE] [--text]
+                          every article's structured data as JSON lines: links,
+                          categories, templates, coordinates, infoboxes, tables,
+                          media, glossary (and plain text with --text)
 nabu info                 list the dumps in the library and their state
 nabu version
+
+Flags may come before or after the wiki name.
+GET /nabu/api/page?book=enwiki&title=Babylon gives one article's structured data.
 ```
 
 ## Developing
@@ -288,13 +307,18 @@ unrendered.
   builder (external sort) and reader, stream cache, page extraction.
 - `internal/wikitext`: the renderer: blocks, inline, links and files, tables, extension
   tags and references, templates (`handlers.go`, `cite.go`), sanitising.
-- `internal/library`: finds dumps, prepares them in the background.
+- `internal/library`: finds dumps, prepares them in the background, builds full-text
+  indexes on request.
+- `internal/fulltext`: search inside articles: tokenizer (CJK as character pairs),
+  parallel index builder, ranked search, snippets, places nearby.
 - `internal/update`: Wikimedia release lookup, resumable verified downloads, settings.
 - `internal/server`, `internal/web`: pages, API, saved/history store, link previews,
   templates; `theme.css` (palette and shared bar), `nabu.css` (NABU pages), `wiki.css`
   (articles), `bar.js` (search and reading settings), `reader.js` (save, previews,
   contents sidebar), fonts.
 - `docs/language_coverage.py`: the language selection.
+- `docs/V0.1-REVIEW.md`: the Python v0.1 reviewed, and where each of its processes
+  lives now.
 
 ## Limits
 
@@ -304,8 +328,10 @@ unrendered.
 - **Templates are approximated.** The common reader-facing ones are implemented. Rare
   ones show their main text or are left out. Navigation boxes are not shown. Maths
   appears as its TeX source.
-- **Search covers titles, not full text.** It forgives case and accents. Full-text
-  search would need an index of every word, roughly another 10–20% of the dump.
+- **Search inside articles is optional.** It needs a one-time pass over the whole
+  dump. Simple English (395 MB) takes about a minute on 3 cores and adds a 79 MB
+  index (~20% of the dump). English Wikipedia should take roughly 1–1.5 hours on a
+  4-core laptop and add about 5 GB. Title search needs none of this.
 - **Category pages** show their description but not member lists, which aren't in the
   articles dump.
 - **Unsigned programs.** Windows SmartScreen may warn (*More info → Run anyway*). On a
@@ -317,3 +343,4 @@ unrendered.
 - Wikipedia content: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) by
   Wikipedia's volunteer authors. Dumps published by the Wikimedia Foundation.
 - Libertinus Serif: SIL Open Font License 1.1.
+- World map: Natural Earth (public domain) via world-atlas 2.0.2 (ISC).

@@ -29,6 +29,7 @@
       <div class="tagline" dir="ltr">
         {{if .ShortDesc}}<span class="shortdesc" dir="auto">{{.ShortDesc}}</span>{{end}}
         <span>From {{.Site.Sitename}}, the free encyclopedia</span>
+        {{with .Map}}<a href="#location" class="loc-link">⌖ {{.Label}}</a>{{end}}
         {{if .From}}<span class="redirect-note">(Redirected from <a href="/{{.Book.ID}}/wiki/{{.From}}?redirect=no">{{.From}}</a>)</span>{{end}}
         <span class="head-tools">
           <button type="button" class="btn save" data-save aria-pressed="{{if .Saved}}true{{else}}false{{end}}" title="Save to read later (kept on the drive)"><svg class="star" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span class="label">{{if .Saved}}Saved{{else}}Save{{end}}</span></button>
@@ -38,7 +39,28 @@
     <article class="mw-body">
 {{.Body}}
     </article>
+    {{with .Map}}
+    <section class="locmap" id="location" dir="ltr">
+      <h2>Location</h2>
+      <div class="loc-wrap">
+        <div class="mapframe" role="img" aria-label="Map showing {{.Label}}">
+          <img src="/nabu/static/world.svg" alt="" style="width:{{.ImgW}}%;left:{{.ImgL}}%;top:{{.ImgT}}%">
+          <span class="dot" style="left:{{.DotL}}%;top:{{.DotT}}%"></span>
+        </div>
+        <div class="loc-info">
+          <p><strong>{{.Label}}</strong><br><a href="{{.OSM}}" rel="noopener">Detailed map online ↗</a></p>
+          {{if .Nearby}}<h3>Places nearby</h3><ol class="nearby">{{range .Nearby}}<li><a href="{{.URL}}" dir="auto">{{.Title}}</a> <span>{{.Dist}}</span></li>{{end}}</ol>
+          {{else}}<p class="muted">Build “search inside articles” for this Wikipedia to also see places nearby.</p>{{end}}
+        </div>
+      </div>
+    </section>
+    {{end}}
     {{if .Categories}}<div class="catlinks" dir="auto"><b>Categories:</b> {{range .Categories}}<span>{{.}}</span>{{end}}</div>{{end}}
+    <details class="pageinfo" dir="ltr">
+      <summary>Page information</summary>
+      <p>Page id {{.Page.ID}} · last edited {{.Page.Timestamp}} · <a href="{{.DataURL}}">structured data (JSON)</a> · <a href="{{.Source}}">wikitext source</a></p>
+      {{if .Templates}}<p><b>Templates used ({{len .Templates}}):</b> {{range $i, $t := .Templates}}{{if $i}}, {{end}}<code>{{$t}}</code>{{end}}</p>{{end}}
+    </details>
     <footer class="page-foot" dir="ltr">
       <p>Text from {{.Site.Sitename}}'s dump of {{.Edition}}, under the <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> licence. Last edited {{.Page.Timestamp}}.
       <a href="{{.Online}}" rel="noopener">View on the web</a> · <a href="{{.Source}}">View source</a> · <a href="/">NABU library</a></p>
