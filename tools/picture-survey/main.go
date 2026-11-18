@@ -83,10 +83,10 @@ type result struct {
 	OtherBytes float64 `json:"other_bytes"`
 	LeadN      int     `json:"lead_n"`
 	OtherN     int     `json:"other_n"`
-	Resolved   int     `json:"resolved"`    // sample pictures looked up
-	Local      int     `json:"local"`       // of those, the wiki's own files (not on Commons)
-	CheckedEn  int     `json:"checked_en"`  // shared ones checked against English
-	AlsoEn     int     `json:"also_en"`     // of those, also used by English articles
+	Resolved   int     `json:"resolved"`   // sample pictures looked up
+	Local      int     `json:"local"`      // of those, the wiki's own files (not on Commons)
+	CheckedEn  int     `json:"checked_en"` // shared ones checked against English
+	AlsoEn     int     `json:"also_en"`    // of those, also used by English articles
 
 	leads, others, distinct []string
 	host                    string
