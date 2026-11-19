@@ -553,7 +553,9 @@ func (m *Manager) finish(ctx context.Context, rel *Release, dir string) error {
 				return ctx.Err()
 			}
 			// Keep what was downloaded: install it as it came.
-			m.set(func(s *Status) { s.State, s.Error = StateFinishing, "could not leave out the pages NABU never shows: "+err.Error() })
+			m.set(func(s *Status) {
+				s.State, s.Error = StateFinishing, "could not leave out the pages NABU never shows: "+err.Error()
+			})
 		}
 	}
 	if !m.onDrive(dir) {

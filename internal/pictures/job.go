@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/vajra-wielder/nabu/internal/drivefile"
 	"html"
 	"net/url"
 	"os"
@@ -81,11 +82,7 @@ func (j *Job) Save(dir string) error {
 		return err
 	}
 	b, _ := json.MarshalIndent(j, "", "  ")
-	tmp := JobPath(dir) + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, JobPath(dir))
+	return drivefile.WriteFile(JobPath(dir), b)
 }
 
 var srcRe = regexp.MustCompile(`<img src="pic:([^"]+)"`)

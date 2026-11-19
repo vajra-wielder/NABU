@@ -2,6 +2,7 @@ package dump
 
 import (
 	"fmt"
+	"github.com/vajra-wielder/nabu/internal/drivefile"
 	"io"
 	"os"
 	"path/filepath"
@@ -116,11 +117,12 @@ func Scan(dir string) ([]*Files, []string) {
 	return out, notes
 }
 
-// OpenData opens a data file that may be split into pieces.
+// OpenData opens a data file that may be split into pieces. Like every
+// file NABU reads on the drive, it is only open while in use (drivefile).
 func OpenData(paths []string) (ReaderAtCloser, int64, error) {
 	m := &multiFile{}
 	for _, p := range paths {
-		f, err := os.Open(p)
+		f, err := drivefile.OpenRead(p)
 		if err != nil {
 			m.Close()
 			return nil, 0, err
@@ -150,7 +152,7 @@ type ReaderAtCloser interface {
 // multiFile joins the pieces of a split file (name.xml.bz2aa, ...ab) so
 // a dump bigger than 4 GB can live on a FAT32 drive.
 type multiFile struct {
-	files  []*os.File
+	files  []*drivefile.File
 	starts []int64
 	size   int64
 }

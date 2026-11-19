@@ -156,6 +156,7 @@ func (s *Service) Get(ctx context.Context, db, host, name string, online, keep b
 		if keep && !s.Full() {
 			if st, _ := s.Store(db, true); st != nil {
 				st.Put(name, nil)
+				st.Flush()
 			}
 		}
 		return nil, ErrNotFound
@@ -175,6 +176,7 @@ func (s *Service) Get(ctx context.Context, db, host, name string, online, keep b
 		}
 		if st, _ := s.Store(where, true); st != nil {
 			st.Put(name, data)
+			st.Flush()
 		}
 	}
 	return data, nil

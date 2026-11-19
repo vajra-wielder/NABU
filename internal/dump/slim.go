@@ -31,10 +31,10 @@ func KeptBySlim(ns int) bool { return slimKeep[ns] }
 
 // SlimOptions tune Slim.
 type SlimOptions struct {
-	PartSize int64           // write data files in pieces of this size (FAT32); 0: one file
-	Workers  int             // default: all CPUs but one
-	Progress Progress        // compressed bytes of the source read
-	Stop     <-chan struct{} // closed to abandon
+	PartSize int64                    // write data files in pieces of this size (FAT32); 0: one file
+	Workers  int                      // default: all CPUs but one
+	Progress Progress                 // compressed bytes of the source read
+	Stop     <-chan struct{}          // closed to abandon
 	Name     func(path string) string // the name a source file gets in dir (default: its own)
 }
 

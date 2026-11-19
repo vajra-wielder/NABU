@@ -121,3 +121,8 @@ mark { background: var(--clay-soft); color: var(--ink); padding: 0 2px; border-r
 .copyform .drives { display: flex; flex-wrap: wrap; gap: 6px; }
 .copyform .total { font-size: 17px; }
 @media (max-width: 640px) { .copytable { font-size: 13px; } .copytable th, .copytable td { padding: 6px 4px; } }
+
+/* Whether the drive can be pulled out right now. */
+.drivestate { flex-basis: 100%; font-size: .85em; opacity: .8; }
+.drivestate::before { content: ""; display: inline-block; width: .6em; height: .6em; border-radius: 50%; background: #3a8a4a; margin-right: .45em; vertical-align: .05em; }
+.drivestate.busy::before { background: var(--clay); }

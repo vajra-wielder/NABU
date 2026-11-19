@@ -8,6 +8,8 @@
 package pictures
 
 import (
+	"github.com/vajra-wielder/nabu/internal/drivefile"
+
 	"bufio"
 	"encoding/binary"
 	"errors"
@@ -73,14 +75,15 @@ type Store struct {
 	Dir string
 
 	mu     sync.Mutex
-	packs  []*os.File
-	cur    int   // pack being appended to
-	size   int64 // its size
-	index  *os.File
+	packs  []*drivefile.File // opened only while in use: the drive may be pulled out
+	cur    int               // pack being appended to
+	size   int64             // its size
+	index  *drivefile.File
 	n      int64    // entries in index.bin
 	dir    []uint64 // every dirEvery-th key of index.bin
 	recent map[uint64]uint64
-	log    *os.File
+	log    *drivefile.File
+	logLen int64
 	bytes  int64 // total size of the packs
 	count  int   // pictures (not counting known-missing)
 }
@@ -92,7 +95,7 @@ func Open(dir string) (*Store, error) {
 	}
 	s := &Store{Dir: dir, recent: map[uint64]uint64{}}
 	for i := 0; ; i++ {
-		f, err := os.OpenFile(s.packPath(i), os.O_RDWR, 0o644)
+		f, err := drivefile.OpenFile(s.packPath(i), os.O_RDWR, 0o644)
 		if err != nil {
 			break
 		}
@@ -119,7 +122,7 @@ func (s *Store) indexPath() string  { return filepath.Join(s.Dir, "index.bin") }
 func (s *Store) recentPath() string { return filepath.Join(s.Dir, "recent.bin") }
 
 func (s *Store) openIndex() error {
-	f, err := os.Open(s.indexPath())
+	f, err := drivefile.OpenRead(s.indexPath())
 	if errors.Is(err, os.ErrNotExist) {
 		s.index, s.n, s.dir = nil, 0, nil
 		return nil
@@ -156,13 +159,17 @@ func (s *Store) openIndex() error {
 // only those whose picture was fully written (a drive pulled out in the
 // middle of a write loses at most that picture).
 func (s *Store) loadRecent() error {
-	f, err := os.OpenFile(s.recentPath(), os.O_RDWR|os.O_CREATE, 0o644)
+	f, err := drivefile.OpenFile(s.recentPath(), os.O_RDWR|os.O_CREATE, 0o644)
 	if err != nil {
 		return err
 	}
 	s.log = f
-	b, err := io.ReadAll(f)
+	st, err := f.Stat()
 	if err != nil {
+		return err
+	}
+	b := make([]byte, st.Size())
+	if _, err := f.ReadAt(b, 0); err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
 	good := 0
@@ -188,8 +195,8 @@ func (s *Store) loadRecent() error {
 	if good != len(b) {
 		f.Truncate(int64(good))
 	}
-	_, err = f.Seek(int64(good), io.SeekStart)
-	return err
+	s.logLen = int64(good)
+	return nil
 }
 
 func (s *Store) lookupIndex(key uint64) (uint64, bool) {
@@ -231,7 +238,7 @@ func (s *Store) lookup(key uint64) (entry, bool) {
 func (s *Store) Get(name string) (data []byte, known bool, err error) {
 	s.mu.Lock()
 	e, ok := s.lookup(Key(name))
-	var f *os.File
+	var f *drivefile.File
 	if ok && e.length() > 0 && e.pack() < len(s.packs) {
 		f = s.packs[e.pack()]
 	}
@@ -281,7 +288,7 @@ func (s *Store) Put(name string, data []byte) error {
 			if len(s.packs) >= 255 {
 				return errors.New("pictures: store full")
 			}
-			f, err := os.OpenFile(s.packPath(len(s.packs)), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
+			f, err := drivefile.OpenFile(s.packPath(len(s.packs)), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o644)
 			if err != nil {
 				return err
 			}
@@ -299,9 +306,10 @@ func (s *Store) Put(name string, data []byte) error {
 	var b [entrySize]byte
 	binary.LittleEndian.PutUint64(b[:], key)
 	binary.LittleEndian.PutUint64(b[8:], loc)
-	if _, err := s.log.Write(b[:]); err != nil {
+	if _, err := s.log.WriteAt(b[:], s.logLen); err != nil {
 		return err
 	}
+	s.logLen += entrySize
 	s.recent[key] = loc
 	return nil
 }
@@ -317,6 +325,23 @@ func (s *Store) Stats() Stats {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return Stats{Pictures: s.count, Bytes: s.bytes}
+}
+
+// Flush makes sure what was kept is on the drive itself, not waiting in
+// the computer's memory: done after each picture kept while reading, so
+// the drive can be pulled out once the page has loaded.
+func (s *Store) Flush() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.packs) > 0 {
+		if err := s.packs[s.cur].Sync(); err != nil {
+			return err
+		}
+	}
+	if s.log != nil {
+		return s.log.Sync()
+	}
+	return nil
 }
 
 // Sync flushes the store to the drive and, when many pictures were added
@@ -414,7 +439,7 @@ func (s *Store) compact() error {
 	if err := s.log.Truncate(0); err != nil {
 		return err
 	}
-	s.log.Seek(0, io.SeekStart)
+	s.logLen = 0
 	s.recent = map[uint64]uint64{}
 	return s.openIndex()
 }

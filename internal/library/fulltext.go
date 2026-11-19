@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/vajra-wielder/nabu/internal/drivefile"
 	"os"
 	"path/filepath"
 	"sort"
@@ -248,7 +249,7 @@ func (l *Library) setWanted(db string, on bool) {
 	sort.Strings(v.Wikis)
 	os.MkdirAll(filepath.Dir(l.wantPath()), 0o755)
 	if b, err := json.MarshalIndent(v, "", "  "); err == nil {
-		os.WriteFile(l.wantPath(), b, 0o644)
+		drivefile.WriteFile(l.wantPath(), b)
 	}
 }
 

@@ -6,10 +6,10 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"github.com/vajra-wielder/nabu/internal/drivefile"
 	"html"
 	"io"
 	"math"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -19,7 +19,7 @@ import (
 
 // Index is an opened full-text index.
 type Index struct {
-	f        *os.File
+	f        *drivefile.File
 	Meta     Meta
 	rules    Rules
 	common   map[string]bool // in over 40% of articles: not indexed however written
@@ -45,7 +45,7 @@ var ErrStale = errors.New("fulltext: index is out of date")
 
 // Open opens path and checks it matches the dump files f.
 func Open(path string, f *dump.Files) (*Index, error) {
-	file, err := os.Open(path)
+	file, err := drivefile.OpenRead(path)
 	if err != nil {
 		return nil, err
 	}

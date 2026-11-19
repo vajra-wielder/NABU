@@ -68,6 +68,7 @@
     <footer class="page-foot" dir="ltr">
       <p>Text from {{.Site.Sitename}}'s dump of {{.Edition}}, under the <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> licence. Last edited {{.Page.Timestamp}}.
       <a href="{{.Online}}" rel="noopener">View on the web</a> · <a href="{{.Source}}">View source</a> · <a href="/">NABU library</a></p>
+      <p>{{template "drivestate" .}}</p>
     </footer>
   </main>
 </div>

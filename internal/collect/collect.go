@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/vajra-wielder/nabu/internal/drivefile"
 	"html"
 	"os"
 	"path/filepath"
@@ -178,14 +179,13 @@ func (s *Store) save(c *Collection) error {
 }
 
 func writeAtomic(p string, b []byte) error {
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	if err := drivefile.WriteFile(p, b); err != nil {
 		if strings.Contains(err.Error(), "no space") {
 			return errors.New("the drive is full")
 		}
 		return err
 	}
-	return os.Rename(tmp, p)
+	return nil
 }
 
 // List returns all collections, most recently changed first.

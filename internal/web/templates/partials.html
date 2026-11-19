@@ -23,8 +23,11 @@
 <main class="wrap" id="main">
 {{end}}
 
+{{define "drivestate"}}{{if .Local}}<span class="drivestate{{if .Writing}} busy{{end}}" title="Nothing on the drive stays open while you read">{{if .Writing}}Writing to the drive: {{.Writing}}. Pulled out now, only the last moments of that work are lost; it carries on when the drive is back.{{else}}Safe to pull out the drive at any time.{{end}}</span>{{end}}{{end}}
+
 {{define "foot"}}
 <footer class="foot">
+  {{template "drivestate" .}}
   <span class="grow"><img src="/nabu/static/nabu.svg" alt="">NABU {{.Version}} · Wikipedia text is CC BY-SA 4.0, written by its volunteers.</span>
   {{if .Local}}<a href="/nabu/copy">Make a copy</a>{{end}}
   <a href="/nabu/about">About</a>

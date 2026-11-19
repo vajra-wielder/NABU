@@ -91,6 +91,9 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 	}
 	data["Version"] = Version
 	data["Local"] = isLocal(r)
+	if isLocal(r) {
+		data["Writing"] = s.writingNow()
+	}
 	data["Books"] = s.Lib.Books()
 	if _, ok := data["Default"]; !ok {
 		if b, ok := data["Book"].(*library.Book); ok && b.Reader() != nil {
@@ -313,4 +316,40 @@ func humanSince(t time.Time) string {
 		return itoa(int64(d/time.Hour)) + " h ago"
 	}
 	return t.Format("2 Jan 2006")
+}
+
+// writingNow says what NABU is writing to the drive in the background
+// ("" if nothing): reading never keeps anything open, so the drive can
+// be pulled out whenever this is empty. Pulled out during one of these,
+// only the last moments of that work are lost; it carries on from where
+// it was when the drive is back.
+func (s *Server) writingNow() string {
+	var what []string
+	add := func(w string) {
+		for _, x := range what {
+			if x == w {
+				return
+			}
+		}
+		what = append(what, w)
+	}
+	for _, b := range s.Lib.Books() {
+		if b.Status().State == library.Preparing {
+			add("preparing " + b.Files.DB)
+		}
+		if b.FTStatus().State == library.FTBuilding {
+			add("building search inside articles")
+		}
+		if s.Lib.PictureStatus(b.Files.DB).State == library.PicRunning {
+			add("keeping pictures")
+		}
+	}
+	switch s.Downloads.Status().State {
+	case update.StateSlimming, update.StateFinishing:
+		add("putting a new Wikipedia on it")
+	}
+	if s.copier.Status().State == "copying" {
+		add("making a copy")
+	}
+	return strings.Join(what, ", ")
 }

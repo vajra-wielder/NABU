@@ -427,3 +427,24 @@ func TestMakeACopy(t *testing.T) {
 }
 
 func strconvQuote(s string) string { b, _ := json.Marshal(s); return string(b) }
+
+// With the drive pulled out, pages ask for it back and reload themselves.
+func TestDriveGonePage(t *testing.T) {
+	s := newTestServer(t)
+	gone := true
+	s.DriveGone = func() bool { return gone }
+	r, body := get(s, "/testwiki/wiki/Babylon")
+	if r.StatusCode != 503 || r.Header.Get("Refresh") == "" || !strings.Contains(body, "not connected") {
+		t.Fatalf("%d %q", r.StatusCode, r.Header.Get("Refresh"))
+	}
+	if r, _ := get(s, "/nabu/static/nabu.css"); r.StatusCode != 200 {
+		t.Fatal("styles are inside the program and still load")
+	}
+	if r, _ := get(s, "/nabu/img/testwiki/Babylon_map.png"); r.StatusCode != 503 {
+		t.Fatalf("picture: %d", r.StatusCode)
+	}
+	gone = false
+	if r, body := get(s, "/testwiki/wiki/Babylon"); r.StatusCode != 200 || !strings.Contains(body, "Safe to pull out the drive") {
+		t.Fatalf("back: %d", r.StatusCode)
+	}
+}

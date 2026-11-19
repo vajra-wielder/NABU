@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"github.com/vajra-wielder/nabu/internal/drivefile"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -108,7 +109,7 @@ func (c *Checker) Check(ctx context.Context, wiki string) *Checked {
 	c.known[wiki] = res
 	if err := os.MkdirAll(filepath.Dir(c.cachePath()), 0o755); err == nil {
 		if b, err := json.Marshal(c.known); err == nil {
-			os.WriteFile(c.cachePath(), b, 0o644)
+			drivefile.WriteFile(c.cachePath(), b)
 		}
 	}
 	return res
@@ -144,5 +145,5 @@ func SaveSettings(dir string, s Settings) error {
 		return err
 	}
 	b, _ := json.MarshalIndent(s, "", "  ")
-	return os.WriteFile(filepath.Join(dir, "settings.json"), b, 0o644)
+	return drivefile.WriteFile(filepath.Join(dir, "settings.json"), b)
 }

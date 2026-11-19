@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/vajra-wielder/nabu/internal/drivefile"
 	"io"
 	"math/rand"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -26,7 +26,7 @@ type Entry struct {
 
 // Index is an opened .nidx file.
 type Index struct {
-	f        *os.File
+	f        *drivefile.File
 	Meta     Meta
 	streams  []streamRef
 	dirOff   []int64 // block offsets, plus the end of the last block
@@ -44,7 +44,7 @@ var ErrStale = errors.New("dump: index is out of date")
 
 // OpenIndex opens an index and checks it still matches f.
 func OpenIndex(path string, f *Files) (*Index, error) {
-	file, err := os.Open(path)
+	file, err := drivefile.OpenRead(path)
 	if err != nil {
 		return nil, err
 	}

@@ -25,6 +25,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -223,10 +224,15 @@ func cmdServe(args []string) error {
 		return err
 	}
 	d := findDrive(o)
-	dir := d.Wikipedia
+
+	// Run from a copy on this computer, so pulling the drive out cannot
+	// take the running program with it.
+	if done, err := runFromCopy(d.Root); done {
+		return err
+	}
 
 	// Started twice (a double double-click)? Just show the running one.
-	if url, ok := alreadyRunning(o.port, dir); ok {
+	if url, ok := alreadyRunning(o.port, d.Wikipedia); ok {
 		fmt.Println("NABU is already running at", url)
 		if !o.noBrowser {
 			sysutil.OpenBrowser(url)
@@ -234,8 +240,41 @@ func cmdServe(args []string) error {
 		return nil
 	}
 
+	host := "127.0.0.1"
+	if o.lan {
+		host = ""
+	}
+	raw, port, err := listen(host, o.port)
+	if err != nil {
+		return err
+	}
+	ln := newSharedListener(raw)
+	defer raw.Close()
+	url := "http://localhost:" + strconv.Itoa(port) + "/"
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	ignoreHangup()
+
+	// Serve the drive; when it was pulled out and is back (wherever it
+	// is now), everything is opened afresh on the same address, so the
+	// browser carries on.
+	for first := true; ; first = false {
+		next, err := serveDrive(ctx, stop, o, d, ln.session(), port, url, first)
+		if next == nil || ctx.Err() != nil {
+			fmt.Println("\nNABU has stopped. It is safe to remove the drive.")
+			return err
+		}
+		fmt.Println("\n  The drive is back (" + next.Root + "): carrying on.")
+		d = findDrive(&opts{drive: next.Root})
+	}
+}
+
+// serveDrive runs NABU on drive d until it stops (nil) or the drive came
+// back after being pulled out (where it is now).
+func serveDrive(ctx context.Context, stop func(), o *opts, d *drive.Layout, ln net.Listener, port int, url string, first bool) (*drive.Layout, error) {
 	var rebuildFT []string
-	if o.rebuild {
+	if o.rebuild && first {
 		rebuildFT = removeIndexes(d)
 	}
 	client := httpClient()
@@ -244,7 +283,7 @@ func cmdServe(args []string) error {
 	online := func() bool { return !o.offline && update.LoadSettings(d.Personal).Pictures }
 	lib, err := library.OpenDrive(d, library.Config{Pictures: pics, Online: online})
 	if err != nil {
-		return fmt.Errorf("cannot open the library folder %s: %w", dir, err)
+		return nil, fmt.Errorf("cannot open the library folder %s: %w", d.Wikipedia, err)
 	}
 	defer lib.Close()
 	if len(rebuildFT) > 0 {
@@ -256,52 +295,60 @@ func cmdServe(args []string) error {
 	dl := update.NewManager(d, client)
 	dl.OnFinish = func(*update.Release) { lib.Rescan() }
 	dl.MakeRoom = func(wiki string, need int64) error { return makeRoom(lib, wiki, need) }
+	defer dl.Cancel()
 
 	srv, err := server.New(lib, checker, dl)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	srv.Offline, srv.LAN = o.offline, o.lan
-
-	host := "127.0.0.1"
-	if o.lan {
-		host = ""
-	}
-	ln, port, err := listen(host, o.port)
-	if err != nil {
-		return err
-	}
-	url := "http://localhost:" + strconv.Itoa(port) + "/"
 	if o.lan {
 		for _, ip := range sysutil.LANAddresses() {
 			srv.Addrs = append(srv.Addrs, "http://"+ip+":"+strconv.Itoa(port)+"/")
 		}
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	srv.Shutdown = stop
 
-	banner(url, lib, d.Root, srv.Addrs)
-	go func() {
-		time.Sleep(200 * time.Millisecond)
-		if !o.noBrowser {
-			open := sysutil.OpenBrowser
-			if o.window {
-				open = sysutil.OpenAppWindow
-			}
-			if err := open(url); err != nil {
-				fmt.Println("  Open this address in your web browser:", url)
-			}
+	// Watch for the drive being pulled out and put back.
+	var gone atomic.Bool
+	srv.DriveGone = gone.Load
+	var next *drive.Layout
+	sctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go d.Watch(sctx, time.Second, func(g bool) {
+		gone.Store(g)
+		if g {
+			fmt.Println("\n  The drive was pulled out. Plug it back in to carry on reading.")
+			dl.Cancel()
 		}
-	}()
-	if !o.offline {
-		go startupCheck(ctx, lib, checker, dl, d)
+	}, func(l *drive.Layout) {
+		next = l
+		cancel()
+	})
+
+	if first {
+		banner(url, lib, d.Root, srv.Addrs)
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			if !o.noBrowser {
+				open := sysutil.OpenBrowser
+				if o.window {
+					open = sysutil.OpenAppWindow
+				}
+				if err := open(url); err != nil {
+					fmt.Println("  Open this address in your web browser:", url)
+				}
+			}
+		}()
 	}
-	err = srv.Run(ctx, ln)
-	dl.Cancel()
-	fmt.Println("\nNABU has stopped. It is safe to remove the drive.")
-	return err
+	if !o.offline {
+		go startupCheck(sctx, lib, checker, dl, d)
+	}
+	err = srv.Run(sctx, ln)
+	if ctx.Err() == nil && next != nil {
+		return next, nil
+	}
+	return nil, err
 }
 
 func listen(host string, port int) (net.Listener, int, error) {

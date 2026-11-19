@@ -33,6 +33,9 @@ type Server struct {
 	LAN       bool
 	Addrs     []string
 	Shutdown  func()
+	// DriveGone reports that the NABU drive was pulled out (or lost its
+	// connection). Pages then ask for it back and reload by themselves.
+	DriveGone func() bool
 
 	settingsMu  sync.Mutex
 	reads       *readerStore
@@ -79,6 +82,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	p := r.URL.Path
+	if s.DriveGone != nil && !strings.HasPrefix(p, "/nabu/static/") && p != "/nabu/api/ping" && s.DriveGone() {
+		s.driveGone(w, r)
+		return
+	}
 	switch {
 	case p == "/":
 		s.serveHome(w, r)
@@ -193,3 +200,18 @@ func (s *Server) Run(ctx context.Context, ln net.Listener) error {
 type discard struct{}
 
 func (discard) Write(p []byte) (int, error) { return len(p), nil }
+
+// driveGone answers while the drive is out: the page reloads itself
+// every few seconds, so it shows what was asked for as soon as the drive
+// is back.
+func (s *Server) driveGone(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Retry-After", "3")
+	if strings.HasPrefix(r.URL.Path, "/nabu/api/") || strings.HasPrefix(r.URL.Path, "/nabu/img/") {
+		http.Error(w, "the NABU drive is not connected", http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Refresh", "3")
+	s.errorPage(w, r, http.StatusServiceUnavailable, "The NABU drive is not connected",
+		"Plug the drive back in (any USB port will do). This page opens by itself once it is back. Pages already open keep working.")
+}

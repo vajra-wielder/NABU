@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"github.com/vajra-wielder/nabu/internal/drivefile"
 	"html"
 	"os"
 	"path/filepath"
@@ -48,10 +49,7 @@ func (st *readerStore) save() {
 		return
 	}
 	os.MkdirAll(filepath.Dir(st.path), 0o755)
-	tmp := st.path + ".tmp"
-	if os.WriteFile(tmp, b, 0o644) == nil {
-		os.Rename(tmp, st.path)
-	}
+	drivefile.WriteFile(st.path, b)
 }
 
 func without(list []readItem, book, title string) []readItem {
