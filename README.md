@@ -266,8 +266,9 @@ phrase, where title search needs the article's name; offline, with no web search
 fall back on, that is often how things are found. The little words of each language
 ("the", "can", "they", "de", "и"…) are left out of it, which makes it a third smaller
 and costs nothing: they are in almost every article, so they never narrowed a search.
-Words that are also names or abbreviations ("us", "who", "may", "will") stay
-searchable. Worth having for the language you read most; at 12.5% of a dump, it is
+Written in capitals they count as abbreviations and stay searchable ("US", "WHO",
+"IT"), and "May" and "Will" with a capital stay searchable as a month and a name;
+"us army" searches for "army", "US army" for both. Worth having for the language you read most; at 12.5% of a dump, it is
 the cheapest extra.
 
 Downloading pictures follows Wikimedia's rules for programs: two at a time, at most

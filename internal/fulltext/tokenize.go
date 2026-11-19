@@ -25,17 +25,57 @@ func isWord(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.Is(unicode.Mn, r)
 }
 
+// Case is how a word was written. Search folds case away, but whether
+// one of a language's little words is an abbreviation ("US", "WHO") or a
+// name ("May") shows in its capitals.
+type Case uint8
+
+const (
+	Lower   Case = iota // anything else: "us", "iPhone"
+	Capital             // first letter only: "May"
+	Caps                // every letter, two or more: "US", "WHO"
+)
+
+func caseOf(word []rune) Case {
+	letters, upper := 0, 0
+	first := false
+	for i, r := range word {
+		if !unicode.IsLetter(r) {
+			continue
+		}
+		letters++
+		if unicode.IsUpper(r) {
+			upper++
+			if i == 0 {
+				first = true
+			}
+		}
+	}
+	switch {
+	case letters >= 2 && upper == letters:
+		return Caps
+	case first && upper == 1:
+		return Capital
+	}
+	return Lower
+}
+
 // Tokenize calls emit for every search term in s, in order: folded words
 // of two or more characters (case and accents removed, as in title
 // search), and character pairs for CJK text.
 func Tokenize(s string, emit func(term string)) {
+	TokenizeCase(s, func(t string, _ Case) { emit(t) })
+}
+
+// TokenizeCase is Tokenize, also telling how each word was written.
+func TokenizeCase(s string, emit func(term string, c Case)) {
 	word := make([]rune, 0, 32)
 	var cjk []rune
 	flushWord := func() {
 		if len(word) >= 2 {
 			t := dump.Fold(string(word))
 			if len(t) <= maxTermBytes {
-				emit(t)
+				emit(t, caseOf(word))
 			}
 		}
 		word = word[:0]
@@ -43,10 +83,10 @@ func Tokenize(s string, emit func(term string)) {
 	flushCJK := func() {
 		switch {
 		case len(cjk) == 1:
-			emit(string(cjk))
+			emit(string(cjk), Lower)
 		case len(cjk) > 1:
 			for i := 0; i+1 < len(cjk); i++ {
-				emit(string(cjk[i : i+2]))
+				emit(string(cjk[i:i+2]), Lower)
 			}
 		}
 		cjk = cjk[:0]

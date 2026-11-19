@@ -7,8 +7,10 @@ import "strings"
 // almost every article has them, so they cost much room and never narrow
 // a search. Searching for them is still possible by title.
 //
-// Kept on purpose, because they are also names or abbreviations: English
-// "us" (U.S.), "who" (WHO), "will", "may" (the month).
+// Written in capitals they are kept: then they are abbreviations ("US",
+// "WHO", "IT", "OR" for Oregon), searched by typing them in capitals.
+// A few are also kept with a capital first letter, where that makes them
+// a name or a month (capitalNames).
 var stopLists = map[string]string{
 	"en": `a an the and or but nor if then else so than that this these those there here
 		where when what which whom whose why how i me my mine myself we our ours ourselves
@@ -19,8 +21,8 @@ var stopLists = map[string]string{
 		during before after against among within without off out up down as also not no
 		very too just only such both each either neither all any some few more most other
 		another own same again further once while until because although though whether
-		since per via etc`,
-	"fr": `le la les un une des de du au aux et ou mais donc or ni car en dans par pour sur
+		since per via etc us who may will`,
+	"fr": `le la les un une des de du au aux et ou mais donc ni car en dans par pour sur
 		sous avec sans entre vers chez que qui quoi dont ne pas plus se sa son ses il elle
 		ils elles est sont ete etait etaient etre avoir ont avait ce cet cette ces on nous
 		vous je tu me te moi toi lui leur leurs mon ma mes ton ta tes notre nos votre vos
@@ -58,10 +60,46 @@ var stopLists = map[string]string{
 		mod disse hvis din nogle hos blive ad bliver hendes vaeret jer`,
 }
 
+// capitalNames are little words that are names when they start with a
+// capital: the month of May, the name Will, Down syndrome and County
+// Down, the French "Est" (the East, as in "l'Est").
+var capitalNames = map[string]string{
+	"en": "may will down",
+	"fr": "est",
+}
+
+// Rules decide which words of a language are indexed.
+type Rules struct {
+	Stop    map[string]bool
+	Capital map[string]bool // stopwords kept when written with a capital first letter
+}
+
+// NewRules makes the rules from the lists kept in an index's Meta.
+func NewRules(stop, capital []string) Rules {
+	r := Rules{Stop: map[string]bool{}, Capital: map[string]bool{}}
+	for _, w := range stop {
+		r.Stop[w] = true
+	}
+	for _, w := range capital {
+		r.Capital[w] = true
+	}
+	return r
+}
+
+// Keep reports whether a word written so is indexed (and searched).
+func (r Rules) Keep(t string, c Case) bool {
+	return !r.Stop[t] || c == Caps || (c == Capital && r.Capital[t])
+}
+
+// CapitalNames lists a language's little words kept when capitalised.
+func CapitalNames(lang string) []string { return words(capitalNames, lang) }
+
 // Stopwords lists the words of a language left out of the index, folded
 // as search folds them. Unknown languages have none (the most common
 // words are still dropped by how often they occur).
-func Stopwords(lang string) []string {
+func Stopwords(lang string) []string { return words(stopLists, lang) }
+
+func words(lists map[string]string, lang string) []string {
 	if i := strings.IndexAny(lang, "-_"); i > 0 {
 		lang = lang[:i]
 	}
@@ -70,7 +108,7 @@ func Stopwords(lang string) []string {
 	}
 	var out []string
 	seen := map[string]bool{}
-	for _, w := range strings.Fields(stopLists[lang]) {
+	for _, w := range strings.Fields(lists[lang]) {
 		Tokenize(w, func(t string) {
 			if !seen[t] {
 				seen[t] = true

@@ -6,7 +6,7 @@
 {{with .Text}}
 <h2 class="section">In article text</h2>
 {{if eq .Status.State "ready"}}
-  {{if .Ignored}}<p class="small muted">Too common to search: {{range $i, $w := .Ignored}}{{if $i}}, {{end}}“{{$w}}”{{end}}.</p>{{end}}
+  {{if .Ignored}}<p class="small muted">Too common to search: {{range $i, $w := .Ignored}}{{if $i}}, {{end}}“{{$w}}”{{end}}. Abbreviations are searched when typed in capitals, like US or WHO.</p>{{end}}
   {{if .Results}}
   <p class="small muted">{{count (int64 .Total)}} articles contain {{if gt (len $.Query) 0}}every word{{end}}{{if gt .Pages 1}} · page {{.Page}} of {{.Pages}}{{end}}</p>
   <ol class="textresults" dir="auto">

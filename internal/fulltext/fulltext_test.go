@@ -52,9 +52,30 @@ func TestStopwordsAndJunk(t *testing.T) {
 			t.Errorf("%q should be a stopword", w)
 		}
 	}
-	for _, w := range []string{"us", "who", "may", "will"} {
-		if strings.Contains(" "+en+" ", " "+w+" ") {
-			t.Errorf("%q is also a name and must stay searchable", w)
+	// Little words count only in lower case: in capitals they are
+	// abbreviations, and a few are names with a capital first letter.
+	r := NewRules(Stopwords("en"), CapitalNames("en"))
+	for _, c := range []struct {
+		word string
+		keep bool
+	}{
+		{"us", false}, {"US", true}, {"Us", false},
+		{"who", false}, {"WHO", true}, {"Who", false},
+		{"it", false}, {"IT", true}, {"It", false},
+		{"may", false}, {"May", true}, {"MAY", true},
+		{"will", false}, {"Will", true},
+		{"the", false}, {"The", false}, {"THE", true},
+		{"Babylon", true}, {"babylon", true},
+	} {
+		var got bool
+		TokenizeCase(c.word, func(t string, k Case) { got = r.Keep(t, k) })
+		if got != c.keep {
+			t.Errorf("%q indexed: %v", c.word, got)
+		}
+	}
+	for w, want := range map[string]Case{"US": Caps, "U2": Capital, "May": Capital, "iPhone": Lower, "McDonald": Lower, "ÉTÉ": Caps, "a": Lower} {
+		if got := caseOf([]rune(w)); got != want {
+			t.Errorf("caseOf(%q) = %d, want %d", w, got, want)
 		}
 	}
 	if fr := Stopwords("fr"); len(fr) < 50 || fr[0] != "le" {
@@ -103,6 +124,12 @@ func TestBuildSearchNearby(t *testing.T) {
 	res, _ = ix.Search("The god of the scribes", 0, 10)
 	if res.Total != 2 || strings.Join(res.Ignored, ",") != "the,of" {
 		t.Fatalf("stopwords: %+v", res)
+	}
+	if res, _ = ix.Search("god of scribes us", 0, 10); strings.Join(res.Ignored, ",") != "of,us" {
+		t.Fatalf("lower-case us: %+v", res)
+	}
+	if res, _ = ix.Search("god of scribes US", 0, 10); strings.Join(res.Ignored, ",") != "of" || res.Total != 0 {
+		t.Fatalf("US in capitals is searched (and is in no article here): %+v", res)
 	}
 	if ix.Meta.Lang != "en" || ix.Meta.Postings == 0 {
 		t.Fatalf("meta %+v", ix.Meta)
@@ -163,7 +190,8 @@ func TestRealFullText(t *testing.T) {
 			f.DB, ix.Meta.Docs, ix.Meta.Terms, ix.Meta.Geo, len(ix.Meta.Stopwords), float64(st.Size())/1e6,
 			100*float64(st.Size())/float64(f.Size), float64(f.Size)/1e6, time.Since(start).Round(time.Second))
 		t.Logf("   sections %v; %d postings", ix.Sections(), ix.Meta.Postings)
-		for _, q := range []string{"hanging gardens", "river flowing through baghdad", "nobel prize physics 1921"} {
+		t.Logf("   dropped for being in over 40%% of articles: %v", ix.Meta.Common)
+		for _, q := range []string{"US army", "us army", "WHO pandemic", "May 1968", "IT company", "hanging gardens", "river flowing through baghdad", "nobel prize physics 1921"} {
 			t0 := time.Now()
 			res, _ := ix.Search(q, 0, 5)
 			var titles []string

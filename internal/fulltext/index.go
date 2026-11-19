@@ -21,8 +21,9 @@ import (
 type Index struct {
 	f        *os.File
 	Meta     Meta
-	stop     map[string]bool
-	dictOff  []int64 // block offsets (+ end)
+	rules    Rules
+	common   map[string]bool // in over 40% of articles: not indexed however written
+	dictOff  []int64         // block offsets (+ end)
 	dictTerm []string
 	docsOff  int64
 	docOffs  []uint64
@@ -48,7 +49,7 @@ func Open(path string, f *dump.Files) (*Index, error) {
 	if err != nil {
 		return nil, err
 	}
-	ix := &Index{f: file, cache: map[int][]dictRow{}, stop: map[string]bool{}}
+	ix := &Index{f: file, cache: map[int][]dictRow{}}
 	if err := ix.load(); err != nil {
 		file.Close()
 		return nil, err
@@ -100,8 +101,10 @@ func (ix *Index) load() error {
 	if err := json.Unmarshal(mb, &ix.Meta); err != nil || ix.Meta.Version != FormatVersion {
 		return ErrStale
 	}
-	for _, s := range ix.Meta.Stopwords {
-		ix.stop[s] = true
+	ix.rules = NewRules(ix.Meta.Stopwords, ix.Meta.Capital)
+	ix.common = map[string]bool{}
+	for _, w := range ix.Meta.Common {
+		ix.common[w] = true
 	}
 	r := bufio.NewReader(io.NewSectionReader(ix.f, dirOff, docsOff-dirOff))
 	n, err := binary.ReadUvarint(r)
@@ -316,8 +319,18 @@ func (ix *Index) Search(q string, offset, limit int) (*Result, error) {
 		row  dictRow
 	}
 	var lists []termList
-	for _, t := range Terms(q) {
-		if ix.stop[t] {
+	// A little word is searched only as it is indexed: "US" in capitals,
+	// not "us".
+	var order []string
+	keep := map[string]bool{}
+	TokenizeCase(q, func(t string, c Case) {
+		if _, seen := keep[t]; !seen {
+			order = append(order, t)
+		}
+		keep[t] = keep[t] || (ix.rules.Keep(t, c) && !ix.common[t])
+	})
+	for _, t := range order {
+		if !keep[t] {
 			res.Ignored = append(res.Ignored, t)
 			continue
 		}

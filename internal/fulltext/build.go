@@ -55,6 +55,8 @@ type Meta struct {
 	Geo       int           `json:"geo"`
 	Lang      string        `json:"lang"`
 	Stopwords []string      `json:"stopwords"` // the language's little words, and any word in over 40% of articles: not indexed
+	Capital   []string      `json:"capital"`   // little words still indexed when capitalised ("May")
+	Common    []string      `json:"common"`    // the words dropped for being in over 40% of articles
 	Postings  int64         `json:"postings"`
 	Sources   []dump.Source `json:"sources"`
 	Built     time.Time     `json:"built"`
@@ -121,10 +123,7 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 
 	site := rd.Site()
 	lang := Lang(rd.Files.DB, site)
-	stop := map[string]bool{}
-	for _, w := range Stopwords(lang) {
-		stop[w] = true
-	}
+	rules := NewRules(Stopwords(lang), CapitalNames(lang))
 	total := rd.Index.StreamCount()
 	jobs := make(chan uint32, opt.Workers*2)
 	results := make(chan streamResult, opt.Workers*2)
@@ -134,7 +133,7 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 		go func() {
 			defer wg.Done()
 			for s := range jobs {
-				results <- scanStream(rd, site, s, stop)
+				results <- scanStream(rd, site, s, rules)
 			}
 		}()
 	}
@@ -191,7 +190,7 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 	if err := b.docs.Flush(); err != nil {
 		return err
 	}
-	meta := &Meta{Version: FormatVersion, Lang: lang, Stopwords: Stopwords(lang), Docs: int(b.ndocs), Geo: len(b.geo), Sources: dump.SourcesOf(rd.Files), Built: time.Now().UTC()}
+	meta := &Meta{Version: FormatVersion, Lang: lang, Stopwords: Stopwords(lang), Capital: CapitalNames(lang), Docs: int(b.ndocs), Geo: len(b.geo), Sources: dump.SourcesOf(rd.Files), Built: time.Now().UTC()}
 	tmpOut := out + ".tmp"
 	if err := b.write(tmpOut, docsTmp, meta, start); err != nil {
 		os.Remove(tmpOut)
@@ -214,7 +213,7 @@ func Lang(db string, site *dump.Siteinfo) string {
 	return strings.TrimSuffix(db, "wiki")
 }
 
-func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, stop map[string]bool) streamResult {
+func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules) streamResult {
 	pages, err := rd.StreamPages(s)
 	if err != nil {
 		return streamResult{stream: s, err: err}
@@ -225,15 +224,15 @@ func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, stop map[string]
 			continue
 		}
 		counts := map[string]int{}
-		add := func(w int) func(string) {
-			return func(t string) {
-				if !stop[t] && !junk(t) {
+		add := func(w int) func(string, Case) {
+			return func(t string, c Case) {
+				if rules.Keep(t, c) && !junk(t) {
 					counts[t] += w
 				}
 			}
 		}
-		Tokenize(p.Title, add(3)) // title words weigh more
-		Tokenize(wikitext.PlainText(p.Text, site), add(1))
+		TokenizeCase(p.Title, add(3)) // title words weigh more
+		TokenizeCase(wikitext.PlainText(p.Text, site), add(1))
 		d := docOut{stream: s, pageID: p.ID, title: p.Title, terms: make([]termTF, 0, len(counts))}
 		for t, c := range counts {
 			if c > 255 {
@@ -469,7 +468,7 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 			}
 		}
 		if meta.Docs >= 1000 && uint32(len(docs)) > common {
-			meta.Stopwords = append(meta.Stopwords, term)
+			meta.Common = append(meta.Common, term)
 			continue
 		}
 		off := pos
