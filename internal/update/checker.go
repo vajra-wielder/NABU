@@ -21,13 +21,12 @@ type Settings struct {
 
 	// PictureLimitGB is the room all pictures together may take (0: no
 	// limit). The default fits a 125 GB drive holding English with search
-	// inside articles, a second language, and room for English's next
-	// update (see internal/plan).
+	// inside articles and any one other language (see internal/plan).
 	PictureLimitGB int `json:"picture_limit_gb"`
 }
 
 // DefaultPictureLimitGB is the default room for pictures.
-const DefaultPictureLimitGB = 55
+const DefaultPictureLimitGB = 85
 
 // PictureLimit is the limit in bytes (0: none).
 func (s Settings) PictureLimit() int64 {

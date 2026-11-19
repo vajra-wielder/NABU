@@ -35,10 +35,28 @@ var Wikis = []Wiki{
 
 // Measured ratios to the dump's size.
 const (
-	TitleIndexShare = 0.026 // title index (indexes/)
-	FullTextShare   = 0.125 // search inside articles (search/), with stopwords left out
+	TitleIndexShare = 0.026 // title index (indexes/), of the dump on the drive
+	FullTextShare   = 0.125 // search inside articles (search/), of the dump as downloaded
 	Programs        = 90e6  // the programs for Windows, Mac and Linux
 )
+
+// SlimShare is what is left of a dump without the pages NABU never shows
+// (dump.Slim): sampled on English Wikipedia (71% articles, 6% redirects,
+// 2% categories, files and portals; 18% project discussions), and
+// measured on Simple English (86%) for the others.
+var SlimShare = map[string]float64{"enwiki": 0.80}
+
+const defaultSlimShare = 0.86
+
+// OnDrive is the size of a wiki's dump on the drive, without the pages
+// NABU never shows.
+func (w Wiki) OnDrive() int64 {
+	s, ok := SlimShare[w.DB]
+	if !ok {
+		s = defaultSlimShare
+	}
+	return int64(float64(w.Bytes) * s)
+}
 
 // Picture choices for one Wikipedia.
 const (
@@ -59,7 +77,7 @@ type Choice struct {
 type Plan struct {
 	Choices      []Choice
 	PictureLimit int64 // room set aside for pictures (0: none)
-	UpdateRoom   bool  // keep room to download the largest dump's next edition before the old one is removed
+	UpdateRoom   bool  // keep room on the drive for the largest dump's next edition (only when updates cannot go through the computer)
 }
 
 // Line is one part of a plan.
@@ -107,14 +125,14 @@ func (p Plan) Lines() []Line {
 		if !ok {
 			continue
 		}
-		out = append(out, Line{w.Name + ": text", w.Bytes})
-		out = append(out, Line{w.Name + ": title index", int64(float64(w.Bytes) * TitleIndexShare)})
+		out = append(out, Line{w.Name + ": text (articles only)", w.OnDrive()})
+		out = append(out, Line{w.Name + ": title index", int64(float64(w.OnDrive()) * TitleIndexShare)})
 		if c.FullText {
 			out = append(out, Line{w.Name + ": search inside articles", int64(float64(w.Bytes) * FullTextShare)})
 		}
 		pics += PictureBytes(w, c.Pictures, english && w.DB != "enwiki")
-		if w.Bytes > largest {
-			largest = w.Bytes
+		if w.OnDrive() > largest {
+			largest = w.OnDrive()
 		}
 	}
 	if pics > 0 {
@@ -139,17 +157,17 @@ func (p Plan) Total() int64 {
 	return n
 }
 
-// Default is NABU's recommended contents for a drive of the given size
-// with English and one more Wikipedia: English with search inside
-// articles and its main pictures, the other showing English's pictures,
-// room for English's monthly update, and pictures given what is left
-// (rounded down to 5 GB, keeping 5% spare).
+// Default is NABU's recommended contents for a drive of the given size:
+// English with search inside articles and its main pictures, and second
+// (if any) showing English's pictures. Updates go through the computer's
+// own disk, so the drive keeps no room spare for them. Pictures get what
+// is left (rounded down to 5 GB, keeping 5% of the drive spare).
 func Default(second string, driveBytes int64) Plan {
-	p := Plan{UpdateRoom: true, Choices: []Choice{{DB: "enwiki", FullText: true, Pictures: MainPictures}}}
+	p := Plan{Choices: []Choice{{DB: "enwiki", FullText: true, Pictures: MainPictures}}}
 	if w, ok := Find(second); ok && w.DB != "enwiki" {
 		p.Choices = append(p.Choices, Choice{DB: w.DB, Pictures: EnglishPictures})
 	}
-	without := Plan{UpdateRoom: true, Choices: []Choice{p.Choices[0]}}
+	without := Plan{Choices: []Choice{p.Choices[0]}}
 	without.Choices[0].Pictures = NoPictures
 	without.Choices = append(without.Choices, p.Choices[1:]...)
 	rest := driveBytes - driveBytes/20 - without.Total()

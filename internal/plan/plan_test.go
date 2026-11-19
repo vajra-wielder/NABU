@@ -9,12 +9,11 @@ import (
 // The drive NABU is made for: 125 GB.
 const drive = 125e9
 
-// English plus any one other Wikipedia, the way NABU sets them up by
-// default, fits the drive with room for English's next update and a
-// little to spare.
+// English alone, or with any one other Wikipedia, the way NABU sets them
+// up by default, fits the drive with a little to spare.
 func TestDefaultFits125GB(t *testing.T) {
 	for _, w := range Wikis {
-		p := Plan{UpdateRoom: true, PictureLimit: update.DefaultPictureLimitGB * 1e9, Choices: []Choice{
+		p := Plan{PictureLimit: update.DefaultPictureLimitGB * 1e9, Choices: []Choice{
 			{DB: "enwiki", FullText: true, Pictures: MainPictures},
 			{DB: w.DB, Pictures: EnglishPictures},
 		}}
@@ -25,7 +24,8 @@ func TestDefaultFits125GB(t *testing.T) {
 			t.Errorf("English + %s takes %.1f GB, more than 95%% of 125 GB:\n%s", w.Name, float64(total)/1e9, p)
 		}
 	}
-	// The default limit is what Default works out for that drive.
+	// The default limit is what Default works out for that drive with
+	// English and the largest other language.
 	if d := Default("fr", drive); d.PictureLimit != update.DefaultPictureLimitGB*1e9 {
 		t.Errorf("default picture limit %d GB; Default works out %.0f GB:\n%s",
 			update.DefaultPictureLimitGB, float64(d.PictureLimit)/1e9, d)
@@ -55,7 +55,7 @@ func TestEnglishPicturesCostNothing(t *testing.T) {
 	d := Plan{Choices: []Choice{{DB: "frwiki", Pictures: MainPictures}}}
 	en, _ := Find("en")
 	fr, _ := Find("fr")
-	if c.Total()-PictureBytes(en, MainPictures, false) >= d.Total()+en.Bytes*103/100+1 {
+	if c.Total()-PictureBytes(en, MainPictures, false) >= d.Total()+en.OnDrive()*103/100+1 {
 		t.Fatal("French's own pictures should be fewer once English's are kept")
 	}
 	if PictureBytes(fr, MainPictures, true) >= PictureBytes(fr, MainPictures, false) {

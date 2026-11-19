@@ -20,8 +20,13 @@ START
 
 Your browser opens on the NABU library. A small window stays open while
 NABU runs: keep it open while you read, and close it when you are done.
-You can also click "Turn off NABU" at the bottom of any NABU page. Then
-it is safe to remove the drive.
+You can also click "Turn off NABU" at the bottom of any NABU page.
+
+IN A HURRY? Once a page has loaded you can pull the drive out at any
+moment, without ejecting it: NABU runs from a copy on the computer and
+keeps nothing on the drive open. Pages already open keep working. Plug
+the drive back in (any port) and NABU carries on by itself. The bottom
+of every page says whether it is safe right now.
 
 If the browser does not open by itself, go to:  http://localhost:8080
 
