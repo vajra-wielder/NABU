@@ -38,6 +38,7 @@
     downloading: 'Downloading',
     retrying: 'Connection lost, retrying soon…',
     finishing: 'Installing…',
+    slimming: 'Writing it to the drive without the pages NABU never shows (project discussions, templates, drafts)',
     done: 'Downloaded and verified. NABU is now preparing it for reading.',
     failed: 'Download stopped',
     cancelled: 'Paused. You can resume later; nothing is lost.'
@@ -57,7 +58,7 @@
       var st;
       try { st = JSON.parse(xhr.responseText); } catch (e) { return; }
       var d = st.download;
-      var active = ['starting', 'checking', 'downloading', 'retrying', 'finishing'].indexOf(d.state) >= 0;
+      var active = ['starting', 'checking', 'downloading', 'retrying', 'finishing', 'slimming'].indexOf(d.state) >= 0;
       if (box) {
         box.hidden = d.state === 'idle';
         box.querySelector('[data-file]').textContent = d.release || '';
@@ -65,6 +66,7 @@
         var pct = d.total > 0 ? Math.min(100, 100 * d.done / d.total) : 0;
         box.querySelector('.progress > div').style.width = pct.toFixed(1) + '%';
         var line = labels[d.state] || d.state;
+        if (d.state === 'slimming') line += ' · ' + pct.toFixed(1) + '%';
         if (d.state === 'downloading' || d.state === 'checking') {
           line += ' · ' + human(d.done) + (d.total ? ' of ' + human(d.total) + ' (' + pct.toFixed(1) + '%)' : '');
           if (d.speed > 0 && d.state === 'downloading') line += ' · ' + human(d.speed) + '/s';

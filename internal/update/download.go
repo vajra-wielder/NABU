@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/vajra-wielder/nabu/internal/drive"
+	"github.com/vajra-wielder/nabu/internal/dump"
 	"github.com/vajra-wielder/nabu/internal/sysutil"
 )
 
@@ -37,6 +38,7 @@ const (
 	StateDownloading = "downloading" // receiving bytes
 	StateRetrying    = "retrying"    // network hiccup, will resume
 	StateFinishing   = "finishing"   // installing
+	StateSlimming    = "slimming"    // leaving out the pages NABU never shows
 	StateDone        = "done"
 	StateFailed      = "failed"
 	StateCancelled   = "cancelled"
@@ -56,12 +58,22 @@ type Status struct {
 }
 
 // Manager runs one download at a time into a library directory.
+//
+// A download goes to the computer's own disk when it has room (Computer),
+// so the drive needs no room kept free for the next edition: only the
+// finished dump is written to the drive, already without the pages NABU
+// never shows (Slim). Otherwise it goes to the drive (Work).
 type Manager struct {
 	Dir        string // finished dumps go here
-	Work       string // downloads in progress
+	Work       string // downloads in progress, on the drive
+	Computer   string // downloads in progress, on this computer ("" to never use it)
+	Slim       bool   // leave out the pages NABU never shows (dump.Slim)
 	Client     *http.Client
 	OnFinish   func(rel *Release)
 	RetryDelay time.Duration
+	// MakeRoom is asked for room on the drive before a finished dump is
+	// written there; it may remove older editions of the same wiki.
+	MakeRoom func(wiki string, need int64) error
 
 	mu     sync.Mutex
 	status Status
@@ -72,11 +84,54 @@ type Manager struct {
 
 // NewManager prepares downloads into the drive's wikipedia folder.
 func NewManager(d *drive.Layout, client *http.Client) *Manager {
-	return &Manager{Dir: d.Wikipedia, Work: d.Incoming(), Client: client, RetryDelay: 2 * time.Second, status: Status{State: StateIdle}}
+	return &Manager{Dir: d.Wikipedia, Work: d.Incoming(), Computer: ComputerIncoming(), Slim: true,
+		Client: client, RetryDelay: 2 * time.Second, status: Status{State: StateIdle}}
 }
 
+// ComputerIncoming is where downloads go on this computer: its cache
+// folder (kept across restarts, so a download resumes), or "" if none.
+func ComputerIncoming() string {
+	dir, err := os.UserCacheDir()
+	if err != nil || dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, "NABU", "incoming")
+}
+
+func (m *Manager) places() []string {
+	if m.Computer != "" && m.Computer != m.Work {
+		return []string{m.Computer, m.Work}
+	}
+	return []string{m.Work}
+}
+
+// incoming is where a release is (being) downloaded: where it was
+// started, or a new folder on the computer when it has room for it.
 func (m *Manager) incoming(key string) string {
+	for _, p := range m.places() {
+		if _, err := os.Stat(filepath.Join(p, key, "release.json")); err == nil {
+			return filepath.Join(p, key)
+		}
+	}
 	return filepath.Join(m.Work, key)
+}
+
+func (m *Manager) incomingFor(rel *Release) string {
+	dir := m.incoming(rel.Key())
+	if _, err := os.Stat(filepath.Join(dir, "release.json")); err == nil {
+		return dir
+	}
+	if m.Computer != "" {
+		os.MkdirAll(m.Computer, 0o755)
+		if free, err := sysutil.FreeSpace(m.Computer); err == nil && free > rel.Size()+1<<30 {
+			return filepath.Join(m.Computer, rel.Key())
+		}
+	}
+	return dir
+}
+
+func (m *Manager) onDrive(dir string) bool {
+	return filepath.Dir(dir) == filepath.Clean(m.Work)
 }
 
 // Status returns the current progress.
@@ -101,16 +156,18 @@ func (m *Manager) Busy() bool {
 
 // Paused lists partial downloads, with the release saved for resuming.
 func (m *Manager) Paused() []Release {
-	ents, _ := os.ReadDir(m.Work)
 	var out []Release
-	for _, e := range ents {
-		if !e.IsDir() {
-			continue
-		}
-		var rel Release
-		b, err := os.ReadFile(filepath.Join(m.incoming(e.Name()), "release.json"))
-		if err == nil && json.Unmarshal(b, &rel) == nil && rel.Wiki != "" {
-			out = append(out, rel)
+	for _, place := range m.places() {
+		ents, _ := os.ReadDir(place)
+		for _, e := range ents {
+			if !e.IsDir() {
+				continue
+			}
+			var rel Release
+			b, err := os.ReadFile(filepath.Join(place, e.Name(), "release.json"))
+			if err == nil && json.Unmarshal(b, &rel) == nil && rel.Wiki != "" {
+				out = append(out, rel)
+			}
 		}
 	}
 	return out
@@ -183,24 +240,28 @@ func (m *Manager) set(f func(s *Status)) {
 }
 
 func (m *Manager) run(ctx context.Context, rel *Release) error {
-	dir := m.incoming(rel.Key())
+	dir := m.incomingFor(rel)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	rj, _ := json.Marshal(rel)
 	os.WriteFile(filepath.Join(dir, "release.json"), rj, 0o644)
 
-	// Room on the drive for what is still missing (+ the index NABU
-	// builds afterwards, ~2% of the dump).
+	// Room for what is still missing: on the drive (+ the index NABU
+	// builds afterwards, ~2% of the dump), or on this computer.
 	var have int64
 	for _, f := range rel.Files {
 		have += partsSize(filepath.Join(dir, f.Name))
 	}
-	if free, err := sysutil.FreeSpace(m.Dir); err == nil {
-		need := rel.Size() - have + rel.Size()/50 + 64<<20
-		if free < need {
-			return fmt.Errorf("not enough space on the drive: %s needed, %s free", HumanBytes(need), HumanBytes(free))
+	if m.onDrive(dir) {
+		if free, err := sysutil.FreeSpace(m.Dir); err == nil {
+			need := rel.Size() - have + rel.Size()/50 + 64<<20
+			if free < need {
+				return fmt.Errorf("not enough space on the drive: %s needed, %s free", HumanBytes(need), HumanBytes(free))
+			}
 		}
+	} else if free, err := sysutil.FreeSpace(dir); err == nil && free < rel.Size()-have {
+		return fmt.Errorf("not enough space on this computer: %s needed, %s free", HumanBytes(rel.Size()-have), HumanBytes(free))
 	}
 
 	var before int64 // bytes of earlier files, for overall progress
@@ -213,10 +274,8 @@ func (m *Manager) run(ctx context.Context, rel *Release) error {
 		before += f.Size
 	}
 	m.set(func(s *Status) { s.State = StateFinishing })
-	for _, f := range rel.Files {
-		if err := m.install(filepath.Join(dir, f.Name), f.Name); err != nil {
-			return err
-		}
+	if err := m.finish(ctx, rel, dir); err != nil {
+		return err
 	}
 	os.RemoveAll(dir)
 	m.set(func(s *Status) { s.Verified = true; s.Error = "" })
@@ -465,8 +524,63 @@ func hashExisting(ctx context.Context, base string, h hash.Hash, progress func(i
 	return have, nil
 }
 
-// install moves a finished file into the library under its real name
-// (pieces get the suffixes aa, ab, ...).
+// finish puts a downloaded release on the drive: without the pages NABU
+// never shows when it can, else as it came.
+func (m *Manager) finish(ctx context.Context, rel *Release, dir string) error {
+	if m.Slim {
+		names := map[string][]string{}
+		for _, f := range rel.Files {
+			names[f.Name] = listParts(filepath.Join(dir, f.Name))
+		}
+		if f, err := dump.FromNamed(names); err == nil {
+			// A slim dump is about 80-85% of the original; English's
+			// project pages alone are 18%.
+			if err := m.room(rel.Wiki, rel.Size()*9/10+64<<20); err != nil {
+				return err
+			}
+			m.set(func(s *Status) { s.State, s.Total = StateSlimming, f.Size })
+			m.done.Store(0)
+			_, err := dump.Slim(f, m.Dir, dump.SlimOptions{
+				PartSize: PartSize,
+				Stop:     ctx.Done(),
+				Name:     func(p string) string { return filepath.Base(filepath.Dir(p)) }, // dir/<name>/part-aa
+				Progress: func(done, total int64) { m.done.Store(done) },
+			}, nil)
+			switch {
+			case err == nil:
+				return nil
+			case ctx.Err() != nil:
+				return ctx.Err()
+			}
+			// Keep what was downloaded: install it as it came.
+			m.set(func(s *Status) { s.State, s.Error = StateFinishing, "could not leave out the pages NABU never shows: "+err.Error() })
+		}
+	}
+	if !m.onDrive(dir) {
+		if err := m.room(rel.Wiki, rel.Size()+64<<20); err != nil {
+			return err
+		}
+	}
+	for _, f := range rel.Files {
+		if err := m.install(filepath.Join(dir, f.Name), f.Name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *Manager) room(wiki string, need int64) error {
+	if m.MakeRoom != nil {
+		return m.MakeRoom(wiki, need)
+	}
+	if free, err := sysutil.FreeSpace(m.Dir); err == nil && free < need {
+		return fmt.Errorf("not enough space on the drive: %s needed, %s free", HumanBytes(need), HumanBytes(free))
+	}
+	return nil
+}
+
+// install moves (or, from this computer, copies) a finished file into
+// the library under its real name (pieces get the suffixes aa, ab, ...).
 func (m *Manager) install(base, name string) error {
 	parts := listParts(base)
 	if len(parts) == 0 {
@@ -478,10 +592,41 @@ func (m *Manager) install(base, name string) error {
 			target += fmt.Sprintf("%c%c", 'a'+byte(i/26), 'a'+byte(i%26))
 		}
 		if err := os.Rename(p, target); err != nil {
-			return fmt.Errorf("installing %s: %w", filepath.Base(target), err)
+			if err := CopyFile(p, target); err != nil { // another disk
+				return fmt.Errorf("installing %s: %w", filepath.Base(target), friendlyWriteErr(err))
+			}
 		}
 	}
 	return nil
+}
+
+// CopyFile copies src to dst through a temporary name, flushed to the
+// drive before it takes its real name.
+func CopyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	tmp := dst + ".copying"
+	out, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(out, bufio.NewReaderSize(in, 1<<20))
+	if err == nil {
+		err = out.Sync()
+	}
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(tmp, dst)
+	}
+	if err != nil {
+		os.Remove(tmp)
+	}
+	return err
 }
 
 // HumanBytes formats a size in 1024s, as Windows and most file managers do.

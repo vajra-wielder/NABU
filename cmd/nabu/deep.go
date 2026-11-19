@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -22,6 +23,7 @@ import (
 	"github.com/vajra-wielder/nabu/internal/pictures"
 	"github.com/vajra-wielder/nabu/internal/plan"
 	"github.com/vajra-wielder/nabu/internal/share"
+	"github.com/vajra-wielder/nabu/internal/sysutil"
 	"github.com/vajra-wielder/nabu/internal/update"
 	"github.com/vajra-wielder/nabu/internal/wikitext"
 )
@@ -408,5 +410,123 @@ func cmdPlan(args []string) error {
 	fmt.Printf("A %d GB drive:\n\n%s\n", o.sizeGB, p)
 	fmt.Printf("Room set aside for pictures: %d GB (Updates & settings), longest articles first.\n", p.PictureLimit/1e9)
 	fmt.Printf("Free after all that: %.1f GB.\n", float64(int64(o.sizeGB)*1e9-p.Total())/1e9)
+	return nil
+}
+
+// makeRoom frees room on the drive for a new edition of wiki: when there
+// is not enough, older editions of that wiki are removed, oldest first
+// (a 125 GB drive keeps no room spare for a second English). The wiki
+// cannot be read from then until the new edition is in place.
+func makeRoom(lib *library.Library, wiki string, need int64) error {
+	free := func() int64 {
+		n, err := sysutil.FreeSpace(lib.Dir)
+		if err != nil {
+			return need // cannot tell: try
+		}
+		return n
+	}
+	if free() >= need {
+		return nil
+	}
+	var old []*library.Book
+	for _, b := range lib.Books() {
+		if b.Files.DB == wiki {
+			old = append(old, b)
+		}
+	}
+	sort.Slice(old, func(i, j int) bool { return old[i].Files.Date < old[j].Files.Date })
+	for _, b := range old {
+		if err := lib.Remove(b.ID); err != nil {
+			return fmt.Errorf("making room for the new %s: %w", wiki, err)
+		}
+		if free() >= need {
+			return nil
+		}
+	}
+	return fmt.Errorf("not enough space on the drive: %s needed, %s free", update.HumanBytes(need), update.HumanBytes(free()))
+}
+
+// cmdSlim leaves the pages NABU never shows out of the dumps on the drive.
+func cmdSlim(args []string) error {
+	o, fs, err := parse("slim", args)
+	if err != nil {
+		return err
+	}
+	d := findDrive(o)
+	want := map[string]bool{}
+	for _, a := range fs.Args() {
+		want[wikiArg(a)] = true
+	}
+	eds, _ := dump.Scan(d.Wikipedia)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	for _, f := range eds {
+		if len(want) > 0 && !want[f.DB] {
+			continue
+		}
+		need, err := dump.NeedsSlim(f)
+		if err != nil {
+			return fmt.Errorf("%s: %w", f.Key(), err)
+		}
+		if !need {
+			fmt.Printf("%s: already without the pages NABU never shows\n", f.Key())
+			continue
+		}
+		// Written next to the original when the drive has room, else on
+		// this computer and then copied over the original.
+		room := f.Size*9/10 + 64<<20
+		dir := d.Wikipedia
+		if free, err := sysutil.FreeSpace(dir); err == nil && free < room {
+			dir = filepath.Join(update.ComputerIncoming(), "slim-"+f.Key())
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return err
+			}
+			defer os.RemoveAll(dir)
+			if free, err := sysutil.FreeSpace(dir); err == nil && free < room {
+				return fmt.Errorf("%s: needs %s free on the drive or on this computer", f.Key(), update.HumanBytes(room))
+			}
+		}
+		fmt.Printf("%s: leaving out the pages NABU never shows (%s)…\n", f.Key(), update.HumanBytes(f.Size))
+		remove := func() error {
+			for _, p := range f.Pairs {
+				for _, x := range append(append([]string{}, p.Data...), p.Index) {
+					if err := os.Remove(x); err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		}
+		last := time.Now()
+		res, err := dump.Slim(f, dir, dump.SlimOptions{PartSize: update.PartSize, Stop: ctx.Done(),
+			Progress: func(done, total int64) {
+				if time.Since(last) > 2*time.Second {
+					last = time.Now()
+					fmt.Printf("\r  %.1f%%", 100*float64(done)/float64(total))
+				}
+			}}, func() error {
+			if dir == d.Wikipedia {
+				return remove()
+			}
+			return nil
+		})
+		fmt.Print("\r        \r")
+		if err != nil {
+			return fmt.Errorf("%s: %w (the dump is unchanged)", f.Key(), err)
+		}
+		if dir != d.Wikipedia {
+			if err := remove(); err != nil {
+				return err
+			}
+			ents, _ := os.ReadDir(dir)
+			for _, e := range ents {
+				if err := update.CopyFile(filepath.Join(dir, e.Name()), filepath.Join(d.Wikipedia, e.Name())); err != nil {
+					return fmt.Errorf("copying %s to the drive: %w", e.Name(), err)
+				}
+			}
+		}
+		fmt.Printf("%s: %s to %s; %d of %d pages kept. Its indexes are rebuilt when NABU next starts.\n",
+			f.Key(), update.HumanBytes(res.Before), update.HumanBytes(res.After), res.Kept, res.Pages)
+	}
 	return nil
 }

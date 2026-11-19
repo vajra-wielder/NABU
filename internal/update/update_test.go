@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/vajra-wielder/nabu/internal/drive"
+	"github.com/vajra-wielder/nabu/internal/dump"
 )
 
 // Trimmed from a real dumps.wikimedia.org/simplewiki/20261101/dumpstatus.json.
@@ -101,6 +102,7 @@ func TestLatestAndDownload(t *testing.T) {
 	}
 	dir := t.TempDir()
 	m := NewManager(drive.ForLibrary(dir), srv.Client())
+	m.Computer = "" // on the drive, as on a computer without room
 	m.RetryDelay = 10 * time.Millisecond
 	done := make(chan struct{})
 	m.OnFinish = func(*Release) { close(done) }
@@ -150,6 +152,7 @@ func TestCorruptDownloadRejected(t *testing.T) {
 	}
 	dir := t.TempDir()
 	m := NewManager(drive.ForLibrary(dir), srv.Client())
+	m.Computer = t.TempDir()
 	m.Start(rel)
 	deadline := time.Now().Add(10 * time.Second)
 	for m.Busy() && time.Now().Before(deadline) {
@@ -186,5 +189,55 @@ func TestLanguagesAndBytes(t *testing.T) {
 		if got := HumanBytes(n); got != want {
 			t.Errorf("%d: %s want %s", n, got, want)
 		}
+	}
+}
+
+// A real dump downloads to the computer and arrives on the drive without
+// the pages NABU never shows; nothing is left on the computer.
+func TestDownloadToComputerAndSlim(t *testing.T) {
+	data, _ := os.ReadFile("../../testdata/testwiki-20261101-pages-articles-multistream.xml.bz2")
+	index, _ := os.ReadFile("../../testdata/testwiki-20261101-pages-articles-multistream-index.txt.bz2")
+	srv, _ := fakeWikimedia(t, data, index, 1<<30, false)
+	defer srv.Close()
+	rel, err := Latest(context.Background(), srv.Client(), srv.URL, "xxwiki")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, computer := t.TempDir(), t.TempDir()
+	m := NewManager(drive.ForLibrary(dir), srv.Client())
+	m.Computer = computer
+	var asked int64
+	m.MakeRoom = func(wiki string, need int64) error { asked = need; return nil }
+	done := make(chan struct{})
+	m.OnFinish = func(*Release) { close(done) }
+	if err := m.Start(rel); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatalf("timeout: %+v", m.Status())
+	}
+	for m.Busy() {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if st := m.Status(); st.State != StateDone || st.Error != "" {
+		t.Fatalf("status %+v", st)
+	}
+	if asked == 0 {
+		t.Error("room on the drive was not asked for")
+	}
+	eds, _ := dump.Scan(dir)
+	if len(eds) != 1 || eds[0].Size >= int64(len(data)+len(index)) {
+		t.Fatalf("on the drive: %+v", eds)
+	}
+	if need, err := dump.NeedsSlim(eds[0]); err != nil || need {
+		t.Fatalf("not slimmed: %v %v", need, err)
+	}
+	if ents, _ := os.ReadDir(computer); len(ents) != 0 {
+		t.Fatalf("left on the computer: %v", ents)
+	}
+	if ents, _ := os.ReadDir(filepath.Join(dir, "..", ".work")); len(ents) > 1 {
+		t.Fatalf("left in the drive's work folder: %v", ents)
 	}
 }

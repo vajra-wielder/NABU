@@ -64,6 +64,8 @@ func main() {
 			err = cmdCopy(rest)
 		case "plan":
 			err = cmdPlan(rest)
+		case "slim":
+			err = cmdSlim(rest)
 		case "version":
 			fmt.Printf("NABU %s (%s/%s, %s)\n", version, runtime.GOOS, runtime.GOARCH, runtime.Version())
 		case "about-folders": // used by scripts/build.sh
@@ -113,6 +115,10 @@ func usage() {
                            filled: English with search inside articles and
                            main pictures, plus <wiki> showing English's
                            pictures, and room for English's next update
+  nabu slim [<wiki>...]    leave out of the dumps the pages NABU never shows
+                           (project discussions, templates, drafts): about
+                           20% of English Wikipedia. New downloads get this
+                           by themselves.
   nabu info                list the dumps in the library
   nabu version             print the version
 
@@ -249,6 +255,7 @@ func cmdServe(args []string) error {
 	checker.Load()
 	dl := update.NewManager(d, client)
 	dl.OnFinish = func(*update.Release) { lib.Rescan() }
+	dl.MakeRoom = func(wiki string, need int64) error { return makeRoom(lib, wiki, need) }
 
 	srv, err := server.New(lib, checker, dl)
 	if err != nil {

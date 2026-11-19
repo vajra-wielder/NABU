@@ -9,12 +9,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -37,7 +39,7 @@ const (
 	blockSize  = 64
 	trailerLen = 5*8 + 8
 	// IndexVersion changes whenever the format does, forcing a rebuild.
-	IndexVersion = 1
+	IndexVersion = 2 // 2: titles with &amp; and the like decoded
 )
 
 type record struct {
@@ -149,6 +151,9 @@ func Build(f *Files, out, tmpDir string, memBudget int, progress Progress) (err 
 				continue
 			}
 			title := string(line[c1+2+c2:])
+			if strings.IndexByte(title, '&') >= 0 {
+				title = html.UnescapeString(title) // "R&amp;B" in the index file
+			}
 			if site == nil {
 				site, err = SiteinfoFromDump(data, off)
 				if err != nil {
