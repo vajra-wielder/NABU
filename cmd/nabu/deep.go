@@ -20,6 +20,7 @@ import (
 	"github.com/vajra-wielder/nabu/internal/fulltext"
 	"github.com/vajra-wielder/nabu/internal/library"
 	"github.com/vajra-wielder/nabu/internal/pictures"
+	"github.com/vajra-wielder/nabu/internal/plan"
 	"github.com/vajra-wielder/nabu/internal/share"
 	"github.com/vajra-wielder/nabu/internal/update"
 	"github.com/vajra-wielder/nabu/internal/wikitext"
@@ -388,4 +389,24 @@ func max64(a, b int64) int64 {
 		return a
 	}
 	return b
+}
+
+func cmdPlan(args []string) error {
+	o, fs, err := parse("plan", args)
+	if err != nil {
+		return err
+	}
+	second := ""
+	if fs.NArg() > 0 {
+		w, ok := plan.Find(fs.Arg(0))
+		if !ok {
+			return fmt.Errorf("unknown Wikipedia %q", fs.Arg(0))
+		}
+		second = w.DB
+	}
+	p := plan.Default(second, int64(o.sizeGB)*1e9)
+	fmt.Printf("A %d GB drive:\n\n%s\n", o.sizeGB, p)
+	fmt.Printf("Room set aside for pictures: %d GB (Updates & settings), longest articles first.\n", p.PictureLimit/1e9)
+	fmt.Printf("Free after all that: %.1f GB.\n", float64(int64(o.sizeGB)*1e9-p.Total())/1e9)
+	return nil
 }

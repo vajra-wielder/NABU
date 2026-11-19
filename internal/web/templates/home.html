@@ -57,12 +57,12 @@
       {{if $.Local}}<p class="picbtns">
       {{if or (eq .Pics.State "running") (eq .Pics.State "queued")}}
         <a href="#" data-action="pictures-pause" data-wiki="{{.Files.DB}}">Pause</a>
-      {{else if eq .Pics.State "paused"}}
+      {{else if or (eq .Pics.State "paused") (eq .Pics.State "full")}}
         <a href="#" data-action="pictures-start" data-wiki="{{.Files.DB}}" data-mode="{{.Pics.Mode}}">Resume</a> ·
         <a href="#" data-action="pictures-remove" data-wiki="{{.Files.DB}}" data-confirm="Delete the {{count (int64 .Pics.Pictures)}} pictures of {{.Name}} from the drive?">Delete pictures</a>
       {{else}}
-        {{if ne .Pics.Mode "all"}}{{if ne .Pics.State "done"}}<a href="#" data-action="pictures-start" data-wiki="{{.Files.DB}}" data-mode="lead" data-confirm="Keep the main picture of each article of {{.Name}} on the drive, for reading offline? About {{bytes .Lead.Bytes}} and {{hours .Lead.Hours}} of downloading, in the background; it pauses and resumes by itself.">Keep main pictures</a> <span class="muted">(about {{bytes .Lead.Bytes}})</span> · {{end}}
-        <a href="#" data-action="pictures-start" data-wiki="{{.Files.DB}}" data-mode="all" data-confirm="Keep every picture of {{.Name}} on the drive, for reading offline? About {{bytes .All.Bytes}} and {{hours .All.Hours}} of downloading, in the background; it pauses and resumes by itself.">Keep all pictures</a> <span class="muted">(about {{bytes .All.Bytes}})</span>{{end}}
+        {{if ne .Pics.Mode "all"}}{{if ne .Pics.State "done"}}<a href="#" data-action="pictures-start" data-wiki="{{.Files.DB}}" data-mode="lead" data-confirm="Keep the main picture of each article of {{.Name}} on the drive, for reading offline?{{if .Pics.English}} Only those English does not already have.{{end}} About {{bytes .Lead.Bytes}} and {{hours .Lead.Hours}} of downloading, in the background, longest articles first, until pictures take the room set aside for them; it pauses and resumes by itself.">{{if .Pics.English}}Also keep its own main pictures{{else}}Keep main pictures{{end}}</a> <span class="muted">(about {{bytes .Lead.Bytes}})</span> · {{end}}
+        <a href="#" data-action="pictures-start" data-wiki="{{.Files.DB}}" data-mode="all" data-confirm="Keep every picture of {{.Name}} on the drive, for reading offline?{{if .Pics.English}} Only those English does not already have.{{end}} About {{bytes .All.Bytes}} and {{hours .All.Hours}} of downloading, in the background, longest articles first, until pictures take the room set aside for them; it pauses and resumes by itself.">{{if .Pics.English}}all of them{{else}}Keep all pictures{{end}}</a> <span class="muted">(about {{bytes .All.Bytes}})</span>{{end}}
         {{if .Pics.Pictures}} · <a href="#" data-action="pictures-remove" data-wiki="{{.Files.DB}}" data-confirm="Delete the {{count (int64 .Pics.Pictures)}} pictures of {{.Name}} from the drive?">Delete pictures</a>{{end}}
       {{end}}</p>{{end}}
     </div>

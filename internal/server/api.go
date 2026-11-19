@@ -62,6 +62,7 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		AutoDownload *bool         `json:"auto_download"`
 		Pictures     *bool         `json:"pictures"`
 		KeepPictures *bool         `json:"keep_pictures"`
+		PictureLimit *int          `json:"picture_limit_gb"`
 		Mode         string        `json:"mode"`
 		To           string        `json:"to"`
 		Copy         share.Options `json:"copy"`
@@ -142,6 +143,12 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		if body.KeepPictures != nil {
 			st.KeepPictures = *body.KeepPictures
+		}
+		if body.PictureLimit != nil && *body.PictureLimit >= 0 {
+			st.PictureLimitGB = *body.PictureLimit
+			if ps := s.Lib.Pictures(); ps != nil {
+				ps.SetLimit(st.PictureLimit())
+			}
 		}
 		err = update.SaveSettings(s.Lib.Drive.Personal, st)
 		s.settingsMu.Unlock()

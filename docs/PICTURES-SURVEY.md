@@ -53,6 +53,22 @@ Sizes per wiki (on its own, then once English's pictures are kept):
 | Danish | 316,786 | 0.1 M · 4 GB | 0.3 M · 10 GB | 2 GB | 4 GB |
 | **All ten** | | 212 GB | 551 GB | **140 GB** | **350 GB** |
 
+## Kept smaller
+
+NABU recompresses pictures as it keeps them (`internal/pictures/shrink.go`): JPEG photos
+at quality 60, and opaque PNGs at quality 70 when that halves them (photos and painted
+maps stored as PNG; flat drawings do not halve and stay PNG). Measured on 155 real
+pictures kept earlier, this leaves 64% of the bytes (JPEGs alone: 65%); on 23 random
+English main pictures fetched for the purpose, 67%. Estimates use 66%. A check by eye
+of every converted PNG at 250 px showed no visible change except faint smudging near
+small text on maps.
+
+Going down to 120 px would have left 45% but makes pictures too small to make out; a
+lower JPEG quality (50) saved only 2 points more.
+
+Every size in the tables above is as Wikimedia sends pictures. Multiply by 0.66 for what
+NABU keeps: English's main pictures take about 54 GB, every picture of English 119 GB.
+
 ## How sure
 
 - Article samples are a few thousand per wiki, so the shares are within a few percent.

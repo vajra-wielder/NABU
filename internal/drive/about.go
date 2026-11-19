@@ -30,7 +30,7 @@ var Parts = []Part{
 		LeaveOut: "nothing to read."},
 	{Folder: Indexes, Name: "Title indexes", About: "NABU's sorted list of the titles of each Wikipedia, about 2-3% of the dump's size.",
 		LeaveOut: "nothing: NABU rebuilds them the first time it starts (minutes for small languages, up to about 15 for English)."},
-	{Folder: Search, Name: "Search inside articles", About: "An index of every word of every article, about 20% of the dump's size, built on request.",
+	{Folder: Search, Name: "Search inside articles", About: "An index of every word of every article, about 12% of the dump's size, built on request. Little words (\"the\", \"can\", \"they\") are left out.",
 		LeaveOut: "search finds titles only; it can be built again from the search page."},
 	{Folder: Pictures, Name: "Pictures", About: "Wikipedia's pictures, kept for reading offline: one folder per language.",
 		LeaveOut: "pictures show only when the computer is online; offline, a labelled frame shows where each one goes."},

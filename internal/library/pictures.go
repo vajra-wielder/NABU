@@ -20,6 +20,7 @@ const (
 	PicPaused  = "paused"
 	PicDone    = "done"
 	PicFailed  = "failed"
+	PicFull    = "full" // stopped at the space limit for pictures
 )
 
 type picJobs struct {
@@ -51,6 +52,9 @@ type PicStatus struct {
 	SBytes   int64
 	ETA      time.Duration
 	PerHour  int
+	English  bool  // shows English's pictures and keeps none of its own
+	Used     int64 // room all pictures take
+	Limit    int64 // room they may take (0: no limit)
 }
 
 // Pictures is the pictures service (nil if not connected).
@@ -72,6 +76,8 @@ func (l *Library) PictureStatus(db string) PicStatus {
 		stats := st.Stats()
 		s.Shared, s.SBytes = stats.Pictures, stats.Bytes
 	}
+	s.Used, s.Limit = l.pics.Used(), l.pics.Limit()
+	s.English = l.UsesEnglishPictures(db)
 	j, _ := pictures.LoadJob(l.picDir(db))
 	l.pj.mu.Lock()
 	ps := l.pj.state[db]
@@ -84,23 +90,49 @@ func (l *Library) PictureStatus(db string) PicStatus {
 	}
 	l.pj.mu.Unlock()
 	if j != nil {
-		s.Mode, s.Done, s.Total = j.Mode, j.Stream, j.Streams
+		// Every pass goes through the whole dump (pictures.Tiers).
+		s.Mode, s.Done, s.Total = j.Mode, j.Pass*j.Streams+j.Stream, len(pictures.Tiers)*j.Streams
+		if j.Done {
+			s.Done = s.Total
+		}
 		if s.State == PicNone {
 			switch {
 			case j.Done:
 				s.State = PicDone
+			case s.Limit > 0 && s.Used >= s.Limit:
+				s.State = PicFull
 			default:
 				s.State = PicPaused
 			}
 		}
-		if j.Seconds > 60 && j.Stream > 0 {
+		if j.Seconds > 60 && s.Done > 0 {
 			s.PerHour = int(float64(j.Fetched) / j.Seconds * 3600)
-			if j.Streams > j.Stream {
-				s.ETA = time.Duration(j.Seconds/float64(j.Stream)*float64(j.Streams-j.Stream)) * time.Second
+			if s.Total > s.Done {
+				s.ETA = time.Duration(j.Seconds/float64(s.Done)*float64(s.Total-s.Done)) * time.Second
 			}
 		}
 	}
 	return s
+}
+
+// EnglishDB is English Wikipedia (a variable so tests can stand in for it).
+var EnglishDB = "enwiki"
+
+// UsesEnglishPictures reports whether a wiki only shows the pictures
+// English keeps: the default for every other language when English is
+// on the drive. Most pictures are the same files in every language, so
+// it shows most of its pictures for no extra room. It keeps pictures of
+// its own only once asked to (StartPictures).
+func (l *Library) UsesEnglishPictures(db string) bool {
+	if db == EnglishDB || l.newest(EnglishDB) == nil {
+		return false
+	}
+	if l.pics != nil {
+		if _, err := pictures.LoadJob(l.picDir(db)); err == nil {
+			return false
+		}
+	}
+	return true
 }
 
 // newest is the newest ready book of a wiki.
@@ -126,6 +158,9 @@ func (l *Library) StartPictures(db, mode string) error {
 	b := l.newest(db)
 	if b == nil {
 		return errors.New("this Wikipedia is not ready yet")
+	}
+	if l.pics.Full() {
+		return fmt.Errorf("pictures already take %s, the room set aside for them; raise the limit in Updates & settings", humanGB(l.pics.Limit()))
 	}
 	dir := l.picDir(db)
 	j, _ := pictures.LoadJob(dir)
@@ -228,6 +263,8 @@ func (l *Library) picWorker() {
 				ps.state = PicDone
 			case errors.Is(err, context.Canceled):
 				delete(l.pj.state, db)
+			case errors.Is(err, pictures.ErrFull):
+				ps.state = PicFull
 			default:
 				ps.state, ps.err = PicFailed, err.Error()
 			}
@@ -264,10 +301,10 @@ func (l *Library) runPictures(ctx context.Context, db string) error {
 		}
 	}
 	rd := b.Reader()
-	err = pictures.Run(ctx, j, rd, st, l.pics.Fetch, rd.Site().Host(), l.pics.Busy, func(p pictures.Progress) {
+	err = pictures.Run(ctx, j, rd, st, l.pics.Fetch, rd.Site().Host(), l.pics.Busy, l.pics.Full, func(p pictures.Progress) {
 		l.picReport(db, p)
 	})
-	if err != nil && !errors.Is(err, context.Canceled) {
+	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, pictures.ErrFull) {
 		return fmt.Errorf("pictures: %w", err)
 	}
 	return err
@@ -295,8 +332,10 @@ func (l *Library) autoPictures(b *Book) {
 	if err != nil || j.Paused || (j.Done && j.Dump == b.Files.Key()) {
 		return
 	}
-	if _, err := os.Stat(l.picDir(b.Files.DB)); err != nil {
+	if _, err := os.Stat(l.picDir(b.Files.DB)); err != nil || l.pics.Full() {
 		return
 	}
 	l.StartPictures(b.Files.DB, j.Mode)
 }
+
+func humanGB(n int64) string { return fmt.Sprintf("%.0f GB", float64(n)/1e9) }

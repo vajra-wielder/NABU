@@ -17,11 +17,28 @@ type Settings struct {
 	Pictures     bool `json:"pictures"`       // load pictures from Wikimedia when online
 	History      bool `json:"history"`        // remember articles read on this computer
 	KeepPictures bool `json:"keep_pictures"`  // keep pictures seen online, for reading offline
+
+	// PictureLimitGB is the room all pictures together may take (0: no
+	// limit). The default fits a 125 GB drive holding English with search
+	// inside articles, a second language, and room for English's next
+	// update (see internal/plan).
+	PictureLimitGB int `json:"picture_limit_gb"`
+}
+
+// DefaultPictureLimitGB is the default room for pictures.
+const DefaultPictureLimitGB = 55
+
+// PictureLimit is the limit in bytes (0: none).
+func (s Settings) PictureLimit() int64 {
+	if s.PictureLimitGB < 0 {
+		return 0
+	}
+	return int64(s.PictureLimitGB) * 1e9
 }
 
 // DefaultSettings: look for news and show pictures when online, but never
 // start a big download unasked.
-var DefaultSettings = Settings{CheckOnStart: true, Pictures: true, History: true, KeepPictures: true}
+var DefaultSettings = Settings{CheckOnStart: true, Pictures: true, History: true, KeepPictures: true, PictureLimitGB: DefaultPictureLimitGB}
 
 // Checker remembers, per wiki, the newest release seen and when.
 type Checker struct {

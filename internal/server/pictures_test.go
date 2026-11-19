@@ -200,3 +200,92 @@ func call(t *testing.T, s *Server, action, body string) string {
 	}
 	return w.Body.String()
 }
+
+// Another language shows English's pictures and keeps none of its own;
+// keeping pictures stops at the room set aside for them.
+func TestEnglishPicturesAndLimit(t *testing.T) {
+	old := library.EnglishDB
+	library.EnglishDB = "testwiki" // stands in for English
+	defer func() { library.EnglishDB = old }()
+	client, _ := fakeWikimedia(t)
+	var online atomic.Bool
+	online.Store(true)
+	svc := pictures.NewService("", pictures.NewFetcher(client, "NABU/test (https://example.org)"))
+	s := newTestServerWith(t, library.Config{Pictures: svc, Online: online.Load})
+	s.Offline = false
+
+	st := s.Lib.PictureStatus("fawiki")
+	if !st.English || !strings.Contains(picLine(st), "pictures kept for English") {
+		t.Fatalf("fawiki should show English's pictures: %+v %q", st, picLine(st))
+	}
+	if s.Lib.PictureStatus("testwiki").English {
+		t.Fatal("English itself marked as using English's pictures")
+	}
+	// Its own picture, seen online, is shown but not kept.
+	if r, _ := get(s, "/nabu/img/fawiki/Local_cover.png?w=250"); r.StatusCode != 200 {
+		t.Fatalf("online: %d", r.StatusCode)
+	}
+	s.Offline = true
+	online.Store(false)
+	if r, _ := get(s, "/nabu/img/fawiki/Local_cover.png?w=250"); r.StatusCode != 404 {
+		t.Fatalf("a non-English language kept its own picture: %d", r.StatusCode)
+	}
+	s.Offline = false
+	online.Store(true)
+
+	// The limit: a picture kept while reading fills a one-byte limit, and
+	// nothing more is kept or started.
+	svc.SetLimit(1)
+	if r, _ := get(s, "/nabu/img/testwiki/Babylon_map.png?w=250"); r.StatusCode != 200 {
+		t.Fatalf("online: %d", r.StatusCode)
+	}
+	if !svc.Full() {
+		t.Fatalf("used %d of 1", svc.Used())
+	}
+	used := svc.Used()
+	get(s, "/nabu/img/testwiki/Ishtar_Gate.jpg?w=250")
+	if svc.Used() != used {
+		t.Fatal("kept a picture past the limit")
+	}
+	if err := s.Lib.StartPictures("testwiki", pictures.All); err == nil || !strings.Contains(err.Error(), "raise the limit") {
+		t.Fatalf("started past the limit: %v", err)
+	}
+	// Raised in the settings, the download runs to the end.
+	call(t, s, "settings", `{"picture_limit_gb":0}`)
+	if svc.Limit() != 0 {
+		t.Fatal("setting not applied")
+	}
+	if err := s.Lib.StartPictures("testwiki", pictures.All); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) && s.Lib.PictureStatus("testwiki").State != library.PicDone {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if st := s.Lib.PictureStatus("testwiki"); st.State != library.PicDone || st.Done != st.Total {
+		t.Fatalf("after raising the limit: %+v", st)
+	}
+	// A job that stopped at the limit says so.
+	svc.SetLimit(1)
+	j, _ := pictures.LoadJob(filepath.Join(svc.Dir, "testwiki"))
+	j.Done = false
+	j.Save(filepath.Join(svc.Dir, "testwiki"))
+	// (as NABU finds it when it next starts)
+	again, err := library.OpenDrive(s.Lib.Drive, library.Config{Pictures: pictures.NewService(svc.Dir, svc.Fetch)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	again.Pictures().SetLimit(1)
+	if st := again.PictureStatus("testwiki"); st.State != library.PicFull || !strings.Contains(picLine(st), "filled the room") {
+		t.Fatalf("full: %+v %q", st, picLine(st))
+	}
+	again.Close()
+	svc.SetLimit(0)
+	// Asked to, the other language keeps its own pictures too.
+	if err := s.Lib.StartPictures("fawiki", pictures.Lead); err != nil {
+		t.Fatal(err)
+	}
+	if s.Lib.PictureStatus("fawiki").English {
+		t.Fatal("still English-only after choosing its own pictures")
+	}
+}

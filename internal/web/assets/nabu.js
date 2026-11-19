@@ -188,7 +188,9 @@
   for (var i = 0; i < switches.length; i++) {
     switches[i].addEventListener('change', function (ev) {
       var body = {};
-      body[ev.target.getAttribute('data-setting')] = ev.target.checked;
+      var v = ev.target.type === 'number' ? parseInt(ev.target.value, 10) : ev.target.checked;
+      if (v !== v || v < 0) return; // not a number
+      body[ev.target.getAttribute('data-setting')] = v;
       post('settings', body);
     });
   }

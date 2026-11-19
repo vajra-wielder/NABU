@@ -64,7 +64,10 @@ func (s *Server) servePicture(w http.ResponseWriter, r *http.Request) {
 	st := s.settings()
 	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 	defer cancel()
-	data, err := ps.Get(ctx, db, host, name, st.Pictures && !s.Offline, st.KeepPictures)
+	// A language showing English's pictures keeps none of its own unless
+	// asked to: seen online, they are shown but not kept.
+	keep := st.KeepPictures && !s.Lib.UsesEnglishPictures(db)
+	data, err := ps.Get(ctx, db, host, name, st.Pictures && !s.Offline, keep)
 	if err != nil {
 		w.Header().Set("Cache-Control", "no-store")
 		http.NotFound(w, r)
@@ -83,6 +86,9 @@ func picLine(p library.PicStatus) string {
 		s := count64(int64(n)) + " pictures, " + update.HumanBytes(b)
 		if p.Shared > 0 {
 			s += " (shared by all languages, plus this one's own)"
+		}
+		if p.Limit > 0 {
+			s += " · all pictures: " + decimalGB(p.Used) + " of " + decimalGB(p.Limit) + " set aside"
 		}
 		return s
 	}
@@ -116,11 +122,30 @@ func picLine(p library.PicStatus) string {
 		return "Pictures for reading offline ✓ " + kept() + " (" + what + ")"
 	case library.PicFailed:
 		return "Keeping pictures stopped: " + p.Err
+	case library.PicFull:
+		return "Pictures filled the room set aside for them: " + kept() +
+			". The longest articles have theirs; raise the limit in Updates & settings to keep more."
+	}
+	if p.English {
+		s := "Shows the pictures kept for English Wikipedia, most of which are the same files in every language"
+		if p.Shared > 0 {
+			s += " (" + count64(int64(p.Shared)) + " on the drive)"
+		}
+		return s + ". Pictures only this language has show when the computer is online."
 	}
 	if p.Pictures+p.Shared > 0 {
 		return "Pictures on the drive: " + kept()
 	}
 	return "Pictures show when the computer is online."
+}
+
+// decimalGB writes sizes the way the picture limit is set: in GB of
+// 1,000,000,000 bytes, as drives are sold.
+func decimalGB(n int64) string {
+	if n < 1e9 {
+		return strconv.FormatFloat(float64(n)/1e6, 'f', 1, 64) + " MB"
+	}
+	return strconv.FormatFloat(float64(n)/1e9, 'f', 1, 64) + " GB"
 }
 
 func count64(n int64) string {
@@ -150,6 +175,7 @@ func (s *Server) englishPicturesKept() bool {
 	if ps == nil {
 		return false
 	}
-	j, err := pictures.LoadJob(filepath.Join(ps.Dir, "enwiki"))
-	return err == nil && j.Done
+	// Once English keeps its pictures, the others need only theirs.
+	_, err := pictures.LoadJob(filepath.Join(ps.Dir, library.EnglishDB))
+	return err == nil
 }

@@ -59,6 +59,7 @@
 <label class="switch"><input type="checkbox" data-setting="check_on_start"{{if .Settings.CheckOnStart}} checked{{end}}> Ask Wikimedia for newer dumps each time NABU starts</label>
 <label class="switch"><input type="checkbox" data-setting="auto_download"{{if .Settings.AutoDownload}} checked{{end}}> Download newer dumps of my Wikipedias automatically (only when they fit on the drive)</label>
 <label class="switch"><input type="checkbox" data-setting="pictures"{{if .Settings.Pictures}} checked{{end}}> Load pictures from Wikimedia when this computer is online (dumps contain text only; pictures kept on the drive always show)</label>
-<label class="switch"><input type="checkbox" data-setting="keep_pictures"{{if .Settings.KeepPictures}} checked{{end}}> Keep the pictures I see while online on the drive, so they show offline too (about 20 KB each)</label>
+<label class="switch"><input type="checkbox" data-setting="keep_pictures"{{if .Settings.KeepPictures}} checked{{end}}> Keep the pictures I see while online on the drive, so they show offline too (about 15 KB each)</label>
+<label class="switch">Pictures may take up to <input type="number" min="0" step="5" style="width:5em" data-setting="picture_limit_gb" value="{{.Settings.PictureLimitGB}}"> GB of the drive (0: no limit). Keeping pictures stops there; longer articles get theirs first.</label>
 {{else}}<p class="muted">Settings can be changed on the computer running NABU.</p>{{end}}
 {{template "foot" .}}{{end}}

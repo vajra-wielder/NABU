@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,11 +25,16 @@ import (
 // File layout of a full-text index (".nfts"):
 //
 //	"NABUFTS1"
-//	postings    per term: doc-number deltas (uvarint) each followed by
-//	            the term's count in that article (one byte, capped)
-//	dictionary  terms in byte order, 128 per block, front-coded, each
-//	            with document count, postings offset and length
-//	docs        per article: stream, page id, title (128 per block)
+//	postings    per term, one uvarint per article: the doc-number delta
+//	            shifted left 2, with the term's weight in that article
+//	            (tfBucket) in the low 2 bits
+//	dictionary  terms in byte order, 128 per block; a block starts with
+//	            the postings offset of its first term, then each term
+//	            front-coded with its document count and postings length
+//	            (postings follow one another, so offsets need not be kept)
+//	docs        per article: stream and page id (as differences from the
+//	            previous article, absolute at the start of each block of
+//	            128), title
 //	geo         articles with coordinates: doc, latitude, longitude
 //	meta        JSON
 //	trailer     section offsets, "NABUEND2"
@@ -38,7 +44,7 @@ const (
 	dictBlock     = 128
 	docBlock      = 128
 	ftsTrailer    = 7*8 + 8
-	FormatVersion = 1
+	FormatVersion = 2
 )
 
 // Meta describes a full-text index.
@@ -47,7 +53,9 @@ type Meta struct {
 	Docs      int           `json:"docs"`
 	Terms     int           `json:"terms"`
 	Geo       int           `json:"geo"`
-	Stopwords []string      `json:"stopwords"` // in more than half the articles: not indexed
+	Lang      string        `json:"lang"`
+	Stopwords []string      `json:"stopwords"` // the language's little words, and any word in over 40% of articles: not indexed
+	Postings  int64         `json:"postings"`
 	Sources   []dump.Source `json:"sources"`
 	Built     time.Time     `json:"built"`
 	Seconds   float64       `json:"seconds"`
@@ -112,6 +120,11 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 	b.docs = bufio.NewWriterSize(docsTmp, 1<<20)
 
 	site := rd.Site()
+	lang := Lang(rd.Files.DB, site)
+	stop := map[string]bool{}
+	for _, w := range Stopwords(lang) {
+		stop[w] = true
+	}
 	total := rd.Index.StreamCount()
 	jobs := make(chan uint32, opt.Workers*2)
 	results := make(chan streamResult, opt.Workers*2)
@@ -121,7 +134,7 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 		go func() {
 			defer wg.Done()
 			for s := range jobs {
-				results <- scanStream(rd, site, s)
+				results <- scanStream(rd, site, s, stop)
 			}
 		}()
 	}
@@ -178,7 +191,7 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 	if err := b.docs.Flush(); err != nil {
 		return err
 	}
-	meta := &Meta{Version: FormatVersion, Docs: int(b.ndocs), Geo: len(b.geo), Sources: dump.SourcesOf(rd.Files), Built: time.Now().UTC()}
+	meta := &Meta{Version: FormatVersion, Lang: lang, Stopwords: Stopwords(lang), Docs: int(b.ndocs), Geo: len(b.geo), Sources: dump.SourcesOf(rd.Files), Built: time.Now().UTC()}
 	tmpOut := out + ".tmp"
 	if err := b.write(tmpOut, docsTmp, meta, start); err != nil {
 		os.Remove(tmpOut)
@@ -193,7 +206,15 @@ type streamResult struct {
 	err    error
 }
 
-func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32) streamResult {
+// Lang is the language of a wiki, for its list of little words.
+func Lang(db string, site *dump.Siteinfo) string {
+	if site != nil && site.Lang != "" && !strings.HasPrefix(db, "simple") {
+		return site.Lang
+	}
+	return strings.TrimSuffix(db, "wiki")
+}
+
+func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, stop map[string]bool) streamResult {
 	pages, err := rd.StreamPages(s)
 	if err != nil {
 		return streamResult{stream: s, err: err}
@@ -204,8 +225,15 @@ func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32) streamResult {
 			continue
 		}
 		counts := map[string]int{}
-		Tokenize(p.Title, func(t string) { counts[t] += 3 }) // title words weigh more
-		Tokenize(wikitext.PlainText(p.Text, site), func(t string) { counts[t]++ })
+		add := func(w int) func(string) {
+			return func(t string) {
+				if !stop[t] && !junk(t) {
+					counts[t] += w
+				}
+			}
+		}
+		Tokenize(p.Title, add(3)) // title words weigh more
+		Tokenize(wikitext.PlainText(p.Text, site), add(1))
 		d := docOut{stream: s, pageID: p.ID, title: p.Title, terms: make([]termTF, 0, len(counts))}
 		for t, c := range counts {
 			if c > 255 {
@@ -237,6 +265,9 @@ type ftsBuilder struct {
 	docOffs []uint64 // offset in docs temp file of every docBlock-th doc
 	docPos  uint64
 	geo     []geoRec
+
+	lastStream uint32 // previous article in the block
+	lastID     uint64
 }
 
 func (b *ftsBuilder) addStream(docs []docOut) error {
@@ -246,11 +277,13 @@ func (b *ftsBuilder) addStream(docs []docOut) error {
 		b.ndocs++
 		if doc%docBlock == 0 {
 			b.docOffs = append(b.docOffs, b.docPos)
+			b.lastStream, b.lastID = 0, 0
 		}
-		n := binary.PutUvarint(tmp[:], uint64(d.stream))
+		n := binary.PutUvarint(tmp[:], uint64(d.stream-b.lastStream))
 		b.docs.Write(tmp[:n])
 		b.docPos += uint64(n)
-		n = binary.PutUvarint(tmp[:], d.pageID)
+		n = binary.PutVarint(tmp[:], int64(d.pageID-b.lastID))
+		b.lastStream, b.lastID = d.stream, d.pageID
 		b.docs.Write(tmp[:n])
 		b.docPos += uint64(n)
 		n = binary.PutUvarint(tmp[:], uint64(len(d.title)))
@@ -408,7 +441,7 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 		off, size uint64
 	}
 	var dict []dictEntry
-	half := uint32(meta.Docs / 2)
+	common := uint32(meta.Docs * 2 / 5)
 	var docs []posting
 	for h.Len() > 0 {
 		term := h[0].term
@@ -435,21 +468,17 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 				heap.Pop(&h)
 			}
 		}
-		if meta.Docs >= 1000 && uint32(len(docs)) > half {
+		if meta.Docs >= 1000 && uint32(len(docs)) > common {
 			meta.Stopwords = append(meta.Stopwords, term)
 			continue
 		}
 		off := pos
 		last := uint32(0)
-		for i, p := range docs {
-			if i == 0 {
-				uv(uint64(p.doc))
-			} else {
-				uv(uint64(p.doc - last))
-			}
-			write([]byte{p.tf})
+		for _, p := range docs {
+			uv(uint64(p.doc-last)<<2 | uint64(tfBucket(p.tf)))
 			last = p.doc
 		}
+		meta.Postings += int64(len(docs))
 		dict = append(dict, dictEntry{term, uint32(len(docs)), uint64(off), uint64(pos - off)})
 	}
 	meta.Terms = len(dict)
@@ -464,13 +493,13 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 			blockOffs = append(blockOffs, pos)
 			blockFirst = append(blockFirst, e.term)
 			prev = ""
+			uv(e.off)
 		}
 		shared := commonPrefix(prev, e.term)
 		uv(uint64(shared))
 		uv(uint64(len(e.term) - shared))
 		write([]byte(e.term[shared:]))
 		uv(uint64(e.df))
-		uv(e.off)
 		uv(e.size)
 		prev = e.term
 	}
@@ -527,6 +556,24 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 	}
 	return f.Sync()
 }
+
+// A term's count in an article is kept as one of four weights: once,
+// twice, a few times (or in the title), often. Ranking hardly changes,
+// and each article in a term's list takes one byte instead of two.
+func tfBucket(tf uint8) uint8 {
+	switch {
+	case tf <= 1:
+		return 0
+	case tf == 2:
+		return 1
+	case tf <= 5:
+		return 2
+	default:
+		return 3
+	}
+}
+
+var bucketTF = [4]uint8{1, 2, 4, 8}
 
 func commonPrefix(a, b string) int {
 	n := len(a)

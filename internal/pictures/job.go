@@ -29,6 +29,7 @@ const (
 type Job struct {
 	Mode    string    `json:"mode"`
 	Dump    string    `json:"dump"`   // the dump being gone through
+	Pass    int       `json:"pass"`   // which length of article (Tiers)
 	Stream  int       `json:"stream"` // next stream (100 pages each)
 	Streams int       `json:"streams"`
 	Done    bool      `json:"done"`
@@ -38,6 +39,25 @@ type Job struct {
 	Started time.Time `json:"started"`
 	Seconds float64   `json:"seconds"` // time spent running
 }
+
+// Tiers: a job goes through the dump three times, longest articles first
+// (by the length of their wikitext), so that when the picture space limit
+// is reached the pictures on the drive are those of the fullest, most
+// read articles, not of whichever came first in the dump. Each pass
+// renders only the articles of its own length, so the passes together
+// cost little more than one.
+var Tiers = []int{20000, 6000, 0}
+
+// inTier reports whether an article of n bytes belongs to pass p.
+func inTier(n, p int) bool {
+	if p >= len(Tiers) {
+		return false
+	}
+	return n >= Tiers[p] && (p == 0 || n < Tiers[p-1])
+}
+
+// ErrFull means the pictures reached the space limit set for them.
+var ErrFull = errors.New("pictures: the space limit for pictures is reached")
 
 // JobPath is where a wiki's job is saved.
 func JobPath(dir string) string { return filepath.Join(dir, "job.json") }
@@ -105,6 +125,9 @@ func (s Stores) Has(name string) bool {
 }
 
 func (s Stores) put(info Info, data []byte) {
+	if data != nil {
+		data = Shrink(data)
+	}
 	if data != nil && info.Shared && s.Shared != nil {
 		s.Shared.Put(info.Name, data)
 		return
@@ -129,18 +152,43 @@ type Progress struct {
 // Busy tells a job to make room for a reader who is looking at pages.
 type Busy func() bool
 
-// Run goes through the dump from j.Stream on, keeping every picture the
-// store does not have yet. It returns when done, stopped (ctx), or on
-// an error that waiting will not cure. Network failures are waited out.
-func Run(ctx context.Context, j *Job, rd *dump.Reader, st Stores, f *Fetcher, host string, busy Busy, report func(Progress)) error {
-	site := rd.Site()
+// Run goes through the dump from where j stopped, keeping every picture
+// the stores do not have yet. It returns when done, stopped (ctx), when
+// full reports the space limit reached (ErrFull), or on an error that
+// waiting will not cure. Network failures are waited out.
+func Run(ctx context.Context, j *Job, rd *dump.Reader, st Stores, f *Fetcher, host string, busy Busy, full func() bool, report func(Progress)) error {
 	j.Streams = rd.Index.StreamCount()
 	if j.Started.IsZero() {
 		j.Started = time.Now()
 	}
-	lead := j.Mode == Lead
 	runStart, runSecs := time.Now(), j.Seconds
 	elapsed := func() float64 { return runSecs + time.Since(runStart).Seconds() }
+	save := func() {
+		j.Seconds = elapsed()
+		j.Save(st.Wiki.Dir)
+		st.Sync()
+	}
+	for j.Pass < len(Tiers) {
+		if err := runPass(ctx, j, rd, st, f, host, busy, full, report, elapsed, save); err != nil {
+			return err
+		}
+		j.Pass++
+		j.Stream = 0
+		save()
+	}
+	j.Done = true
+	save()
+	st.Wiki.Compact()
+	if st.Shared != nil {
+		st.Shared.Compact()
+	}
+	return nil
+}
+
+func runPass(ctx context.Context, j *Job, rd *dump.Reader, st Stores, f *Fetcher, host string, busy Busy, full func() bool, report func(Progress), elapsed func() float64, save func()) error {
+	site := rd.Site()
+	lead := j.Mode == Lead
+	pass := j.Pass
 
 	// Stage 1, on all but one core: read and render streams ahead.
 	type names struct {
@@ -167,7 +215,7 @@ func Run(ctx context.Context, j *Job, rd *dump.Reader, st Stores, f *Fetcher, ho
 				r.err = err
 				seen := map[string]bool{}
 				for _, p := range pages {
-					if p.NS != dump.NSMain || p.Redirect != "" {
+					if p.NS != dump.NSMain || p.Redirect != "" || !inTier(len(p.Text), pass) {
 						continue
 					}
 					for _, n := range PageNames(p.Title, p.Text, site, lead) {
@@ -200,12 +248,6 @@ func Run(ctx context.Context, j *Job, rd *dump.Reader, st Stores, f *Fetcher, ho
 	// Stage 2, in stream order: ask where the pictures are, download them.
 	pending := map[int]names{}
 	lastSave := time.Now()
-	save := func() {
-		j.Seconds = elapsed()
-		j.Save(st.Wiki.Dir)
-		st.Sync()
-		lastSave = time.Now()
-	}
 	for r := range results {
 		pending[r.s] = r
 		for {
@@ -218,6 +260,10 @@ func Run(ctx context.Context, j *Job, rd *dump.Reader, st Stores, f *Fetcher, ho
 				save()
 				return r.err
 			}
+			if len(r.names) > 0 && full != nil && full() {
+				save()
+				return ErrFull
+			}
 			if err := fetchAll(ctx, r.names, st, f, host, busy, func(w string) {
 				report(Progress{Job: *j, Waiting: w})
 			}, j); err != nil {
@@ -229,18 +275,13 @@ func Run(ctx context.Context, j *Job, rd *dump.Reader, st Stores, f *Fetcher, ho
 			report(Progress{Job: *j})
 			if time.Since(lastSave) > 20*time.Second {
 				save()
+				lastSave = time.Now()
 			}
 		}
 	}
 	if ctx.Err() != nil {
 		save()
 		return ctx.Err()
-	}
-	j.Done = true
-	save()
-	st.Wiki.Compact()
-	if st.Shared != nil {
-		st.Shared.Compact()
 	}
 	return nil
 }
@@ -309,7 +350,10 @@ func downloadAll(ctx context.Context, todo []Info, st Stores, f *Fetcher, busy B
 				// The second worker steps aside while someone is reading,
 				// so their pictures come first.
 				for w > 0 && busy != nil && busy() {
-					if !sleep(ctx, time.Second) {
+					mu.Lock()
+					left := next < len(todo)
+					mu.Unlock()
+					if !left || !sleep(ctx, time.Second) {
 						return
 					}
 				}

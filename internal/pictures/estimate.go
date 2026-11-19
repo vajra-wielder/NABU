@@ -68,7 +68,9 @@ func Estimate(wiki string, articles int64, englishKept bool) (lead, all Size) {
 	if ap < lp {
 		ap = lp
 	}
-	lead = Size{Pictures: int64(lp), Bytes: int64(lp * sv.LeadBytes), Hours: lp / PerHour}
-	all = Size{Pictures: int64(ap), Bytes: int64(lp*sv.LeadBytes + (ap-lp)*sv.OtherBytes), Hours: ap / PerHour}
+	// Survey sizes are as Wikimedia sends pictures; NABU keeps them
+	// smaller (Shrink).
+	lead = Size{Pictures: int64(lp), Bytes: int64(lp * sv.LeadBytes * ShrinkFactor), Hours: lp / PerHour}
+	all = Size{Pictures: int64(ap), Bytes: int64((lp*sv.LeadBytes + (ap-lp)*sv.OtherBytes) * ShrinkFactor), Hours: ap / PerHour}
 	return lead, all
 }

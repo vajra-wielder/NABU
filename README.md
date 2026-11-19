@@ -179,7 +179,7 @@ NABU/
 │   └── linux/                    NABU for Linux, Chromebooks, Raspberry Pi       40 MB
 ├── wikipedia/                    the dumps, two files per language   (needed)
 ├── indexes/                      title indexes, 2–3% of the dumps
-├── search/                       search inside articles, ~20% of the dumps
+├── search/                       search inside articles, ~12% of the dumps
 ├── pictures/<wiki>/              pictures kept for reading offline
 ├── collections/                  your collections (each opens without NABU)
 ├── personal/                     saved articles, history, settings
@@ -192,7 +192,7 @@ NABU/
 | a language's two files in `wikipedia/` | that dump | that Wikipedia is not on the drive |
 | `programs/windows`, `mac` or `linux` | 20–40 MB each | the drive doesn't start on that kind of computer; the launcher says which folder is missing |
 | `indexes/` | 2–3% of the dumps | nothing lost: NABU rebuilds them on first start (seconds to ~15 minutes per language) |
-| `search/` | ~20% of the dumps | search finds titles only; it can be built again from the search page |
+| `search/` | ~12% of the dumps | search finds titles only; it can be built again from the search page |
 | `pictures/` (or one language's folder) | see below | pictures show only when the computer is online |
 | `collections/` | small | the collections |
 | `personal/` | tiny | **leave it out when giving NABU away**: your reading stays yours |
@@ -204,54 +204,78 @@ automatically the first time a newer NABU starts on it, by renaming only.
 
 ## How much room it takes
 
-Sizes for the newest dumps (November 2026). Index and search sizes are the measured
-ratios (2–3% and ~20% of the dump). Picture sizes come from sampling every dump
-(`tools/picture-survey`, details in [docs/PICTURES-SURVEY.md](docs/PICTURES-SURVEY.md));
-treat them as ±20%.
+NABU is set up for a **125 GB drive** holding English and one more language. Every
+Wikipedia can be on it, but most drives will be used in one or two, and pictures are
+what take the room, so three things keep them in check:
 
-Pictures are kept once for every language. Most pictures live on Wikimedia Commons and
-are used by many Wikipedias, so NABU keeps them in one shared folder
-(`pictures/commons`) and a language that uses a picture English already has does not
-download it again. The pictures columns show each language on its own, and in brackets
-what it adds once English's pictures are kept.
+- **Pictures are kept once for every language.** Most are on Wikimedia Commons and are
+  the same file in every Wikipedia, so they live in one shared folder
+  (`pictures/commons`).
+- **Other languages show English's pictures** and keep none of their own unless asked.
+  Most of their pictures are the same files English uses (48–72%, measured), so they
+  show for no extra room. **Also keep its own main pictures** on the home page adds the
+  rest.
+- **Pictures have a space limit**, 55 GB by default (Updates & settings). Downloads go
+  through the longest articles first, so if the limit is reached it is the fullest
+  articles that have their pictures. Pictures are kept 250 pixels wide, the size they
+  appear beside the text, and recompressed when kept: photos at JPEG quality 60, and
+  photos or painted maps that came as PNG at quality 70, all about 17 KB each. Drawings
+  with flat colours and anything transparent are kept as they came.
+
+The recommended 125 GB drive (`nabu plan fr` prints this for any second language):
+
+| Part | Size |
+|---|---:|
+| Programs for Windows, Mac and Linux | 0.1 GB |
+| English: text, title index, search inside articles | 29.3 GB |
+| French: text and title index (search inside articles: add 0.9 GB) | 7.1 GB |
+| Pictures: English's main pictures (all 3.3 million fit the 55 GB limit) | 53.9 GB |
+| Room to download next month's English before the old one is removed | 26.1 GB |
+| **Total** | **116.3 GB**, 8.7 GB spare |
+
+Without the update room (delete the old English before downloading the new one) the
+picture limit can go up to about 80 GB. A test (`internal/plan`) fails if English plus
+any one of the other languages no longer fits 125 GB this way.
+
+Sizes of each part, for the newest dumps (November 2026). Title index and search sizes
+are measured ratios (2.6% and 12.5% of the dump); picture sizes come from sampling
+every dump (`tools/picture-survey`, details in
+[docs/PICTURES-SURVEY.md](docs/PICTURES-SURVEY.md)) and are good to ±20%. In
+brackets: what a language's own pictures add once English's are kept.
 
 | Wikipedia | Text (needed) | Title index | Search inside articles | Main pictures | All pictures |
 |---|---:|---:|---:|---:|---:|
-| English | 25.4 GB | 650 MB | 5.1 GB | 82 GB | 181 GB |
-| French | 6.9 GB | 177 MB | 1.4 GB | 30 GB (16 GB) | 95 GB (51 GB) |
-| Russian | 5.9 GB | 151 MB | 1.2 GB | 14 GB (7 GB) | 60 GB (33 GB) |
-| Spanish | 5.1 GB | 131 MB | 1.0 GB | 22 GB (9 GB) | 57 GB (23 GB) |
-| Chinese | 3.4 GB | 87 MB | 696 MB | 15 GB (5 GB) | 45 GB (16 GB) |
-| Portuguese | 2.7 GB | 69 MB | 553 MB | 15 GB (7 GB) | 33 GB (14 GB) |
-| Arabic | 2.1 GB | 54 MB | 430 MB | 7 GB (2 GB) | 19 GB (6 GB) |
-| Persian | 1.5 GB | 38 MB | 307 MB | 15 GB (6 GB) | 26 GB (10 GB) |
-| Indonesian | 1.3 GB | 33 MB | 266 MB | 10 GB (4 GB) | 26 GB (11 GB) |
-| Danish | 512 MB | 13 MB | 102 MB | 4 GB (2 GB) | 10 GB (4 GB) |
-| **All ten** | **54.8 GB** | **1.4 GB** | **11.0 GB** | **140 GB** | **350 GB** |
+| English | 25.4 GB | 660 MB | 3.2 GB | 53.9 GB | 119.2 GB |
+| French | 6.9 GB | 179 MB | 862 MB | 20.0 GB (10.9 GB) | 62.8 GB (34.1 GB) |
+| Russian | 5.9 GB | 153 MB | 737 MB | 8.9 GB (4.8 GB) | 39.6 GB (21.5 GB) |
+| Spanish | 5.1 GB | 132 MB | 637 MB | 14.4 GB (5.8 GB) | 37.3 GB (14.9 GB) |
+| Chinese | 3.4 GB | 88 MB | 425 MB | 10.1 GB (3.6 GB) | 29.9 GB (10.6 GB) |
+| Portuguese | 2.7 GB | 70 MB | 337 MB | 9.8 GB (4.3 GB) | 21.7 GB (9.5 GB) |
+| Arabic | 2.1 GB | 54 MB | 262 MB | 4.4 GB (1.5 GB) | 12.7 GB (4.2 GB) |
+| Persian | 1.5 GB | 39 MB | 187 MB | 9.9 GB (4.0 GB) | 17.0 GB (6.9 GB) |
+| Indonesian | 1.3 GB | 33 MB | 162 MB | 6.4 GB (2.8 GB) | 16.8 GB (7.3 GB) |
+| Danish | 512 MB | 13 MB | 64 MB | 2.4 GB (1.1 GB) | 6.4 GB (2.8 GB) |
+| **All ten** | **54.8 GB** | **1.4 GB** | **6.9 GB** | **92.5 GB** | **231 GB** |
 
-The all-ten pictures totals count shared pictures once (without sharing they would be
-212 GB and 551 GB). They are a little high: pictures two other languages share without
-English are still counted twice.
+The all-ten picture totals count shared pictures once; they are a little high, since
+pictures two other languages share without English are still counted twice. All ten
+languages with title indexes and no pictures fit a 64 GB stick.
 
-Programs for all three systems add about 90 MB. Totals for all ten languages:
-
-| What is on the drive | Size | Fits |
-|---|---:|---|
-| Text and title indexes | 56 GB | 64 GB stick |
-| + search inside articles | 67 GB | 128 GB |
-| + main pictures | 207 GB | 256 GB |
-| + all pictures | 417 GB | 512 GB |
-| English only, everything, all pictures | 212 GB | 256 GB |
-
-Pictures are kept 250 pixels wide, the size of a picture beside the text, about 25–30 KB
-each.
+**Search inside articles** finds every article that mentions a person, place or
+phrase, where title search needs the article's name; offline, with no web search to
+fall back on, that is often how things are found. The little words of each language
+("the", "can", "they", "de", "и"…) are left out of it, which makes it a third smaller
+and costs nothing: they are in almost every article, so they never narrowed a search.
+Words that are also names or abbreviations ("us", "who", "may", "will") stay
+searchable. Worth having for the language you read most; at 12.5% of a dump, it is
+the cheapest extra.
 
 Downloading pictures follows Wikimedia's rules for programs: two at a time, at most
 16 Mbit/s, and a pause whenever Wikimedia asks for one. On an ordinary connection that
-is roughly 20,000 pictures an hour: a small language is done in an evening, English's
-3.3 million main pictures take about a week of the computer being on, and every
-picture of all ten languages (12 million) about a month. The download continues
-wherever NABU next runs, and any computer can carry on from where another stopped.
+is roughly 20,000 pictures an hour: a small language is done in an evening and
+English's main pictures take about a week of the computer being on. The download
+continues wherever NABU next runs, and any computer can carry on from where another
+stopped.
 
 ## Giving NABU to someone
 
@@ -424,6 +448,9 @@ nabu pictures <wiki> [--all]
 nabu copy --to DIR [--wikis en,fr] [--systems windows,mac,linux]
           [--without indexes,search,pictures,collections] [--with personal,source]
                           copy NABU for someone else; only changes are copied
+nabu plan [<wiki>] [--size GB]
+                          how a drive of that size (default 125) is best filled with
+                          English and <wiki>, and the room left for pictures
 nabu info                 list the dumps in the library and their state
 nabu version
 
@@ -489,9 +516,9 @@ unrendered.
   ones show their main text or are left out. Navigation boxes are not shown. Maths
   appears as its TeX source.
 - **Search inside articles is optional.** It needs a one-time pass over the whole
-  dump. Simple English (395 MB) takes about a minute on 3 cores and adds a 79 MB
-  index (~20% of the dump). English Wikipedia should take roughly 1–1.5 hours on a
-  4-core laptop and add about 5 GB. Title search needs none of this. It is built once
+  dump. Simple English (395 MB) takes about a minute on 3 cores and adds a 49 MB
+  index (12% of the dump). English Wikipedia should take roughly 1–1.5 hours on a
+  4-core laptop and add about 3.2 GB. Title search needs none of this. It is built once
   per dump, on any computer, and travels with the drive: other computers use it as is.
 - **Collection copies are snapshots.** They don't change when the dump is updated
   (that is the point); use **Refresh copies** to bring them up to date.

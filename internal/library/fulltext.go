@@ -190,13 +190,14 @@ func (l *Library) buildFullText(b *Book) {
 }
 
 // FullTextEstimate guesses build time and size from the dump size,
-// measured on Simple English Wikipedia (395 MB: 73 s on 3 cores, 79 MB).
+// measured on Simple English Wikipedia (395 MB: 71 s on 3 cores, 49 MB
+// with the little words left out).
 func FullTextEstimate(dumpBytes int64, cores int) (minutes int, bytes int64) {
 	if cores < 1 {
 		cores = 1
 	}
 	secs := float64(dumpBytes) / 5.4e6 * 3 / float64(cores) * 1.5 // 1.5: older machines and USB sticks
-	return int(secs/60) + 1, dumpBytes / 5
+	return int(secs/60) + 1, dumpBytes / 8
 }
 
 // The wikis whose readers built search inside articles are remembered on

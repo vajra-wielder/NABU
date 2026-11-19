@@ -45,6 +45,33 @@ func TestTokenize(t *testing.T) {
 	}
 }
 
+func TestStopwordsAndJunk(t *testing.T) {
+	en := strings.Join(Stopwords("simple"), " ")
+	for _, w := range []string{"the", "can", "they", "themselves"} {
+		if !strings.Contains(" "+en+" ", " "+w+" ") {
+			t.Errorf("%q should be a stopword", w)
+		}
+	}
+	for _, w := range []string{"us", "who", "may", "will"} {
+		if strings.Contains(" "+en+" ", " "+w+" ") {
+			t.Errorf("%q is also a name and must stay searchable", w)
+		}
+	}
+	if fr := Stopwords("fr"); len(fr) < 50 || fr[0] != "le" {
+		t.Errorf("french %v", fr)
+	}
+	for _, l := range []string{"en", "fr", "es", "pt", "ru", "ar", "fa", "id", "da"} {
+		if len(Stopwords(l)) < 30 {
+			t.Errorf("%s: only %d", l, len(Stopwords(l)))
+		}
+	}
+	for term, want := range map[string]bool{"1921": false, "12345": true, "2nd": false, "b52": false, "q12345678": true, "babylon": false} {
+		if junk(term) != want {
+			t.Errorf("junk(%q) = %v", term, !want)
+		}
+	}
+}
+
 func TestBuildSearchNearby(t *testing.T) {
 	rd := openDump(t, "../../testdata", "testwiki")
 	out := filepath.Join(t.TempDir(), "t.nfts")
@@ -71,6 +98,14 @@ func TestBuildSearchNearby(t *testing.T) {
 	res, err := ix.Search("god of scribes", 0, 10)
 	if err != nil || res.Total != 2 || (res.Hits[0].Title != "Nabu" && res.Hits[1].Title != "Nabu") {
 		t.Fatalf("search: %+v %v", res, err)
+	}
+	// Little words are not indexed; searching them is not an error.
+	res, _ = ix.Search("The god of the scribes", 0, 10)
+	if res.Total != 2 || strings.Join(res.Ignored, ",") != "the,of" {
+		t.Fatalf("stopwords: %+v", res)
+	}
+	if ix.Meta.Lang != "en" || ix.Meta.Postings == 0 {
+		t.Fatalf("meta %+v", ix.Meta)
 	}
 	res, _ = ix.Search("EUPHRATES hammurabi", 0, 10)
 	if len(res.Hits) != 1 || res.Hits[0].Title != "Babylon" {
@@ -127,6 +162,7 @@ func TestRealFullText(t *testing.T) {
 		t.Logf("%s: %d articles, %d terms, %d places, %d stopwords; %.1f MB (%.1f%% of the %.0f MB dump) in %v",
 			f.DB, ix.Meta.Docs, ix.Meta.Terms, ix.Meta.Geo, len(ix.Meta.Stopwords), float64(st.Size())/1e6,
 			100*float64(st.Size())/float64(f.Size), float64(f.Size)/1e6, time.Since(start).Round(time.Second))
+		t.Logf("   sections %v; %d postings", ix.Sections(), ix.Meta.Postings)
 		for _, q := range []string{"hanging gardens", "river flowing through baghdad", "nobel prize physics 1921"} {
 			t0 := time.Now()
 			res, _ := ix.Search(q, 0, 5)

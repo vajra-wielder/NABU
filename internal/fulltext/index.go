@@ -153,6 +153,16 @@ func (ix *Index) load() error {
 	return nil
 }
 
+// Sections reports the bytes of each part of the index file, to see
+// where the room goes.
+func (ix *Index) Sections() map[string]int64 {
+	return map[string]int64{
+		"postings":   ix.dictOff[0] - int64(len(ftsMagic)),
+		"dictionary": ix.dictOff[len(ix.dictOff)-1] - ix.dictOff[0],
+		"docs":       ix.docsEnd - ix.docsOff,
+	}
+}
+
 // Close releases the file.
 func (ix *Index) Close() error { return ix.f.Close() }
 
@@ -170,6 +180,10 @@ func (ix *Index) dictBlockRows(i int) ([]dictRow, error) {
 	r := bytes.NewReader(buf)
 	var rows []dictRow
 	prev := ""
+	off, err := binary.ReadUvarint(r)
+	if err != nil {
+		return nil, ErrStale
+	}
 	for r.Len() > 0 {
 		shared, e1 := binary.ReadUvarint(r)
 		l, e2 := binary.ReadUvarint(r)
@@ -179,7 +193,6 @@ func (ix *Index) dictBlockRows(i int) ([]dictRow, error) {
 		suf := make([]byte, l)
 		r.Read(suf)
 		df, _ := binary.ReadUvarint(r)
-		off, _ := binary.ReadUvarint(r)
 		size, err := binary.ReadUvarint(r)
 		if err != nil {
 			return nil, ErrStale
@@ -187,6 +200,7 @@ func (ix *Index) dictBlockRows(i int) ([]dictRow, error) {
 		t := prev[:shared] + string(suf)
 		rows = append(rows, dictRow{t, uint32(df), off, size})
 		prev = t
+		off += size
 	}
 	ix.mu.Lock()
 	if len(ix.cache) > 4096 {
@@ -225,18 +239,13 @@ func (ix *Index) postings(row dictRow) ([]posting, error) {
 	out := make([]posting, 0, row.df)
 	var doc uint32
 	for i := 0; i < len(buf); {
-		d, n := binary.Uvarint(buf[i:])
-		if n <= 0 || i+n >= len(buf) {
+		v, n := binary.Uvarint(buf[i:])
+		if n <= 0 {
 			return nil, ErrStale
 		}
 		i += n
-		if len(out) == 0 {
-			doc = uint32(d)
-		} else {
-			doc += uint32(d)
-		}
-		out = append(out, posting{doc, buf[i]})
-		i++
+		doc += uint32(v >> 2)
+		out = append(out, posting{doc, bucketTF[v&3]})
 	}
 	return out, nil
 }
@@ -264,18 +273,22 @@ func (ix *Index) Doc(n uint32) (Doc, error) {
 		return Doc{}, err
 	}
 	r := bytes.NewReader(buf)
+	var stream, id uint64
 	for i := uint32(0); ; i++ {
-		s, e1 := binary.ReadUvarint(r)
-		id, e2 := binary.ReadUvarint(r)
+		ds, e1 := binary.ReadUvarint(r)
+		did, e2 := binary.ReadVarint(r)
 		l, e3 := binary.ReadUvarint(r)
 		if e1 != nil || e2 != nil || e3 != nil || int(l) > r.Len() {
 			return Doc{}, ErrStale
 		}
-		t := make([]byte, l)
-		r.Read(t)
+		stream += ds
+		id = uint64(int64(id) + did)
 		if uint32(blk)*docBlock+i == n {
-			return Doc{Stream: uint32(s), PageID: id, Title: string(t)}, nil
+			t := make([]byte, l)
+			r.Read(t)
+			return Doc{Stream: uint32(stream), PageID: id, Title: string(t)}, nil
 		}
+		r.Seek(int64(l), io.SeekCurrent)
 	}
 }
 

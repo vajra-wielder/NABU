@@ -62,6 +62,8 @@ func main() {
 			err = cmdPictures(rest)
 		case "copy":
 			err = cmdCopy(rest)
+		case "plan":
+			err = cmdPlan(rest)
 		case "version":
 			fmt.Printf("NABU %s (%s/%s, %s)\n", version, runtime.GOOS, runtime.GOARCH, runtime.Version())
 		case "about-folders": // used by scripts/build.sh
@@ -107,6 +109,10 @@ func usage() {
   nabu copy --to <folder>  copy NABU for someone else (see --wikis,
                            --systems, --without, --with); your saved
                            articles and history stay behind
+  nabu plan [<wiki>] [--size 125]  how a drive of that many GB is best
+                           filled: English with search inside articles and
+                           main pictures, plus <wiki> showing English's
+                           pictures, and room for English's next update
   nabu info                list the dumps in the library
   nabu version             print the version
 
@@ -118,6 +124,7 @@ Flags:
 }
 
 type opts struct {
+	sizeGB    int
 	rebuild   bool
 	window    bool
 	fullText  bool
@@ -157,6 +164,7 @@ func bindFlags(fs *flag.FlagSet, o *opts) {
 	fs.StringVar(&o.systems, "systems", "windows,mac,linux", "copy: computers the copy starts on")
 	fs.StringVar(&o.without, "without", "", "copy: parts to leave out: indexes,search,pictures,collections")
 	fs.StringVar(&o.with, "with", "", "copy: extra parts: personal,source")
+	fs.IntVar(&o.sizeGB, "size", 125, "plan: the drive's size in GB")
 }
 
 func parse(name string, args []string) (*opts, *flag.FlagSet, error) {
@@ -226,6 +234,7 @@ func cmdServe(args []string) error {
 	}
 	client := httpClient()
 	pics := pictures.NewService(d.Pictures, pictures.NewFetcher(client, update.UserAgent))
+	pics.SetLimit(update.LoadSettings(d.Personal).PictureLimit())
 	online := func() bool { return !o.offline && update.LoadSettings(d.Personal).Pictures }
 	lib, err := library.OpenDrive(d, library.Config{Pictures: pics, Online: online})
 	if err != nil {

@@ -22,6 +22,7 @@ type Service struct {
 	Fetch *Fetcher
 
 	mu       sync.Mutex
+	limit    int64 // bytes all pictures may take; 0: no limit
 	stores   map[string]*Store
 	failed   map[string]time.Time // picture → do not try again before
 	lastView time.Time
@@ -53,6 +54,43 @@ func (s *Service) Store(db string, create bool) (*Store, error) {
 	}
 	s.stores[db] = st
 	return st, nil
+}
+
+// SetLimit sets how much room all pictures together may take (0: no
+// limit). Downloads stop there, and pictures seen online are no longer
+// kept.
+func (s *Service) SetLimit(bytes int64) {
+	s.mu.Lock()
+	s.limit = bytes
+	s.mu.Unlock()
+}
+
+// Limit is the room pictures may take (0: no limit).
+func (s *Service) Limit() int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.limit
+}
+
+// Used is the room every picture store on the drive takes.
+func (s *Service) Used() int64 {
+	var n int64
+	ents, _ := os.ReadDir(s.Dir)
+	for _, e := range ents {
+		if !e.IsDir() {
+			continue
+		}
+		if st, _ := s.Store(e.Name(), false); st != nil {
+			n += st.Stats().Bytes
+		}
+	}
+	return n
+}
+
+// Full reports whether pictures reached their limit.
+func (s *Service) Full() bool {
+	l := s.Limit()
+	return l > 0 && s.Used() >= l
 }
 
 // Viewing notes that someone is reading, so whole-wiki downloads make
@@ -115,7 +153,7 @@ func (s *Service) Get(ctx context.Context, db, host, name string, online, keep b
 		return fail(err)
 	}
 	if info.Missing || info.Skip {
-		if keep {
+		if keep && !s.Full() {
 			if st, _ := s.Store(db, true); st != nil {
 				st.Put(name, nil)
 			}
@@ -129,7 +167,8 @@ func (s *Service) Get(ctx context.Context, db, host, name string, online, keep b
 		}
 		return fail(err)
 	}
-	if keep {
+	data = Shrink(data)
+	if keep && !s.Full() {
 		where := db
 		if info.Shared {
 			where = Commons
