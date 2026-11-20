@@ -448,3 +448,62 @@ func TestDriveGonePage(t *testing.T) {
 		t.Fatalf("back: %d", r.StatusCode)
 	}
 }
+
+// The drive check reads everything, then names the articles in a damaged
+// bundle; a damaged title index can be built again.
+func TestCheckTheDrive(t *testing.T) {
+	s := newTestServer(t)
+	run := func() checkView {
+		call(t, s, "check-start", `{}`)
+		deadline := time.Now().Add(20 * time.Second)
+		for s.check.view().Running && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
+		}
+		return s.check.view()
+	}
+	v := run()
+	if len(v.Results) != 2 || v.DamagedReaders != 0 || v.Err != "" {
+		t.Fatalf("clean drive: %+v", v)
+	}
+	if _, page := get(s, "/nabu/check"); !strings.Contains(page, "bundles are intact") {
+		t.Fatal("page does not say the drive is fine")
+	}
+	// Damage the middle of the testwiki dump.
+	b := s.Lib.Get("testwiki")
+	p := b.Files.Pairs[0].Data[0]
+	data, _ := os.ReadFile(p)
+	data[len(data)/2] ^= 0xff
+	os.WriteFile(p, data, 0o644)
+	b.Reader().ForgetCache()
+	v = run()
+	if v.DamagedReaders != 1 {
+		t.Fatalf("damage not found: %+v", v)
+	}
+	_, page := get(s, "/nabu/check")
+	if strings.Contains(page, "Repair from the other drive") {
+		// Another NABU drive with this dump happens to be attached: repair.
+		if err := s.repairBook("testwiki"); err != nil {
+			t.Fatal(err)
+		}
+		if v = run(); v.DamagedReaders != 0 {
+			t.Fatalf("not repaired: %+v", v)
+		}
+		os.WriteFile(p, data, 0o644) // the damaged bytes again, for the rest
+		b.Reader().ForgetCache()
+		run()
+		_, page = get(s, "/nabu/check")
+	} else if !strings.Contains(page, "plug in another NABU drive") {
+		t.Fatalf("page does not offer a way to repair: %s", page)
+	}
+	if !strings.Contains(page, "bundles are damaged") || !strings.Contains(page, "more.") {
+		t.Fatalf("page does not report the damage: %s", page[strings.Index(page, "<h1"):])
+	}
+	call(t, s, "check-reindex", `{"book":"testwiki"}`)
+	deadline := time.Now().Add(10 * time.Second)
+	for s.Lib.Get("testwiki").Reader() == nil && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if s.Lib.Get("testwiki").Reader() == nil {
+		t.Fatal("title index not rebuilt")
+	}
+}

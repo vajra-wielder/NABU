@@ -41,6 +41,7 @@ type Server struct {
 	reads       *readerStore
 	collections *collect.Store
 	copier      share.Copier
+	check       driveCheck
 	previews    *previewCache
 	discoverMu  sync.Mutex
 	discover    map[string]discoverSet
@@ -97,6 +98,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveUpdates(w, r)
 	case p == "/nabu/copy":
 		s.serveCopy(w, r)
+	case p == "/nabu/check":
+		s.serveCheck(w, r)
 	case p == "/nabu/about":
 		s.serveAbout(w, r)
 	case p == "/nabu/saved":

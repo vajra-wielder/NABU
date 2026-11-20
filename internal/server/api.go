@@ -152,6 +152,14 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		err = update.SaveSettings(s.Lib.Drive.Personal, st)
 		s.settingsMu.Unlock()
+	case "check-start":
+		err = s.startCheck()
+	case "check-stop":
+		s.stopCheck()
+	case "check-repair":
+		err = s.repairBook(body.Book)
+	case "check-reindex":
+		err = s.Lib.RebuildIndex(body.Book)
 	case "pictures-start":
 		err = s.Lib.StartPictures(body.Wiki, body.Mode)
 	case "pictures-pause":

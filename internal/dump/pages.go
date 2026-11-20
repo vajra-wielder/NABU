@@ -228,6 +228,18 @@ func (r *Reader) StreamPages(s uint32) ([]*Page, error) {
 	return ParsePages(data), nil
 }
 
+// ForgetCache drops the decompressed streams kept in memory (after the
+// dump was repaired on the drive).
+func (r *Reader) ForgetCache() { r.streams.clear() }
+
+func (c *streamCache) clear() {
+	c.mu.Lock()
+	c.ll.Init()
+	c.items = map[uint32]*list.Element{}
+	c.cur = 0
+	c.mu.Unlock()
+}
+
 // stream reads and decompresses one stream of the dump.
 func (r *Reader) stream(pair int, start, end int64) ([]byte, error) {
 	raw := make([]byte, end-start)

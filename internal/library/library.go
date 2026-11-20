@@ -260,6 +260,33 @@ func BuildBudget() int {
 	return 128 << 20
 }
 
+// RebuildIndex deletes a book's title index and builds it again (after
+// the drive check found it damaged).
+func (l *Library) RebuildIndex(id string) error {
+	b := l.Get(id)
+	if b == nil {
+		return fmt.Errorf("no such book")
+	}
+	b.mu.Lock()
+	if b.state == Preparing || b.state == Waiting {
+		b.mu.Unlock()
+		return nil
+	}
+	if b.ft.state == FTBuilding {
+		b.mu.Unlock()
+		return fmt.Errorf("search inside articles is being built from it; cancel that first")
+	}
+	if b.reader != nil {
+		b.reader.Close()
+		b.reader = nil
+	}
+	b.state, b.err = Waiting, ""
+	b.mu.Unlock()
+	os.Remove(l.indexPath(b.Files))
+	l.queue <- b
+	return nil
+}
+
 // Retry queues a failed book again.
 func (l *Library) Retry(id string) {
 	if b := l.Get(id); b != nil {

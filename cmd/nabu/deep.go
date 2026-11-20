@@ -530,3 +530,72 @@ func cmdSlim(args []string) error {
 	}
 	return nil
 }
+
+// cmdCheck reads every bundle of the dumps on the drive and repairs the
+// damaged ones from another NABU drive attached with the same dump.
+func cmdCheck(args []string) error {
+	o, fs, err := parse("check", args)
+	if err != nil {
+		return err
+	}
+	d := findDrive(o)
+	want := map[string]bool{}
+	for _, a := range fs.Args() {
+		want[wikiArg(a)] = true
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	eds, _ := dump.Scan(d.Wikipedia)
+	damagedAll := 0
+	for _, f := range eds {
+		if len(want) > 0 && !want[f.DB] {
+			continue
+		}
+		rd, err := openForScan(d, f)
+		if err != nil {
+			return fmt.Errorf("%s: %w", f.Key(), err)
+		}
+		last, shown := time.Now(), false
+		res, err := rd.Check(dump.CheckOptions{Stop: ctx.Done(), Progress: func(done, total int64) {
+			if time.Since(last) > 2*time.Second {
+				last, shown = time.Now(), true
+				fmt.Printf("\r  %s: %.1f%%", f.Key(), 100*float64(done)/float64(total))
+			}
+		}})
+		rd.Close()
+		if shown {
+			fmt.Print("\r                                \r")
+		}
+		if err != nil {
+			return err
+		}
+		if res.Index != "" {
+			fmt.Printf("%s: the title index is damaged (%s); it is built again when NABU next starts.\n", f.Key(), res.Index)
+			os.Remove(d.TitleIndex(f.Key()))
+		}
+		if len(res.Damaged) == 0 {
+			fmt.Printf("%s: all %d bundles are intact.\n", f.Key(), res.Streams)
+			continue
+		}
+		fmt.Printf("%s: %d of %d bundles are damaged. Articles in them:\n", f.Key(), len(res.Damaged), res.Streams)
+		for _, dm := range res.Damaged {
+			fmt.Printf("  %s\n", strings.Join(dm.Titles, ", "))
+		}
+		copies := drive.OtherCopies(f, d.Wikipedia)
+		if len(copies) == 0 {
+			fmt.Println("  To repair them, plug in another NABU drive with the same dump and run this again.")
+			damagedAll += len(res.Damaged)
+			continue
+		}
+		n, err := dump.Repair(f, res.Damaged, copies[0])
+		if err != nil {
+			return err
+		}
+		fmt.Printf("  Repaired %d of them from %s.\n", n, filepath.Dir(copies[0].Pairs[0].Index))
+		damagedAll += len(res.Damaged) - n
+	}
+	if damagedAll > 0 {
+		return fmt.Errorf("%d bundles are still damaged", damagedAll)
+	}
+	return nil
+}

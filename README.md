@@ -110,6 +110,12 @@ out without ejecting it, at any moment:
   new Wikipedia on it). Pulled out during that, only its last moments are lost, and it
   carries on from where it was when the drive is back.
 
+**Check the drive** (bottom of every page, or `nabu check`) reads every bundle of
+articles on the drive; each carries checksums, so it tells exactly which articles a
+rough unplugging or a loose connection damaged. With another NABU drive attached that
+has the same dump (keep a spare made with **Make a copy**), **Repair** copies the
+damaged bundles back from it, each checked first. A damaged title index is built again.
+
 This suits drives with loose connections too: a moment's disconnection only shows
 the "plug it back in" page until the connection returns. A drive pulled out while
 writing may be reported by Windows as needing a scan; let it, nothing on it is lost.
@@ -490,6 +496,8 @@ nabu copy --to DIR [--wikis en,fr] [--systems windows,mac,linux]
 nabu plan [<wiki>] [--size GB]
                           how a drive of that size (default 125) is best filled with
                           English (and <wiki>), and the room left for pictures
+nabu check [<wiki>...]    read every bundle of the dumps; damaged ones are repaired
+                          from another NABU drive attached with the same dump
 nabu slim [<wiki>...]     leave out of the dumps on the drive the pages NABU never
                           shows (project discussions, templates, drafts); new
                           downloads get this by themselves

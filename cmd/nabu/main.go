@@ -67,6 +67,8 @@ func main() {
 			err = cmdPlan(rest)
 		case "slim":
 			err = cmdSlim(rest)
+		case "check":
+			err = cmdCheck(rest)
 		case "version":
 			fmt.Printf("NABU %s (%s/%s, %s)\n", version, runtime.GOOS, runtime.GOARCH, runtime.Version())
 		case "about-folders": // used by scripts/build.sh
@@ -120,6 +122,9 @@ func usage() {
                            (project discussions, templates, drafts): about
                            20% of English Wikipedia. New downloads get this
                            by themselves.
+  nabu check [<wiki>...]   read every bundle of the dumps; damaged ones are
+                           repaired from another NABU drive attached with
+                           the same dump
   nabu info                list the dumps in the library
   nabu version             print the version
 

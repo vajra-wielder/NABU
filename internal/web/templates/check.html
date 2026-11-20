@@ -1,0 +1,36 @@
+{{define "check.html"}}{{template "head" .}}
+<h1 style="margin-top:32px">Check the drive</h1>
+<p class="muted prose">Pulled out while busy, or on a loose connection, a drive can come back with damaged files. Every bundle of articles carries checksums, so NABU can read them all and tell exactly which articles are damaged. Those can be copied back from another NABU drive with the same Wikipedia (one made with <a href="/nabu/copy">Make a copy</a>): plug both in and press <em>Repair</em>. Indexes are rebuilt from the dump; pictures are not checked (they can be downloaded again).</p>
+
+{{if not .Local}}
+<div class="notice">The drive can only be checked on the computer running NABU.</div>
+{{else}}
+{{with .Check}}
+{{if .Running}}
+<div class="notice">
+  <strong>Checking {{.Book}}…</strong>
+  <div class="progress"><div style="width:{{pct .Done .Total}}%"></div></div>
+  <p class="small muted">{{count .Done}} of {{count .Total}} bundles. Reading goes on as usual meanwhile. <a href="#" data-action="check-stop">Stop</a></p>
+</div>
+{{else}}
+<p><a class="btn primary" href="#" data-action="check-start">{{if .Finished.IsZero}}Check the drive{{else}}Check again{{end}}</a>
+<span class="small muted">Reads everything once: a few minutes for Simple English, 10–30 for English, depending on the drive.</span></p>
+{{if .Err}}<div class="notice bad">The check stopped: {{.Err}}</div>{{end}}
+{{end}}
+
+{{range .Results}}
+<div class="notice{{if or .Damaged .Index}} bad{{else}} ok{{end}}">
+  <strong>{{.Name}}</strong>:
+  {{if not .Damaged}}all {{count (int64 .Streams)}} bundles are intact.{{else}}{{len .Damaged}} of {{count (int64 .Streams)}} bundles are damaged.{{end}}
+  {{if .Note}}{{.Note}}{{end}}
+  {{if .Damaged}}
+  <p class="small">Articles in them: {{range $i, $t := .Articles}}{{if $i}}, {{end}}{{$t}}{{end}}{{if .More}}, and {{.More}} more{{end}}.</p>
+  {{if .Copies}}<p><a class="btn" href="#" data-action="check-repair" data-book="{{.ID}}">Repair from the other drive</a> <span class="small muted">NABU at {{index .Copies 0}}</span></p>
+  {{else}}<p class="small">To repair them, plug in another NABU drive with the same dump of {{.Name}} and check again. Everything else reads as usual.</p>{{end}}
+  {{end}}
+  {{if .Index}}<p class="small">The title index is damaged ({{.Index}}). <a href="#" data-action="check-reindex" data-book="{{.ID}}">Build it again</a> (a few minutes).</p>{{end}}
+</div>
+{{end}}
+{{end}}
+{{end}}
+{{template "foot" .}}{{end}}
