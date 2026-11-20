@@ -255,6 +255,10 @@ func cmdServe(args []string) error {
 	}
 	ln := newSharedListener(raw)
 	defer raw.Close()
+	wifi := newWifiShare(ln, port, o.lan)
+	if !o.offline && update.LoadSettings(d.Personal).ShareWifi {
+		wifi.Set(true)
+	}
 	url := "http://localhost:" + strconv.Itoa(port) + "/"
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -265,7 +269,7 @@ func cmdServe(args []string) error {
 	// is now), everything is opened afresh on the same address, so the
 	// browser carries on.
 	for first := true; ; first = false {
-		next, err := serveDrive(ctx, stop, o, d, ln.session(), port, url, first)
+		next, err := serveDrive(ctx, stop, o, d, ln.session(), port, url, first, wifi)
 		if next == nil || ctx.Err() != nil {
 			fmt.Println("\nNABU has stopped. It is safe to remove the drive.")
 			return err
@@ -277,7 +281,7 @@ func cmdServe(args []string) error {
 
 // serveDrive runs NABU on drive d until it stops (nil) or the drive came
 // back after being pulled out (where it is now).
-func serveDrive(ctx context.Context, stop func(), o *opts, d *drive.Layout, ln net.Listener, port int, url string, first bool) (*drive.Layout, error) {
+func serveDrive(ctx context.Context, stop func(), o *opts, d *drive.Layout, ln net.Listener, port int, url string, first bool, wifi *wifiShare) (*drive.Layout, error) {
 	var rebuildFT []string
 	if o.rebuild && first {
 		rebuildFT = removeIndexes(d)
@@ -313,6 +317,7 @@ func serveDrive(ctx context.Context, stop func(), o *opts, d *drive.Layout, ln n
 		}
 	}
 	srv.Shutdown = stop
+	srv.WiFi = wifi
 
 	// Watch for the drive being pulled out and put back.
 	var gone atomic.Bool

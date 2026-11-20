@@ -29,7 +29,7 @@
 <footer class="foot">
   {{template "drivestate" .}}
   <span class="grow"><img src="/nabu/static/nabu.svg" alt="">NABU {{.Version}} · Wikipedia text is CC BY-SA 4.0, written by its volunteers.</span>
-  {{if .Local}}<a href="/nabu/copy">Make a copy</a> <a href="/nabu/check">Check the drive</a>{{end}}
+  {{if .Local}}<a href="/nabu/copy">Make a copy</a> <a href="/nabu/check">Check the drive</a> <a href="/nabu/share">Read on phones</a>{{end}}
   <a href="/nabu/about">About</a>
   {{if .Local}}<a href="#" data-action="shutdown" data-confirm="Stop NABU? Pages will stop loading until you start it again.">Turn off NABU</a>{{end}}
 </footer>

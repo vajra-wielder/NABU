@@ -36,6 +36,8 @@ type Server struct {
 	// DriveGone reports that the NABU drive was pulled out (or lost its
 	// connection). Pages then ask for it back and reload by themselves.
 	DriveGone func() bool
+	// WiFi shares NABU with devices on the same Wi-Fi (nil: not here).
+	WiFi WiFi
 
 	settingsMu  sync.Mutex
 	reads       *readerStore
@@ -101,6 +103,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveCopy(w, r)
 	case p == "/nabu/check":
 		s.serveCheck(w, r)
+	case p == "/nabu/share":
+		s.serveShare(w, r)
 	case p == "/nabu/about":
 		s.serveAbout(w, r)
 	case p == "/nabu/saved":
@@ -218,4 +222,12 @@ func (s *Server) driveGone(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Refresh", "3")
 	s.errorPage(w, r, http.StatusServiceUnavailable, "The NABU drive is not connected",
 		"Plug the drive back in (any USB port will do). This page opens by itself once it is back. Pages already open keep working.")
+}
+
+// WiFi switches sharing on the local network.
+type WiFi interface {
+	On() bool
+	Fixed() bool // started with --lan
+	Set(on bool) error
+	Addrs() []string // what others open
 }

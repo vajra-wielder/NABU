@@ -152,6 +152,19 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		err = update.SaveSettings(s.Lib.Drive.Personal, st)
 		s.settingsMu.Unlock()
+	case "share-wifi":
+		if s.WiFi == nil {
+			err = errors.New("sharing is not available")
+			break
+		}
+		on := body.Mode == "on"
+		if err = s.WiFi.Set(on); err == nil {
+			s.settingsMu.Lock()
+			st := update.LoadSettings(s.Lib.Drive.Personal)
+			st.ShareWifi = on
+			err = update.SaveSettings(s.Lib.Drive.Personal, st)
+			s.settingsMu.Unlock()
+		}
 	case "essentials":
 		err = s.startEssentials()
 	case "check-start":

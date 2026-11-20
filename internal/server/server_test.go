@@ -547,3 +547,42 @@ func TestEssentials(t *testing.T) {
 		t.Fatal("page after making them")
 	}
 }
+
+type fakeWiFi struct{ on bool }
+
+func (f *fakeWiFi) On() bool          { return f.on }
+func (f *fakeWiFi) Fixed() bool       { return false }
+func (f *fakeWiFi) Set(on bool) error { f.on = on; return nil }
+func (f *fakeWiFi) Addrs() []string {
+	if f.on {
+		return []string{"http://192.168.43.17:8080/"}
+	}
+	return nil
+}
+
+// "Read on phones": a switch, then the address with its QR code.
+func TestSharePage(t *testing.T) {
+	s := newTestServer(t)
+	s.WiFi = &fakeWiFi{}
+	if _, page := get(s, "/nabu/share"); !strings.Contains(page, `data-action="share-wifi" data-mode="on"`) {
+		t.Fatal("no switch")
+	}
+	call(t, s, "share-wifi", `{"mode":"on"}`)
+	if !update.LoadSettings(s.Lib.Drive.Personal).ShareWifi {
+		t.Fatal("not remembered")
+	}
+	_, page := get(s, "/nabu/share")
+	if !strings.Contains(page, "<svg") || !strings.Contains(page, "http://192.168.43.17:8080/") || !strings.Contains(page, "Stop sharing") {
+		t.Fatal("no address or code")
+	}
+	if os.Getenv("SHARE_SHOT") != "" {
+		srv := httptest.NewServer(s)
+		defer srv.Close()
+		os.WriteFile(os.Getenv("SHARE_SHOT"), []byte(srv.URL), 0o644)
+		time.Sleep(15 * time.Second)
+	}
+	call(t, s, "share-wifi", `{"mode":"off"}`)
+	if update.LoadSettings(s.Lib.Drive.Personal).ShareWifi {
+		t.Fatal("still remembered on")
+	}
+}

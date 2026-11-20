@@ -1,0 +1,30 @@
+{{define "share.html"}}{{template "head" .}}
+<h1 style="margin-top:32px">Read on phones</h1>
+<p class="muted prose">Phones, tablets and other computers on the same Wi-Fi can read this NABU in their web browser: no app, nothing to install, no internet needed. They can read and search; only this computer can change what is on the drive.</p>
+
+{{if not .Local}}
+<div class="notice">You are reading this NABU over the network already.</div>
+{{else if not .Available}}
+<div class="notice">Sharing is not available in this way of running NABU.</div>
+{{else}}
+{{if .On}}
+<div class="notice ok">
+  <strong>Shared on this computer's network.</strong> {{if not .Shared}}This computer is not on a network right now: join a Wi-Fi network or a phone's hotspot, and the address appears here.{{else}}On the other device, point the camera at the code, or type the address into the browser:{{end}}
+  <div class="sharelist">
+  {{range .Shared}}<figure class="shareqr">{{.QR}}<figcaption><a href="{{.URL}}">{{.URL}}</a></figcaption></figure>{{end}}
+  </div>
+  {{if not .Fixed}}<p><a class="btn" href="#" data-action="share-wifi" data-mode="off">Stop sharing</a></p>{{end}}
+</div>
+{{else}}
+<p><a class="btn primary" href="#" data-action="share-wifi" data-mode="on">Share on Wi-Fi</a></p>
+{{end}}
+
+<h2 class="section">No Wi-Fi network?</h2>
+<ul class="prose">
+  <li><strong>Any phone can make one</strong>: turn on its hotspot (it works without mobile data or signal), join it from this computer and the other devices, then open the address above.</li>
+  <li><strong>Windows</strong> can make one itself: Settings → Network &amp; internet → Mobile hotspot (on some computers it needs an internet connection to start).</li>
+  <li><strong>Linux</strong>: in the Wi-Fi settings, "Turn on Wi-Fi hotspot".</li>
+  <li>The first time, Windows or the Mac may ask whether NABU may use the network: allow it on private networks.</li>
+</ul>
+{{end}}
+{{template "foot" .}}{{end}}

@@ -126,3 +126,9 @@ mark { background: var(--clay-soft); color: var(--ink); padding: 0 2px; border-r
 .drivestate { flex-basis: 100%; font-size: .85em; opacity: .8; }
 .drivestate::before { content: ""; display: inline-block; width: .6em; height: .6em; border-radius: 50%; background: #3a8a4a; margin-right: .45em; vertical-align: .05em; }
 .drivestate.busy::before { background: var(--clay); }
+
+/* Read on phones: addresses with their QR codes. */
+.sharelist { display: flex; flex-wrap: wrap; gap: 20px; margin: 14px 0; }
+.shareqr { margin: 0; text-align: center; }
+.shareqr svg { display: block; width: 220px; height: 220px; max-width: 100%; border-radius: 6px; }
+.shareqr figcaption { margin-top: 6px; font-size: .95em; word-break: break-all; }

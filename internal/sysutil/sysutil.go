@@ -48,7 +48,9 @@ func OpenBrowser(url string) error {
 
 // LANAddresses lists this machine's private IPv4 addresses, so a reader
 // can share NABU with other devices on the same Wi-Fi.
-func LANAddresses() []string {
+var LANAddresses = lanAddresses // a variable for tests
+
+func lanAddresses() []string {
 	var out []string
 	ifaces, err := net.Interfaces()
 	if err != nil {

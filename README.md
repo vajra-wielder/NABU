@@ -110,6 +110,13 @@ out without ejecting it, at any moment:
   new Wikipedia on it). Pulled out during that, only its last moments are lost, and it
   carries on from where it was when the drive is back.
 
+**Read on phones** (bottom of every page): **Share on Wi-Fi** lets phones, tablets and
+other computers on the same Wi-Fi read this NABU in their browser, by pointing the
+camera at the QR code shown or typing the address. No internet is needed: any phone's
+hotspot makes a network, even without mobile data. Other devices can read and search;
+only the computer running NABU can change the drive. NABU follows the computer onto
+new networks by itself, and **Stop sharing** cuts every other device off at once.
+
 **Check the drive** (bottom of every page, or `nabu check`) reads every bundle of
 articles on the drive; each carries checksums, so it tells exactly which articles a
 rough unplugging or a loose connection damaged. With another NABU drive attached that

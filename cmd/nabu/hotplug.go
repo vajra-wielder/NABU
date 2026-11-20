@@ -165,6 +165,20 @@ func newSharedListener(ln net.Listener) *sharedListener {
 	return s
 }
 
+// feed adds the connections of another listener (one on a network
+// address, for sharing on Wi-Fi) until it is closed.
+func (s *sharedListener) feed(ln net.Listener) {
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			s.conns <- c
+		}
+	}()
+}
+
 // session is a listener for one run of the server; closing it leaves the
 // address open for the next.
 func (s *sharedListener) session() net.Listener {

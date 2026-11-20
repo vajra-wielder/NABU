@@ -23,6 +23,9 @@ type Settings struct {
 	// limit). The default fits a 125 GB drive holding English with search
 	// inside articles and any one other language (see internal/plan).
 	PictureLimitGB int `json:"picture_limit_gb"`
+
+	// ShareWifi lets phones and computers on the same Wi-Fi read too.
+	ShareWifi bool `json:"share_wifi"`
 }
 
 // DefaultPictureLimitGB is the default room for pictures.
