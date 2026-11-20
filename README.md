@@ -232,9 +232,12 @@ language. Every Wikipedia can be on it, but most drives will be used in one or t
   own workings: project discussions (18% of English Wikipedia), templates, Lua
   modules, drafts, user and help pages. NABU writes the dump to the drive without
   them: articles, redirects, categories, file pages and portals stay, in the same
-  format (`nabu slim` does it for dumps already on a drive). English goes from
-  25.4 GB to about 20.3 GB; Simple English from 395 MB to 341 MB, every kept page
-  identical. It works the same for every language.
+  format (`nabu slim` does it for dumps already on a drive), in small bundles of at
+  most 128 KB of text that open quickly (Wikimedia's hold 100 pages, up to megabytes:
+  an article is read by unpacking its whole bundle). English goes from 25.4 GB to
+  about 21.9 GB; Simple English from 395 MB to 368 MB, every kept page identical, and
+  its articles open in 4.4 ms instead of 13.3 ms, together with NABU's own bzip2
+  decoder (1.7 times as fast as Go's). It works the same for every language.
 - **Updates go through the computer**, not the drive: a new dump downloads to the
   computer's own disk and only the finished, slimmed dump is written to the drive,
   so no room is kept free for it. If the drive is short of room then, the old copy of
@@ -260,19 +263,19 @@ language):
 | Part | English only | English and French |
 |---|---:|---:|
 | Programs for Windows, Mac and Linux | 0.1 GB | 0.1 GB |
-| English: text, title index, search inside articles | 24.0 GB | 24.0 GB |
-| French: text and title index (showing English's pictures) | | 6.1 GB |
-| Without pictures | **24.1 GB** (a 32 GB stick) | **30.2 GB** |
+| English: text, title index, search inside articles | 25.7 GB | 25.7 GB |
+| French: text and title index (showing English's pictures) | | 6.6 GB |
+| Without pictures | **25.8 GB** (a 32 GB stick) | **32.4 GB** |
 | English's main pictures (3.3 million) | 53.9 GB | 53.9 GB |
-| **With main pictures** | **78.0 GB** | **84.1 GB** |
+| **With main pictures** | **79.7 GB** | **86.3 GB** |
 | Every picture of English, up to the 85 GB limit | 85 GB | 85 GB |
-| **With pictures up to the limit** | **109 GB** | **115 GB** |
+| **With pictures up to the limit** | **111 GB** | **117 GB** |
 
 A test (`internal/plan`) fails if English with any one of the other languages no
 longer fits 125 GB this way.
 
 Sizes of each part, for the newest dumps (November 2026), as downloaded: the text
-column shrinks by about a fifth on the drive (English) or 14% (Simple English). Title
+column shrinks by about 14% on the drive (English) or 7% (Simple English). Title
 index and search sizes are measured ratios (2.6% and 12.5% of the dump); picture sizes come from sampling
 every dump (`tools/picture-survey`, details in
 [docs/PICTURES-SURVEY.md](docs/PICTURES-SURVEY.md)) and are good to ±20%. In

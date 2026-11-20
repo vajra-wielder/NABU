@@ -36,7 +36,22 @@ type SlimOptions struct {
 	Progress Progress                 // compressed bytes of the source read
 	Stop     <-chan struct{}          // closed to abandon
 	Name     func(path string) string // the name a source file gets in dir (default: its own)
+	// Bundle is the most text kept in one compressed stream (default
+	// BundleSize). An article is read by decompressing its whole stream,
+	// so smaller streams open faster.
+	Bundle int
 }
+
+// BundleSize is how much text a slim dump keeps per compressed stream.
+// Wikimedia's streams hold 100 pages, up to megabytes of text; at 128 KB
+// an article opens 3.5 times faster on average (measured on Simple
+// English: 21 to 6 ms), for 10% more room.
+const BundleSize = 128 << 10
+
+// bundledBelow: a dump whose streams average more than this many
+// compressed bytes still has Wikimedia's big streams (100 pages: ~100 KB
+// on English Wikipedia); bundles of 128 KB of text compress to ~30 KB.
+const bundledBelow = 48 << 10
 
 // SlimResult says what Slim did.
 type SlimResult struct {
@@ -88,14 +103,16 @@ func FromNamed(names map[string][]string) (*Files, error) {
 	return f, nil
 }
 
-// NeedsSlim reports whether a dump still has pages Slim would drop. It
-// reads only the index (titles carry their namespace).
+// NeedsSlim reports whether a dump still has pages Slim would drop, or
+// still has Wikimedia's big streams. It reads only the index (titles
+// carry their namespace).
 func NeedsSlim(f *Files) (bool, error) {
 	for _, p := range f.Pairs {
-		data, _, err := OpenData(p.Data)
+		data, size, err := OpenData(p.Data)
 		if err != nil {
 			return false, err
 		}
+		big := false
 		found, err := func() (bool, error) {
 			defer data.Close()
 			idx, err := os.Open(p.Index)
@@ -106,10 +123,21 @@ func NeedsSlim(f *Files) (bool, error) {
 			sc := bufio.NewScanner(bzip2.NewReader(bufio.NewReaderSize(idx, 256<<10)))
 			sc.Buffer(make([]byte, 64<<10), 1<<20)
 			var site *Siteinfo
+			streams, last := 0, int64(-1)
+			defer func() {
+				// Wikimedia's big streams, not yet in small bundles?
+				if streams > 0 && size/int64(streams) > bundledBelow {
+					big = true
+				}
+			}()
 			for sc.Scan() {
 				off, _, title, ok := indexLine(sc.Bytes())
 				if !ok {
 					continue
+				}
+				if off != last {
+					streams++
+					last = off
 				}
 				if site == nil {
 					if site, err = SiteinfoFromDump(data, off); err != nil {
@@ -122,8 +150,8 @@ func NeedsSlim(f *Files) (bool, error) {
 			}
 			return false, sc.Err()
 		}()
-		if found || err != nil {
-			return found, err
+		if found || big || err != nil {
+			return found || big, err
 		}
 	}
 	return false, nil
@@ -309,20 +337,27 @@ func (p *pieceWriter) close() error {
 }
 
 type slimJob struct {
-	n     int
-	start int64
-	raw   []byte
-	lines [][]byte // the index lines of this stream: "id:title"
-	last  bool
+	n      int
+	start  int64
+	raw    []byte
+	lines  [][]byte // the index lines of this stream: "id:title"
+	last   bool
+	bundle int
 }
 
 type slimOut struct {
-	n     int
+	n       int
+	bundles []bundle
+	pages   int
+	kept    int
+	err     error
+}
+
+// bundle is one compressed stream of the slim dump with the index lines
+// ("id:title") of its pages.
+type bundle struct {
 	data  []byte
-	lines [][]byte // kept index lines, "id:title"
-	pages int
-	kept  int
-	err   error
+	lines [][]byte
 }
 
 func slimPair(p Pair, dw *pieceWriter, idxOut string, opt SlimOptions, res *SlimResult, progress func(int64)) error {
@@ -381,6 +416,10 @@ func slimPair(p Pair, dw *pieceWriter, idxOut string, opt SlimOptions, res *Slim
 		return friendly(err)
 	}
 
+	bundleSize := opt.Bundle
+	if bundleSize <= 0 {
+		bundleSize = BundleSize
+	}
 	jobs := make(chan slimJob, opt.Workers*2)
 	results := make(chan slimOut, opt.Workers*2)
 	stop := make(chan struct{})
@@ -416,7 +455,7 @@ func slimPair(p Pair, dw *pieceWriter, idxOut string, opt SlimOptions, res *Slim
 				return
 			}
 			select {
-			case jobs <- slimJob{n: i, start: s.off, raw: raw, lines: s.lines, last: i == len(streams)-1}:
+			case jobs <- slimJob{n: i, start: s.off, raw: raw, lines: s.lines, last: i == len(streams)-1, bundle: bundleSize}:
 			case <-stop:
 				return
 			case <-opt.Stop:
@@ -466,13 +505,13 @@ func slimPair(p Pair, dw *pieceWriter, idxOut string, opt SlimOptions, res *Slim
 			}
 			res.Pages += o.pages
 			res.Kept += o.kept
-			if len(o.lines) > 0 || len(o.data) > 0 {
+			for _, b := range o.bundles {
 				off := dw.pos
-				if _, err := dw.Write(o.data); err != nil {
+				if _, err := dw.Write(b.data); err != nil {
 					firstErr = friendly(err)
 					halt()
 				}
-				for _, l := range o.lines {
+				for _, l := range b.lines {
 					idxText.WriteString(strconv.FormatInt(off, 10))
 					idxText.WriteByte(':')
 					idxText.Write(l)
@@ -520,7 +559,7 @@ func slimPair(p Pair, dw *pieceWriter, idxOut string, opt SlimOptions, res *Slim
 // closing of the XML document).
 func slimStream(j slimJob) slimOut {
 	out := slimOut{n: j.n}
-	plain, err := io.ReadAll(bzip2.NewReader(bytes.NewReader(j.raw)))
+	plain, err := bzip2w.Decompress(j.raw)
 	if err != nil {
 		out.err = err
 		return out
@@ -533,8 +572,18 @@ func slimStream(j slimJob) slimOut {
 			}
 		}
 	}
-	var kept bytes.Buffer
+	// Kept pages go into bundles of at most j.bundle bytes of text (a
+	// bigger page in one of its own).
+	var cur bundle
+	var text bytes.Buffer
 	dropped := false
+	closeBundle := func() {
+		if text.Len() > 0 {
+			cur.data = bzip2w.Compress(text.Bytes())
+			out.bundles = append(out.bundles, cur)
+		}
+		cur, text = bundle{}, bytes.Buffer{}
+	}
 	pos := 0
 	for {
 		i := bytes.Index(plain[pos:], []byte("<page>"))
@@ -560,10 +609,13 @@ func slimStream(j slimJob) slimOut {
 		out.pages++
 		ns, id := pageNSAndID(page)
 		if slimKeep[ns] {
-			kept.Write(page)
+			if text.Len() > 0 && text.Len()+len(page) > j.bundle {
+				closeBundle()
+			}
+			text.Write(page)
 			out.kept++
 			if l, ok := lines[id]; ok {
-				out.lines = append(out.lines, l)
+				cur.lines = append(cur.lines, l)
 			}
 		} else {
 			dropped = true
@@ -571,14 +623,15 @@ func slimStream(j slimJob) slimOut {
 		pos = end
 	}
 	rest := plain[pos:] // "</mediawiki>" after the last page
-	if !dropped {
-		out.data = j.raw // nothing to drop: keep it exactly as it was
+	if !dropped && len(plain) <= j.bundle {
+		// Nothing to drop and small already: keep it exactly as it was.
+		out.bundles = []bundle{{data: j.raw, lines: cur.lines}}
 		return out
 	}
-	kept.Write(rest)
-	if kept.Len() > 0 && (out.kept > 0 || len(bytes.TrimSpace(rest)) > 0) {
-		out.data = bzip2w.Compress(kept.Bytes())
+	if len(bytes.TrimSpace(rest)) > 0 {
+		text.Write(rest)
 	}
+	closeBundle()
 	return out
 }
 

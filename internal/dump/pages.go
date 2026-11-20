@@ -2,11 +2,11 @@ package dump
 
 import (
 	"bytes"
-	"compress/bzip2"
 	"container/list"
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/vajra-wielder/nabu/internal/bzip2w"
 	"io"
 	"strconv"
 	"sync"
@@ -69,12 +69,7 @@ func (r *Reader) Load(e Entry) (*Page, error) {
 		return nil, ErrStale
 	}
 	data, err := r.streams.get(e.Stream, func() ([]byte, error) {
-		zr := bzip2.NewReader(io.NewSectionReader(r.data[pair], start, end-start))
-		var buf bytes.Buffer
-		if _, err := io.Copy(&buf, zr); err != nil {
-			return nil, fmt.Errorf("decompressing the dump (is the file complete?): %w", err)
-		}
-		return buf.Bytes(), nil
+		return r.stream(pair, start, end)
 	})
 	if err != nil {
 		return nil, err
@@ -226,11 +221,24 @@ func (r *Reader) StreamPages(s uint32) ([]*Page, error) {
 	if pair >= len(r.data) {
 		return nil, ErrStale
 	}
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, bzip2.NewReader(io.NewSectionReader(r.data[pair], start, end-start))); err != nil {
+	data, err := r.stream(pair, start, end)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePages(data), nil
+}
+
+// stream reads and decompresses one stream of the dump.
+func (r *Reader) stream(pair int, start, end int64) ([]byte, error) {
+	raw := make([]byte, end-start)
+	if _, err := r.data[pair].ReadAt(raw, start); err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("reading the dump: %w", err)
+	}
+	data, err := bzip2w.Decompress(raw)
+	if err != nil {
 		return nil, fmt.Errorf("decompressing the dump (is the file complete?): %w", err)
 	}
-	return ParsePages(buf.Bytes()), nil
+	return data, nil
 }
 
 // ParsePages decodes the <page> elements of decompressed dump XML; an

@@ -151,6 +151,7 @@ func TestRealSlim(t *testing.T) {
 			}
 		}
 		t.Logf("   %d pages compared with the original", checked)
+		timeOpen(t, orig, slim)
 	}
 }
 
@@ -170,4 +171,29 @@ func openBig(t *testing.T, f *Files) *Reader {
 	}
 	t.Cleanup(func() { r.Close() })
 	return r
+}
+
+func timeOpen(t *testing.T, orig, slim *Reader) {
+	var titles []string
+	for s := 3; s < orig.Index.StreamCount(); s += 47 {
+		pages, _ := orig.StreamPages(uint32(s))
+		for _, p := range pages {
+			if p.NS == 0 && p.Redirect == "" {
+				titles = append(titles, p.Title)
+				break
+			}
+		}
+	}
+	for _, r := range []*Reader{orig, slim} {
+		var total time.Duration
+		for _, title := range titles {
+			r.streams = newStreamCache(24 << 20) // nothing cached
+			t0 := time.Now()
+			if _, _, err := r.Lookup(title); err != nil {
+				t.Fatal(err)
+			}
+			total += time.Since(t0)
+		}
+		t.Logf("   opening an article: %.1f ms on average (%d articles)", float64(total.Microseconds())/1000/float64(len(titles)), len(titles))
+	}
 }

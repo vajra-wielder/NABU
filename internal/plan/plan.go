@@ -40,13 +40,15 @@ const (
 	Programs        = 90e6  // the programs for Windows, Mac and Linux
 )
 
-// SlimShare is what is left of a dump without the pages NABU never shows
-// (dump.Slim): sampled on English Wikipedia (71% articles, 6% redirects,
-// 2% categories, files and portals; 18% project discussions), and
-// measured on Simple English (86%) for the others.
-var SlimShare = map[string]float64{"enwiki": 0.80}
+// SlimShare is what is left of a dump on the drive (dump.Slim): without
+// the pages NABU never shows, sampled on English Wikipedia (71% articles,
+// 6% redirects, 2% categories, files and portals; 18% project
+// discussions), and measured on Simple English for the others (86%);
+// then 8% more for keeping articles in small, quick-to-open bundles
+// (measured on Simple English: 341 to 368 MB).
+var SlimShare = map[string]float64{"enwiki": 0.80 * 1.08}
 
-const defaultSlimShare = 0.86
+const defaultSlimShare = 0.93
 
 // OnDrive is the size of a wiki's dump on the drive, without the pages
 // NABU never shows.
