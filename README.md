@@ -127,6 +127,14 @@ and parchment, with a Night theme for the evening.
 - **Link previews.** Hover a link to see how that article begins.
 - **Reading settings.** The **Aa** button sets the theme (Auto, Day, Night), text size,
   page width, and serif or sans-serif body text. Settings are remembered per browser.
+- **Essentials.** One button on the *Saved & recent* page makes ten collections of
+  268 English Wikipedia articles worth having first when there is no help to call:
+  first aid, medicine and disease, water, food, farming, shelter and fire, tools,
+  navigation and radio, energy, natural dangers (the list is
+  `internal/essentials/essentials.txt`, every title checked). Each is saved as a page
+  with its pictures that opens in any browser, on any phone or computer, even without
+  NABU. Made while online, the pictures come too; the same button brings them up to
+  date later.
 - **Saved & recent.** **☆ Save** keeps an article for later. Saved articles and reading
   history are stored *on the drive*, so they move with the stick to any computer. Only
   reading on the computer running NABU is remembered, never that of devices reading

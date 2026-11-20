@@ -1,7 +1,10 @@
 package server
 
 import (
+	"strings"
+
 	"container/list"
+	"github.com/vajra-wielder/nabu/internal/essentials"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -165,12 +168,25 @@ func (s *Server) discoverFor(b *library.Book) []itemView {
 
 func (s *Server) serveSaved(w http.ResponseWriter, r *http.Request) {
 	saved, history := s.reads.lists()
+	ev := s.essentialsView()
+	if ev.Running {
+		w.Header().Set("Refresh", "3")
+	}
+	hasEssentials := false
+	for _, c := range s.collections.List() {
+		if strings.HasPrefix(c.Name, essentials.Prefix) {
+			hasEssentials = true
+		}
+	}
 	s.render(w, r, "saved.html", map[string]interface{}{
-		"PageTitle": "Saved & recent",
-		"Nav":       "saved",
-		"Saved":     s.itemViews(saved, 0),
-		"History":   s.itemViews(history, 0),
-		"Settings":  s.settings(),
-		"Colls":     s.collections.List(),
+		"Essentials":    ev,
+		"HasEssentials": hasEssentials,
+		"EnglishBook":   s.englishBook() != nil,
+		"PageTitle":     "Saved & recent",
+		"Nav":           "saved",
+		"Saved":         s.itemViews(saved, 0),
+		"History":       s.itemViews(history, 0),
+		"Settings":      s.settings(),
+		"Colls":         s.collections.List(),
 	})
 }

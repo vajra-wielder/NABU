@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"github.com/vajra-wielder/nabu/internal/essentials"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -505,5 +506,44 @@ func TestCheckTheDrive(t *testing.T) {
 	}
 	if s.Lib.Get("testwiki").Reader() == nil {
 		t.Fatal("title index not rebuilt")
+	}
+}
+
+// The Essentials collections are made in one go from the English
+// Wikipedia on the drive; titles it lacks are listed.
+func TestEssentials(t *testing.T) {
+	old := essentialGroups
+	essentialGroups = func() []essentials.Group {
+		return []essentials.Group{
+			{Name: "First aid", Titles: []string{"Babylon", "No such article anywhere"}},
+			{Name: "Tools", Titles: []string{"Nabu"}},
+		}
+	}
+	defer func() { essentialGroups = old }()
+	s := newTestServer(t)
+	_, page := get(s, "/nabu/saved")
+	if !strings.Contains(page, "Make the Essentials collections") {
+		t.Fatal("no button")
+	}
+	for round := 0; round < 2; round++ { // the second time brings them up to date
+		call(t, s, "essentials", `{}`)
+		deadline := time.Now().Add(20 * time.Second)
+		for s.essentialsView().Running && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	v := s.essentialsView()
+	if !v.Made || v.Err != "" || len(v.Missing) != 1 || v.Missing[0] != "No such article anywhere" {
+		t.Fatalf("%+v", v)
+	}
+	names := map[string]int{}
+	for _, c := range s.collections.List() {
+		names[c.Name] = len(c.Items)
+	}
+	if names["Essentials: First aid"] != 1 || names["Essentials: Tools"] != 1 || len(names) != 2 {
+		t.Fatalf("collections %v", names)
+	}
+	if _, page := get(s, "/nabu/saved"); !strings.Contains(page, "Bring the Essentials up to date") || !strings.Contains(page, "Not in this Wikipedia: No such article anywhere") {
+		t.Fatal("page after making them")
 	}
 }

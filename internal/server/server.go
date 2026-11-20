@@ -42,6 +42,7 @@ type Server struct {
 	collections *collect.Store
 	copier      share.Copier
 	check       driveCheck
+	essentials  essentialsJob
 	previews    *previewCache
 	discoverMu  sync.Mutex
 	discover    map[string]discoverSet

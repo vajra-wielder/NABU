@@ -152,6 +152,8 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		err = update.SaveSettings(s.Lib.Drive.Personal, st)
 		s.settingsMu.Unlock()
+	case "essentials":
+		err = s.startEssentials()
 	case "check-start":
 		err = s.startCheck()
 	case "check-stop":

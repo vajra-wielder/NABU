@@ -1,0 +1,292 @@
+# Essentials: articles worth having first when there is no help to call.
+# "## Name" starts a collection; each other line is an English Wikipedia
+# title. Titles were checked against English Wikipedia (redirects
+# followed) in November 2026.
+
+## First aid and emergencies
+First aid
+Cardiopulmonary resuscitation
+Recovery position
+Bleeding
+Tourniquet
+Wound
+Burn
+Bone fracture
+Splint (medicine)
+Sprain
+Joint dislocation
+Shock (circulatory)
+Choking
+Heimlich maneuver
+Drowning
+Hypothermia
+Frostbite
+Heat stroke
+Dehydration
+Oral rehydration therapy
+Concussion
+Head injury
+Spinal cord injury
+Snakebite
+Dog bite
+Anaphylaxis
+Asthma
+Seizure
+Stroke
+Myocardial infarction
+Poisoning
+Carbon monoxide poisoning
+Electrical injury
+Triage
+Stretcher
+Bandage
+Surgical suture
+Wound healing
+Wilderness medical emergency
+Psychological first aid
+
+## Medicine and disease
+Infection
+Sepsis
+Antibiotic
+Penicillin
+Amoxicillin
+Doxycycline
+Paracetamol
+Ibuprofen
+Aspirin
+Antiseptic
+Povidone-iodine
+Hand washing
+Disinfectant
+Sterilization (microbiology)
+Vaccine
+Immune system
+Fever
+Diarrhea
+Cholera
+Typhoid fever
+Dysentery
+Malaria
+Tuberculosis
+Influenza
+Pneumonia
+Measles
+Tetanus
+Rabies
+Hepatitis A
+Leptospirosis
+Plague (disease)
+Scabies
+Head louse
+Lyme disease
+Diabetes
+Hypoglycemia
+Childbirth
+Pregnancy
+Breastfeeding
+Malnutrition
+Scurvy
+Vitamin C
+Rickets
+Tooth decay
+Blood transfusion
+Blood type
+Quarantine
+Personal protective equipment
+Medical glove
+Surgical mask
+Post-traumatic stress disorder
+
+## Water
+Drinking water
+Water purification
+Portable water purification
+Boiling
+Solar water disinfection
+Water chlorination
+Sodium hypochlorite
+Water filter
+Slow sand filter
+Ceramic water filter
+Rainwater harvesting
+Well
+Hand pump
+Spring (hydrology)
+Waterborne disease
+Distillation
+Solar still
+Water tank
+
+## Food
+Food preservation
+Canning
+Smoking (cooking)
+Salting (food)
+Food drying
+Pickling
+Fermentation in food processing
+Root cellar
+Food spoilage
+Botulism
+Foodborne illness
+Mushroom poisoning
+Foraging
+Urtica dioica
+Taraxacum
+Typha
+Acorn
+Hunting
+Trapping
+Fishing
+Fishing net
+Angling
+Butcher
+Bread
+Flour
+Rice
+Potato
+Bean
+Maize
+Wheat
+Cassava
+Nutrition
+Protein
+Food energy
+
+## Farming
+Agriculture
+Seed saving
+Crop rotation
+Compost
+Manure
+Irrigation
+Horticulture
+Gardening
+Plough
+Chicken
+Goat
+Rabbit
+Beekeeping
+Honey
+Animal husbandry
+Integrated pest management
+Granary
+
+## Shelter, fire and warmth
+Survival skills
+Bushcraft
+Shelter
+Fire making
+Firewood
+Charcoal
+Tinder
+Ferrocerium
+Bow drill
+Campfire
+Rocket stove
+Thermal insulation
+Layered clothing
+Sleeping bag
+Tent
+Adobe
+Rammed earth
+Log cabin
+Thatching
+Rope
+Knot
+Bowline
+Clove hitch
+
+## Tools and making things
+Knife
+Axe
+Saw
+Machete
+Hand tool
+Blacksmith
+Forging
+Soap
+Candle
+Oil lamp
+Lye
+Pottery
+Kiln
+Textile
+Spinning (textiles)
+Weaving
+Tanning (leather)
+Leather
+Sewing
+Adhesive
+Wheel
+Lever
+Pulley
+Simple machine
+
+## Navigation and communication
+Navigation
+Compass
+Map
+Topographic map
+Orienteering
+Celestial navigation
+Polaris
+Crux
+Latitude
+Longitude
+Morse code
+Amateur radio
+Shortwave radio
+Crystal radio
+Citizens band radio
+Walkie-talkie
+Antenna (radio)
+Heliograph
+Smoke signal
+Flag semaphore
+Distress signal
+SOS
+NATO phonetic alphabet
+
+## Energy and electricity
+Electricity
+Electric battery
+Lead–acid battery
+Solar panel
+Photovoltaics
+Electric generator
+Wind turbine
+Water wheel
+Power inverter
+Ohm's law
+Electrical wiring
+Fuse (electrical)
+Hub dynamo
+Biogas
+Wood gas
+
+## Weather and natural dangers
+Weather forecasting
+Cloud
+Thunderstorm
+Lightning
+Flood
+Earthquake
+Tsunami
+Wildfire
+Tornado
+Tropical cyclone
+Avalanche
+Venomous snake
+List of poisonous plants
+Toxicodendron radicans
+Mosquito
+Tick
+Brown bear
+Wolf
+Radiation
+Acute radiation syndrome
+Potassium iodide
+Nuclear fallout
+Gas mask
