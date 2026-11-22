@@ -218,7 +218,14 @@ func cmdSetup(args []string) error {
 	// NABU itself, so the pictures keep coming in.
 	say("")
 	say("Starting NABU (close this window or click Turn off NABU to stop it).")
-	return cmdServe([]string{"--drive", d.Root})
+	serve := []string{"--drive", d.Root, "--port", fmt.Sprint(o.port), "--mirror", o.mirror}
+	if o.noBrowser {
+		serve = append(serve, "--no-browser")
+	}
+	if o.lan {
+		serve = append(serve, "--lan")
+	}
+	return cmdServe(serve)
 }
 
 var errStopped = errors.New("stopped")

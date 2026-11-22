@@ -368,6 +368,7 @@ func (l *Library) Close() {
 	// A picture download saves its place and stops first.
 	if l.pics != nil {
 		l.pj.mu.Lock()
+		l.pj.closed = true
 		if l.pj.cancel != nil {
 			l.pj.cancel()
 		}

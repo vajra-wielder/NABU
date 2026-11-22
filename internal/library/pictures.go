@@ -29,6 +29,7 @@ type picJobs struct {
 	queue   chan string
 	running string
 	cancel  context.CancelFunc
+	closed  bool // the library is closing: start nothing more
 }
 
 type picState struct {
@@ -265,7 +266,7 @@ func (l *Library) picWorker() {
 	for db := range l.pj.queue {
 		l.pj.mu.Lock()
 		ps := l.pj.state[db]
-		if ps == nil || ps.state != PicQueued {
+		if ps == nil || ps.state != PicQueued || l.pj.closed {
 			l.pj.mu.Unlock()
 			continue
 		}
@@ -323,6 +324,9 @@ func (l *Library) runPictures(ctx context.Context, db string) error {
 		}
 	}
 	rd := b.Reader()
+	if rd == nil { // closed meanwhile (NABU stopping, or the dump removed)
+		return context.Canceled
+	}
 	err = pictures.Run(ctx, j, rd, st, l.pics.Fetch, rd.Site().Host(), l.pics.Busy, l.pics.Full, func(p pictures.Progress) {
 		l.picReport(db, p)
 	})

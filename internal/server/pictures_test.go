@@ -324,3 +324,18 @@ func TestEssentialsWithPictures(t *testing.T) {
 		t.Fatalf("%d pictures in the saved copy", len(files))
 	}
 }
+
+// Closing right after starting the pictures (as setup does) must not
+// let the download run on with the dump closed.
+func TestCloseRightAfterStartingPictures(t *testing.T) {
+	client, _ := fakeWikimedia(t)
+	for i := 0; i < 20; i++ {
+		svc := pictures.NewService("", pictures.NewFetcher(client, "NABU/test (https://example.org)"))
+		s := newTestServerWith(t, library.Config{Pictures: svc, Online: func() bool { return true }})
+		if err := s.Lib.StartPictures("testwiki", pictures.Lead); err != nil {
+			t.Fatal(err)
+		}
+		s.Lib.Close()
+		time.Sleep(time.Duration(i%3) * time.Millisecond)
+	}
+}

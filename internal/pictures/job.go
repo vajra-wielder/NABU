@@ -430,8 +430,9 @@ func Keep(ctx context.Context, names []string, st Stores, f *Fetcher, host strin
 		}
 	}
 	j := &Job{}
-	for i := 0; i < len(todo); i += apiBatch {
-		end := i + apiBatch
+	const step = 10 // small batches, so progress shows often
+	for i := 0; i < len(todo); i += step {
+		end := i + step
 		if end > len(todo) {
 			end = len(todo)
 		}

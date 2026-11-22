@@ -48,9 +48,9 @@ type SlimOptions struct {
 // English: 21 to 6 ms), for 10% more room.
 const BundleSize = 128 << 10
 
-// bundledBelow: a dump whose streams average more than this many
-// compressed bytes still has Wikimedia's big streams (100 pages: ~100 KB
-// on English Wikipedia); bundles of 128 KB of text compress to ~30 KB.
+// bundledBelow: a stream of several pages bigger than this (compressed)
+// is one of Wikimedia's (100 pages: ~100 KB on English Wikipedia);
+// bundles of at most 128 KB of text compress to ~30-40 KB.
 const bundledBelow = 48 << 10
 
 // SlimResult says what Slim did.
@@ -123,10 +123,24 @@ func NeedsSlim(f *Files) (bool, error) {
 			sc := bufio.NewScanner(bzip2.NewReader(bufio.NewReaderSize(idx, 256<<10)))
 			sc.Buffer(make([]byte, 64<<10), 1<<20)
 			var site *Siteinfo
-			streams, last := 0, int64(-1)
+			// Wikimedia's big streams, not yet in small bundles? In a slim
+			// dump a bundle of several pages is never big (an article
+			// bigger than a bundle has one of its own); in Wikimedia's,
+			// most hold 100 pages and far more text.
+			multi, bigMulti := 0, 0
+			all, other := 0, 0
+			last, pages := int64(-1), 0
+			closeStream := func(end int64) {
+				if pages > 1 {
+					multi++
+					if end-last > bundledBelow {
+						bigMulti++
+					}
+				}
+			}
 			defer func() {
-				// Wikimedia's big streams, not yet in small bundles?
-				if streams > 0 && size/int64(streams) > bundledBelow {
+				closeStream(size)
+				if multi > 0 && bigMulti*2 > multi {
 					big = true
 				}
 			}()
@@ -136,19 +150,26 @@ func NeedsSlim(f *Files) (bool, error) {
 					continue
 				}
 				if off != last {
-					streams++
-					last = off
+					if last >= 0 {
+						closeStream(off)
+					}
+					last, pages = off, 0
 				}
+				pages++
 				if site == nil {
 					if site, err = SiteinfoFromDump(data, off); err != nil {
 						return false, err
 					}
 				}
+				all++
 				if ns, _ := site.SplitTitle(title); !slimKeep[ns] {
-					return true, nil
+					other++
 				}
 			}
-			return false, sc.Err()
+			// A few article titles only look like other pages ("Draft :
+			// Shein" is an article); a dump not slimmed has about a fifth.
+			// More than 0.2% means not slimmed.
+			return other*500 > all, sc.Err()
 		}()
 		if found || big || err != nil {
 			return found || big, err
