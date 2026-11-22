@@ -211,3 +211,21 @@ func TestReferenceListInsideItsNote(t *testing.T) {
 	// The only list inside the note: nothing to show, but no crash.
 	Render("A<ref>x<references/></ref>", &Context{Title: "T", Site: site(t)})
 }
+
+// Chemistry boxes name their fields their own way; their picture and
+// upkeep fields are not for readers.
+func TestChemboxFields(t *testing.T) {
+	src := "{{Chembox\n| Verifiedrevid = 477162647\n| Name = Water ({{nosuchtemplate|H2O}})\n| ImageFile1 = H2O 2D labelled.svg\n| ImageSize1 = 150px\n| ImageName1 = The water molecule\n| ImageFileL1 = Water-3D-balls.png\n| watchedfields = changed\n| IUPACName = water, oxidane\n| DataPagePageName = Water (data page)\n| Section1 = {{nosuchbox|x}}\n}}\nWater is wet."
+	out := Render(src, &Context{Title: "Water", Site: site(t), PageURL: func(s string) string { return s }, ImageURL: func(s string, w int) string { return s }})
+	for _, bad := range []string{"Verifiedrevid", "Imagefile1", "Imagesize1", "Imagename1", "Watchedfields", "Water ()"} {
+		if strings.Contains(out.HTML, bad) {
+			t.Errorf("%q shown", bad)
+		}
+	}
+	if strings.Contains(out.HTML, "Section1") || strings.Contains(out.HTML, "Datapagepagename") || !strings.Contains(out.HTML, "IUPAC name") {
+		t.Error("labels")
+	}
+	if !strings.Contains(out.HTML, "water, oxidane") {
+		t.Error("a real field was dropped")
+	}
+}

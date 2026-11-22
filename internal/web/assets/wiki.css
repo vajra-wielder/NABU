@@ -31,7 +31,10 @@
 .save[aria-pressed="true"] { background: var(--clay-soft); border-color: var(--clay); color: var(--clay-deep); }
 .save[aria-pressed="true"] .star { fill: currentColor; }
 
-.mw-body { font-family: var(--read-font); font-size: var(--read-size); line-height: 1.65; color: var(--ink); }
+.mw-body { font-family: var(--read-font); font-size: var(--read-size); line-height: 1.65; color: var(--ink); overflow-wrap: break-word; }
+/* Long web addresses (in references, mostly) break rather than widen the page;
+   on right-to-left pages they would push it out to the left. */
+.mw-body a.external, .mw-body .ref-text, .mw-body .references li { overflow-wrap: anywhere; }
 .mw-body a { color: var(--link); }
 .mw-body a:visited { color: var(--link-visited); }
 .mw-body a.external::after { content: "\2009\2197"; font-size: .78em; color: var(--ink-faint); }

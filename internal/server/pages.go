@@ -340,7 +340,8 @@ func (s *Server) writingNow() string {
 		if b.FTStatus().State == library.FTBuilding {
 			add("building search inside articles")
 		}
-		if s.Lib.PictureStatus(b.Files.DB).State == library.PicRunning {
+		// (not while it only waits: for the internet, or for room)
+		if ps := s.Lib.PictureStatus(b.Files.DB); ps.State == library.PicRunning && ps.Waiting == "" {
 			add("keeping pictures")
 		}
 	}

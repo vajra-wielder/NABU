@@ -1,6 +1,7 @@
 package wikitext
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -368,7 +369,10 @@ func (r *renderer) infobox(c *call) string {
 		title = r.ctx.Title
 	}
 	var b strings.Builder
-	b.WriteString(`<table class="infobox"><tr><th colspan="2" class="infobox-title">` + r.fragment(title) + "</th></tr>")
+	// A part of the name made by a template NABU leaves out ("Water
+	// ({{chem2|H2O}})") would leave "Water ()".
+	titleHTML := emptyParens.ReplaceAllString(r.fragment(title), "")
+	b.WriteString(`<table class="infobox"><tr><th colspan="2" class="infobox-title">` + titleHTML + "</th></tr>")
 	// The image comes first.
 	for _, k := range []string{"image", "image_name", "logo", "flag", "imagen", "immagine", "imagem", "bild", "image1", "изображение", "صورة", "تصویر", "gambar", "billede", "image_flag", "map_image", "image_map"} {
 		if v := c.named[k]; strings.TrimSpace(v) != "" {
@@ -465,6 +469,15 @@ func (r *renderer) infobox(c *call) string {
 			if v == "" {
 				continue
 			}
+			// Chemistry boxes' "Section1 = {{Chembox Identifiers ...}}":
+			// the section speaks for itself.
+			if sectionKey.MatchString(strings.ToLower(k)) {
+				if h := r.fragment(v); strings.TrimSpace(stripTags(h)) != "" {
+					b.WriteString(`<tr><td colspan="2" class="infobox-full">` + h + "</td></tr>")
+					rows++
+				}
+				continue
+			}
 			if r.infoRow(&b, escText(label), v) {
 				rows++
 			}
@@ -485,7 +498,18 @@ func (r *renderer) infoRow(b *strings.Builder, labelHTML, value string) bool {
 }
 
 func skipInfoboxKey(k string) bool {
+	k = strings.ToLower(k)
 	if strings.Contains(k, "caption") || strings.Contains(k, "footnote") || strings.HasSuffix(k, "_ref") {
+		return true
+	}
+	// Pictures in all their forms (chemistry boxes: ImageFile1,
+	// ImageSize1, ImageName1, ImageFileL1...) and the boxes' upkeep
+	// (verifiedrevid, watchedfields...): nothing for a reader.
+	if strings.HasPrefix(k, "datapage") || strings.HasPrefix(k, "data page") {
+		return true
+	}
+	if strings.HasPrefix(k, "image") || strings.HasPrefix(k, "verified") || strings.HasPrefix(k, "watched") ||
+		strings.HasSuffix(k, "revid") || strings.HasPrefix(k, "alt") || k == "reference" || k == "drug_name" {
 		return true
 	}
 	switch k {
@@ -505,7 +529,22 @@ func skipInfoboxKey(k string) bool {
 	return strings.HasPrefix(k, "pushpin") || strings.HasPrefix(k, "mapframe")
 }
 
+var (
+	emptyParens = regexp.MustCompile(`\s*\(\s*\)`)
+	sectionKey  = regexp.MustCompile(`^section\d+$`)
+)
+
+// keyNames are labels for keys written run together (chemistry and drug
+// boxes).
+var keyNames = map[string]string{
+	"iupacname": "IUPAC name", "othernames": "Other names", "systematicname": "Systematic name",
+	"pin": "Preferred IUPAC name", "tradename": "Trade names", "routes_of_administration": "Routes of administration",
+}
+
 func humanKey(k string) string {
+	if n, ok := keyNames[strings.ToLower(k)]; ok {
+		return n
+	}
 	k = strings.ReplaceAll(strings.ReplaceAll(k, "_", " "), "-", " ")
 	return upperFirstRune(strings.TrimSpace(k))
 }

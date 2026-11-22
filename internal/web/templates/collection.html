@@ -1,7 +1,7 @@
 {{define "collection.html"}}{{template "head" .}}
 <p style="margin-top:28px"><a href="/nabu/saved#collections">← Saved &amp; collections</a></p>
 <h1 class="coll-title" dir="auto">{{.C.Name}}</h1>
-<p class="muted">{{len .C.Items}} saved article{{if ne (len .C.Items) 1}}s{{end}} · each one a separate copy on the drive, in <code>{{.Folder}}</code>. Open <a href="/nabu/collections/{{.C.Slug}}/index.html">its contents page</a> in any browser, even without NABU, or copy the folder to share it.</p>
+<p class="muted">{{len .C.Items}} saved article{{if ne (len .C.Items) 1}}s{{end}} · each one a separate copy on the drive, in <code style="overflow-wrap:anywhere">{{.Folder}}</code>. Open <a href="/nabu/collections/{{.C.Slug}}/index.html">its contents page</a> in any browser, even without NABU, or copy the folder to share it.</p>
 <div class="toolbar">
   {{if .C.Items}}<a class="btn primary" href="/nabu/collections/{{.C.Slug}}/book">Read as one book</a>{{end}}
   {{if .Local}}
