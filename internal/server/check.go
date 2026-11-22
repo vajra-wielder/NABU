@@ -10,6 +10,7 @@ import (
 	"github.com/vajra-wielder/nabu/internal/drive"
 	"github.com/vajra-wielder/nabu/internal/dump"
 	"github.com/vajra-wielder/nabu/internal/library"
+	"github.com/vajra-wielder/nabu/internal/timer"
 )
 
 // driveCheck reads every bundle of every Wikipedia on the drive, to find
@@ -20,6 +21,7 @@ type driveCheck struct {
 	running  bool
 	stop     chan struct{}
 	book     string // being checked
+	bookAt   time.Time
 	done     int64
 	total    int64
 	started  time.Time
@@ -62,6 +64,8 @@ type checkView struct {
 	Results        []*bookCheck
 	Err            string
 	DamagedReaders int
+	Timer          string // for the Wikipedia being checked
+	Took           string // the whole check, once done
 }
 
 func (c *driveCheck) view() checkView {
@@ -71,6 +75,12 @@ func (c *driveCheck) view() checkView {
 		Finished: c.finished, Results: c.results, Err: c.err}
 	for _, r := range c.results {
 		v.DamagedReaders += len(r.Damaged)
+	}
+	if c.running && !c.bookAt.IsZero() {
+		v.Timer = timer.Line(time.Since(c.bookAt), c.done, c.total)
+	}
+	if !c.finished.IsZero() {
+		v.Took = timer.Elapsed(c.finished.Sub(c.started))
 	}
 	return v
 }
@@ -95,7 +105,7 @@ func (s *Server) startCheck() error {
 				continue
 			}
 			c.mu.Lock()
-			c.book, c.done, c.total = wikiName(b.Files.DB), 0, 0
+			c.book, c.done, c.total, c.bookAt = wikiName(b.Files.DB), 0, 0, time.Now()
 			c.mu.Unlock()
 			res, e := rd.Check(dump.CheckOptions{Stop: stop, Progress: func(d, t int64) {
 				c.mu.Lock()

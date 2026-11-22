@@ -105,10 +105,32 @@ func (l *Library) PictureStatus(db string) PicStatus {
 				s.State = PicPaused
 			}
 		}
-		if j.Seconds > 60 && s.Done > 0 {
+		if j.Seconds > 60 && j.Fetched > 0 {
 			s.PerHour = int(float64(j.Fetched) / j.Seconds * 3600)
-			if s.Total > s.Done {
-				s.ETA = time.Duration(j.Seconds/float64(s.Done)*float64(s.Total-s.Done)) * time.Second
+		}
+		// Time left: the pictures still to come (the estimate for this
+		// wiki, up to the room set aside) at the pace so far. None while
+		// it waits (offline, say): it would mean nothing.
+		if s.PerHour > 0 && s.Waiting == "" && !j.Done {
+			if b := l.newest(db); b != nil {
+				lead, all := pictures.Estimate(db, b.Status().Articles, s.English)
+				want := lead
+				if j.Mode == pictures.All {
+					want = all
+				}
+				have := int64(s.Pictures + s.Shared)
+				left := want.Pictures - have
+				if s.Limit > 0 && have > 0 {
+					per := (s.Bytes + s.SBytes) / have
+					if per > 0 {
+						if room := (s.Limit - s.Used) / per; room < left {
+							left = room
+						}
+					}
+				}
+				if left > 0 {
+					s.ETA = time.Duration(float64(left) / float64(s.PerHour) * float64(time.Hour))
+				}
 			}
 		}
 	}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/vajra-wielder/nabu/internal/library"
+	"github.com/vajra-wielder/nabu/internal/timer"
 	"net/http"
 	"net/url"
 	"strings"
@@ -292,6 +294,8 @@ type bookStatus struct {
 	FTDone  int64  `json:"ft_done,omitempty"`
 	FTTotal int64  `json:"ft_total,omitempty"`
 	FTETA   int64  `json:"ft_eta,omitempty"`
+	Timer   string `json:"timer,omitempty"`    // preparing: time so far and left
+	FTTimer string `json:"ft_timer,omitempty"` // search inside articles: the same
 }
 
 type apiStatus struct {
@@ -315,8 +319,15 @@ func (s *Server) status() apiStatus {
 	for _, b := range s.Lib.Books() {
 		x := b.Status()
 		f := b.FTStatus()
-		st.Books = append(st.Books, bookStatus{ID: b.ID, State: x.State, Done: x.Done, Total: x.Total, Err: x.Err,
-			FT: f.State, FTDone: f.Done, FTTotal: f.Total, FTETA: int64(f.ETA.Seconds())})
+		bs := bookStatus{ID: b.ID, State: x.State, Done: x.Done, Total: x.Total, Err: x.Err,
+			FT: f.State, FTDone: f.Done, FTTotal: f.Total, FTETA: int64(f.ETA.Seconds())}
+		if x.State == library.Preparing {
+			bs.Timer = timer.Line(x.Elapsed, x.Done, x.Total)
+		}
+		if f.State == library.FTBuilding {
+			bs.FTTimer = timer.Line(f.Elapsed, f.Done, f.Total)
+		}
+		st.Books = append(st.Books, bs)
 	}
 	for _, wk := range s.wikisToCheck() {
 		if s.Checker.Checking(wk) {

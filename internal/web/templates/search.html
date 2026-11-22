@@ -15,7 +15,7 @@
   <p class="toolbar">{{if .Prev}}<a class="btn" href="{{.Prev}}">← Previous</a>{{end}}{{if .Next}}<a class="btn" href="{{.Next}}">Next →</a>{{end}}</p>
   {{else}}<p class="muted">No article contains all of these words.</p>{{end}}
 {{else if .Building}}
-  <div class="notice lapis" data-prep-ft="{{$.Book.ID}}"><p><strong>Building search inside articles…</strong> {{pct .Status.Done .Status.Total}}% read{{if .Status.ETA}}, about {{dur .Status.ETA}} left{{end}}.</p>
+  <div class="notice lapis" data-prep-ft="{{$.Book.ID}}"><p><strong>Building search inside articles…</strong> {{pct .Status.Done .Status.Total}}% read · <span data-ft-timer>{{timer .Status.Elapsed .Status.Done .Status.Total}}</span>.</p>
   <div class="progress"><div style="width:{{pct .Status.Done .Status.Total}}%"></div></div></div>
 {{else}}
   <div class="notice"><p><strong>Search inside articles</strong> needs a one-time index of every word in this Wikipedia: about {{.Minutes}} min on this computer, about {{bytes .Size}} on the drive. You can keep reading meanwhile.</p>

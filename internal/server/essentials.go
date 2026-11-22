@@ -3,9 +3,11 @@ package server
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/vajra-wielder/nabu/internal/essentials"
 	"github.com/vajra-wielder/nabu/internal/library"
+	"github.com/vajra-wielder/nabu/internal/timer"
 )
 
 // essentialGroups is the Essentials list (a variable for tests).
@@ -23,6 +25,8 @@ type essentialsJob struct {
 	missing []string
 	err     string
 	made    bool
+	started time.Time
+	took    time.Duration
 }
 
 type essentialsView struct {
@@ -33,6 +37,8 @@ type essentialsView struct {
 	Err         string
 	Made        bool
 	Count       int
+	Timer       string
+	Took        string
 }
 
 func (s *Server) essentialsView() essentialsView {
@@ -43,8 +49,14 @@ func (s *Server) essentialsView() essentialsView {
 	for _, g := range essentialGroups() {
 		n += len(g.Titles)
 	}
-	return essentialsView{Running: j.running, Done: j.done, Total: j.total, Book: j.book,
+	v := essentialsView{Running: j.running, Done: j.done, Total: j.total, Book: j.book,
 		Missing: j.missing, Err: j.err, Made: j.made, Count: n}
+	if j.running {
+		v.Timer = timer.Line(time.Since(j.started), int64(j.done), int64(j.total))
+	} else if j.made {
+		v.Took = timer.Elapsed(j.took)
+	}
+	return v
 }
 
 // englishBook is the English Wikipedia to take the Essentials from:
@@ -76,6 +88,7 @@ func (s *Server) startEssentials() error {
 	}
 	groups := essentialGroups()
 	j.running, j.done, j.total, j.missing, j.err, j.book = true, 0, 0, nil, "", wikiName(b.Files.DB)
+	j.started = time.Now()
 	for _, g := range groups {
 		j.total += len(g.Titles)
 	}
@@ -117,6 +130,7 @@ func (s *Server) startEssentials() error {
 		}
 		j.mu.Lock()
 		j.running, j.missing, j.err, j.made = false, missing, firstErr, true
+		j.took = time.Since(j.started)
 		j.mu.Unlock()
 	}()
 	return nil

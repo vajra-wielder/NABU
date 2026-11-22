@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/vajra-wielder/nabu/internal/timer"
 	"html/template"
 	"net/http"
 	"strconv"
@@ -43,6 +44,7 @@ var funcs = template.FuncMap{
 		return m
 	},
 	"seconds": func(d time.Duration) int64 { return int64(d / time.Second) },
+	"timer":   timer.Line,
 	"int64":   func(n int) int64 { return int64(n) },
 	"dur": func(d time.Duration) string {
 		switch {

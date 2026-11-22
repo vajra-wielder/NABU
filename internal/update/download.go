@@ -23,6 +23,7 @@ import (
 	"github.com/vajra-wielder/nabu/internal/drive"
 	"github.com/vajra-wielder/nabu/internal/dump"
 	"github.com/vajra-wielder/nabu/internal/sysutil"
+	"github.com/vajra-wielder/nabu/internal/timer"
 )
 
 // PartSize is the largest piece a file is written in. Bigger files are
@@ -55,6 +56,9 @@ type Status struct {
 	ETA      int64   `json:"eta"`
 	Error    string  `json:"error,omitempty"`
 	Verified bool    `json:"verified,omitempty"`
+	Timer    string  `json:"timer,omitempty"` // time so far and left, while writing to the drive
+
+	phaseAt time.Time
 }
 
 // Manager runs one download at a time into a library directory.
@@ -143,6 +147,11 @@ func (m *Manager) Status() Status {
 	s.Speed = float64(m.speed.Load())
 	if s.State == StateDownloading && s.Speed > 0 && s.Total > s.Done {
 		s.ETA = int64(float64(s.Total-s.Done) / s.Speed)
+	}
+	if s.State == StateSlimming && !s.phaseAt.IsZero() {
+		el := time.Since(s.phaseAt)
+		s.ETA = int64(timer.Remaining(el, s.Done, s.Total).Seconds())
+		s.Timer = timer.Line(el, s.Done, s.Total)
 	}
 	return s
 }
@@ -538,7 +547,7 @@ func (m *Manager) finish(ctx context.Context, rel *Release, dir string) error {
 			if err := m.room(rel.Wiki, rel.Size()*9/10+64<<20); err != nil {
 				return err
 			}
-			m.set(func(s *Status) { s.State, s.Total = StateSlimming, f.Size })
+			m.set(func(s *Status) { s.State, s.Total, s.phaseAt = StateSlimming, f.Size, time.Now() })
 			m.done.Store(0)
 			_, err := dump.Slim(f, m.Dir, dump.SlimOptions{
 				PartSize: PartSize,

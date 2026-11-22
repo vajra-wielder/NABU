@@ -46,7 +46,7 @@
     {{$ft := .FTStatus}}
     <p class="small ftline" data-prep-ft="{{.ID}}">
       {{if eq $ft.State "ready"}}<span class="badge ok">search inside articles ✓</span>{{if $ft.Meta}} {{count (int64 $ft.Meta.Docs)}} articles, {{count (int64 $ft.Meta.Geo)}} places{{end}}
-      {{else if or (eq $ft.State "building") (eq $ft.State "queued")}}Building search inside articles… {{pct $ft.Done $ft.Total}}%{{if $ft.ETA}}, about {{dur $ft.ETA}} left{{end}}{{if $.Local}} · <a href="#" data-action="fulltext-cancel" data-book="{{.ID}}">cancel</a>{{end}}
+      {{else if or (eq $ft.State "building") (eq $ft.State "queued")}}Building search inside articles… {{pct $ft.Done $ft.Total}}% · <span data-ft-timer>{{timer $ft.Elapsed $ft.Done $ft.Total}}</span>{{if $.Local}} · <a href="#" data-action="fulltext-cancel" data-book="{{.ID}}">cancel</a>{{end}}
       <span class="progress" style="display:block"><span style="display:block;height:100%;width:{{pct $ft.Done $ft.Total}}%;background:linear-gradient(90deg,var(--lapis),var(--clay))"></span></span>
       {{else}}{{if $ft.Err}}<span style="color:var(--bad)">{{$ft.Err}}</span><br>{{end}}{{if $.Local}}<a href="#" data-action="fulltext" data-book="{{.ID}}" data-confirm="Build search inside articles for {{.Name}}? It reads the whole dump once; you can keep reading meanwhile.">Build search inside articles</a>{{else}}Titles searchable{{end}}{{end}}
     </p>
@@ -76,7 +76,7 @@
     {{if $.Local}}<div class="actions"><button class="btn" data-action="retry" data-book="{{.ID}}">Try again</button></div>{{end}}
     {{else}}
     <div class="prep" data-prep="{{.ID}}">
-      <p class="small"><strong>Preparing for first use…</strong> Sorting the titles so they can be searched. This happens once per dump.</p>
+      <p class="small"><strong>Preparing for first use…</strong> Sorting the titles so they can be searched. This happens once per dump. <span data-prep-timer>{{if .Status.Elapsed}}{{timer .Status.Elapsed .Status.Done .Status.Total}}{{end}}</span></p>
       <div class="progress"><div style="width:{{pct .Status.Done .Status.Total}}%"></div></div>
     </div>
     {{end}}

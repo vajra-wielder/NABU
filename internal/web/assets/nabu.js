@@ -66,7 +66,7 @@
         var pct = d.total > 0 ? Math.min(100, 100 * d.done / d.total) : 0;
         box.querySelector('.progress > div').style.width = pct.toFixed(1) + '%';
         var line = labels[d.state] || d.state;
-        if (d.state === 'slimming') line += ' · ' + pct.toFixed(1) + '%';
+        if (d.state === 'slimming') line += ' · ' + pct.toFixed(1) + '%' + (d.timer ? ' · ' + d.timer : '');
         if (d.state === 'downloading' || d.state === 'checking') {
           line += ' · ' + human(d.done) + (d.total ? ' of ' + human(d.total) + ' (' + pct.toFixed(1) + '%)' : '');
           if (d.speed > 0 && d.state === 'downloading') line += ' · ' + human(d.speed) + '/s';
@@ -83,6 +83,10 @@
         if (b.state === 'preparing' || b.state === 'waiting') preparing = true;
         var el = document.querySelector('[data-prep="' + b.id + '"] .progress > div');
         if (el && b.total > 0) el.style.width = (100 * b.done / b.total).toFixed(1) + '%';
+        var tm = document.querySelectorAll('[data-prep="' + b.id + '"] [data-prep-timer]');
+        for (var q = 0; q < tm.length; q++) if (b.timer) tm[q].textContent = b.timer;
+        var ftm = document.querySelectorAll('[data-prep-ft="' + b.id + '"] [data-ft-timer]');
+        for (var r = 0; r < ftm.length; r++) if (b.ft_timer) ftm[r].textContent = b.ft_timer;
         if (readyBefore[b.id] === false && b.state === 'ready' && preps.length) { location.reload(); return; }
         readyBefore[b.id] = b.state === 'ready';
         var ftBusy = b.ft === 'building' || b.ft === 'queued';

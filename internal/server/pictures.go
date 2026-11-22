@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"github.com/vajra-wielder/nabu/internal/timer"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -110,7 +111,7 @@ func picLine(p library.PicStatus) string {
 		}
 		s += kept()
 		if p.ETA > 0 {
-			s += " · about " + humanDur(p.ETA) + " left"
+			s += " · " + timer.Left(p.ETA) + " left"
 		}
 		if p.Waiting != "" {
 			s += " · " + p.Waiting

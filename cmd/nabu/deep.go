@@ -497,20 +497,15 @@ func cmdSlim(args []string) error {
 			}
 			return nil
 		}
-		last := time.Now()
+		pr := newProgress(f.Key())
 		res, err := dump.Slim(f, dir, dump.SlimOptions{PartSize: update.PartSize, Stop: ctx.Done(),
-			Progress: func(done, total int64) {
-				if time.Since(last) > 2*time.Second {
-					last = time.Now()
-					fmt.Printf("\r  %.1f%%", 100*float64(done)/float64(total))
-				}
-			}}, func() error {
+			Progress: pr.update}, func() error {
 			if dir == d.Wikipedia {
 				return remove()
 			}
 			return nil
 		})
-		fmt.Print("\r        \r")
+		took := pr.done()
 		if err != nil {
 			return fmt.Errorf("%s: %w (the dump is unchanged)", f.Key(), err)
 		}
@@ -525,8 +520,8 @@ func cmdSlim(args []string) error {
 				}
 			}
 		}
-		fmt.Printf("%s: %s to %s; %d of %d pages kept. Its indexes are rebuilt when NABU next starts.\n",
-			f.Key(), update.HumanBytes(res.Before), update.HumanBytes(res.After), res.Kept, res.Pages)
+		fmt.Printf("%s: %s to %s; %d of %d pages kept, in %s. Its indexes are rebuilt when NABU next starts.\n",
+			f.Key(), update.HumanBytes(res.Before), update.HumanBytes(res.After), res.Kept, res.Pages, took)
 	}
 	return nil
 }
@@ -555,17 +550,10 @@ func cmdCheck(args []string) error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", f.Key(), err)
 		}
-		last, shown := time.Now(), false
-		res, err := rd.Check(dump.CheckOptions{Stop: ctx.Done(), Progress: func(done, total int64) {
-			if time.Since(last) > 2*time.Second {
-				last, shown = time.Now(), true
-				fmt.Printf("\r  %s: %.1f%%", f.Key(), 100*float64(done)/float64(total))
-			}
-		}})
+		pr := newProgress("checking " + f.Key())
+		res, err := rd.Check(dump.CheckOptions{Stop: ctx.Done(), Progress: pr.update})
 		rd.Close()
-		if shown {
-			fmt.Print("\r                                \r")
-		}
+		took := pr.done()
 		if err != nil {
 			return err
 		}
@@ -574,7 +562,7 @@ func cmdCheck(args []string) error {
 			os.Remove(d.TitleIndex(f.Key()))
 		}
 		if len(res.Damaged) == 0 {
-			fmt.Printf("%s: all %d bundles are intact.\n", f.Key(), res.Streams)
+			fmt.Printf("%s: all %d bundles are intact (checked in %s).\n", f.Key(), res.Streams, took)
 			continue
 		}
 		fmt.Printf("%s: %d of %d bundles are damaged. Articles in them:\n", f.Key(), len(res.Damaged), res.Streams)

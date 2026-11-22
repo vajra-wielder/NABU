@@ -8,7 +8,7 @@
   <h2>Preparing {{wikiname .Book.Files.DB}}</h2>
   <p class="muted">The first time NABU sees a dump it sorts all its titles into a search index on the drive. This happens once; afterwards pages open instantly.</p>
   <div class="progress" style="max-width:520px;margin:18px auto"><div style="width:{{pct .Status.Done .Status.Total}}%"></div></div>
-  <p class="small muted">{{pct .Status.Done .Status.Total}}% · {{seconds .Status.Elapsed}} s so far. This page refreshes by itself.</p>
+  <p class="small muted">{{pct .Status.Done .Status.Total}}% · <span data-prep-timer>{{timer .Status.Elapsed .Status.Done .Status.Total}}</span>. This page refreshes by itself.</p>
   {{end}}
   <p><a class="btn" href="/">Back to the library</a></p>
 </div>

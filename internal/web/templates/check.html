@@ -10,11 +10,12 @@
 <div class="notice">
   <strong>Checking {{.Book}}…</strong>
   <div class="progress"><div style="width:{{pct .Done .Total}}%"></div></div>
-  <p class="small muted">{{count .Done}} of {{count .Total}} bundles. Reading goes on as usual meanwhile. <a href="#" data-action="check-stop">Stop</a></p>
+  <p class="small muted">{{count .Done}} of {{count .Total}} bundles · {{.Timer}}. Reading goes on as usual meanwhile. <a href="#" data-action="check-stop">Stop</a></p>
 </div>
 {{else}}
 <p><a class="btn primary" href="#" data-action="check-start">{{if .Finished.IsZero}}Check the drive{{else}}Check again{{end}}</a>
 <span class="small muted">Reads everything once: a few minutes for Simple English, 10–30 for English, depending on the drive.</span></p>
+{{if .Took}}<p class="small muted">The last check took {{.Took}}.</p>{{end}}
 {{if .Err}}<div class="notice bad">The check stopped: {{.Err}}</div>{{end}}
 {{end}}
 
