@@ -203,7 +203,8 @@ func TestDownloadToComputerAndSlim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir, computer := t.TempDir(), t.TempDir()
+	root, computer := t.TempDir(), t.TempDir()
+	dir := filepath.Join(root, "wikipedia") // a new drive: not there yet
 	m := NewManager(drive.ForLibrary(dir), srv.Client())
 	m.Computer = computer
 	var asked int64
@@ -237,7 +238,7 @@ func TestDownloadToComputerAndSlim(t *testing.T) {
 	if ents, _ := os.ReadDir(computer); len(ents) != 0 {
 		t.Fatalf("left on the computer: %v", ents)
 	}
-	if ents, _ := os.ReadDir(filepath.Join(dir, "..", ".work")); len(ents) > 1 {
+	if ents, _ := os.ReadDir(filepath.Join(root, ".work")); len(ents) > 1 {
 		t.Fatalf("left in the drive's work folder: %v", ents)
 	}
 }

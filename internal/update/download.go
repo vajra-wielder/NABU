@@ -249,6 +249,9 @@ func (m *Manager) set(f func(s *Status)) {
 }
 
 func (m *Manager) run(ctx context.Context, rel *Release) error {
+	if err := os.MkdirAll(m.Dir, 0o755); err != nil { // a new drive has no wikipedia folder yet
+		return friendlyWriteErr(err)
+	}
 	dir := m.incomingFor(rel)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err

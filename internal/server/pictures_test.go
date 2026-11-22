@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"github.com/vajra-wielder/nabu/internal/essentials"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -287,5 +288,39 @@ func TestEnglishPicturesAndLimit(t *testing.T) {
 	}
 	if s.Lib.PictureStatus("fawiki").English {
 		t.Fatal("still English-only after choosing its own pictures")
+	}
+}
+
+// Made online, the Essentials fetch all their pictures first, in
+// batches, and the saved copies carry them.
+func TestEssentialsWithPictures(t *testing.T) {
+	old := essentialGroups
+	essentialGroups = func() []essentials.Group {
+		return []essentials.Group{{Name: "Cities", Titles: []string{"Babylon"}}}
+	}
+	defer func() { essentialGroups = old }()
+	client, downloads := fakeWikimedia(t)
+	svc := pictures.NewService("", pictures.NewFetcher(client, "NABU/test (https://example.org)"))
+	s := newTestServerWith(t, library.Config{Pictures: svc, Online: func() bool { return true }})
+	s.Offline = false
+	var phases []string
+	missing, err := s.MakeEssentials(context.Background(), func(what string, d, t int) {
+		if len(phases) == 0 || phases[len(phases)-1] != what {
+			phases = append(phases, what)
+		}
+	})
+	if err != nil || len(missing) != 0 {
+		t.Fatalf("%v %v", missing, err)
+	}
+	if strings.Join(phases, ",") != "finding their pictures,fetching their pictures,saving the articles" {
+		t.Fatalf("phases %v", phases)
+	}
+	if atomic.LoadInt32(downloads) < 2 {
+		t.Fatalf("%d pictures fetched", atomic.LoadInt32(downloads))
+	}
+	c := s.collections.List()[0]
+	files, _ := os.ReadDir(filepath.Join(s.collections.Dir, c.Slug, "Babylon_files"))
+	if len(files) < 2 {
+		t.Fatalf("%d pictures in the saved copy", len(files))
 	}
 }

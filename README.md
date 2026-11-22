@@ -93,6 +93,15 @@ The browser opens on your library. Search from the box at the top of every page 
 <kbd>/</kbd>); capitals and accents don't matter, so "ecriture" finds "Écriture".
 Close the small NABU window, or click **Turn off NABU**, when you are done.
 
+**Setting up in one go.** Once the computer is online, double-click **Set up NABU**
+for your computer (Windows, Mac) or run `sh set-up-nabu-linux.sh`. It gets the newest
+English Wikipedia onto the drive without the pages NABU never shows, builds its title
+index and search inside articles, saves the Essentials with their pictures and starts
+the pictures, each step with a live timer, then starts NABU. Stopped halfway, it
+carries on when run again; run next month, it updates. Its times are kept in
+`.work/setup-log.txt`. [docs/FLIGHT-TESTS.md](docs/FLIGHT-TESTS.md) lists what to
+try once it is done, offline, with how long each takes.
+
 **Pulling the drive out in a hurry.** Once a page has loaded, the drive can be pulled
 out without ejecting it, at any moment:
 
@@ -511,6 +520,10 @@ nabu copy --to DIR [--wikis en,fr] [--systems windows,mac,linux]
 nabu plan [<wiki>] [--size GB]
                           how a drive of that size (default 125) is best filled with
                           English (and <wiki>), and the room left for pictures
+nabu setup [--wikis en]   once online, everything in one go (newest English
+                          stripped onto the drive, title index, search inside
+                          articles, Essentials, pictures started), timed; run
+                          again to carry on or update
 nabu check [<wiki>...]    read every bundle of the dumps; damaged ones are repaired
                           from another NABU drive attached with the same dump
 nabu slim [<wiki>...]     leave out of the dumps on the drive the pages NABU never

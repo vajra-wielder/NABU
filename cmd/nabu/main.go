@@ -69,6 +69,8 @@ func main() {
 			err = cmdSlim(rest)
 		case "check":
 			err = cmdCheck(rest)
+		case "setup":
+			err = cmdSetup(rest)
 		case "version":
 			fmt.Printf("NABU %s (%s/%s, %s)\n", version, runtime.GOOS, runtime.GOARCH, runtime.Version())
 		case "about-folders": // used by scripts/build.sh
@@ -101,6 +103,11 @@ func usage() {
 	fmt.Print(`NABU: plug-and-play offline Wikipedia
 
   nabu [flags]             start NABU and open it in the browser
+  nabu setup [--wikis en]  once online: everything in one go (the newest
+                           English, stripped onto the drive, its indexes,
+                           search inside articles, the Essentials, the
+                           pictures started), with a timer for each step;
+                           run it again to carry on or to update
   nabu catalog             newest dump of each offered Wikipedia
   nabu download <wiki>     download a dump (enwiki, frwiki, ... or en, fr, ...)
   nabu prepare [--full-text]  build the title index of every dump now

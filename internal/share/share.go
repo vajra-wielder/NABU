@@ -76,7 +76,7 @@ func Inventory(d *drive.Layout) (parts []Part, files map[string][]File) {
 	// Always: launchers, the read-me, licences.
 	ents, _ := os.ReadDir(d.Root)
 	for _, e := range ents {
-		if !e.IsDir() && !strings.HasPrefix(e.Name(), ".") && (strings.HasPrefix(e.Name(), "Start NABU") || strings.HasPrefix(e.Name(), "start-nabu") || strings.HasPrefix(e.Name(), "READ ME")) {
+		if !e.IsDir() && !strings.HasPrefix(e.Name(), ".") && (strings.HasPrefix(e.Name(), "Start NABU") || strings.HasPrefix(e.Name(), "start-nabu") || strings.HasPrefix(e.Name(), "Set up NABU") || strings.HasPrefix(e.Name(), "set-up-nabu") || strings.HasPrefix(e.Name(), "READ ME")) {
 			one("base", filepath.Join(d.Root, e.Name()), e.Name())
 		}
 	}
@@ -292,7 +292,7 @@ func (c *Copier) run(ctx context.Context, root, dest string, files []File) {
 			}
 		}
 		// The launchers must stay runnable on Mac and Linux.
-		for _, n := range []string{"Start NABU (Mac).command", "start-nabu-linux.sh"} {
+		for _, n := range []string{"Start NABU (Mac).command", "start-nabu-linux.sh", "Set up NABU (Mac).command", "set-up-nabu-linux.sh"} {
 			os.Chmod(filepath.Join(dest, n), 0o755)
 		}
 		filepath.Walk(filepath.Join(dest, drive.Programs), func(p string, info os.FileInfo, err error) error {

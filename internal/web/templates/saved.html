@@ -9,7 +9,7 @@
   {{if .Running}}
   <strong>Saving the Essentials from {{.Book}}…</strong>
   <div class="progress"><div style="width:{{pct (int64 .Done) (int64 .Total)}}%"></div></div>
-  <p class="small muted">{{.Done}} of {{.Total}} articles · {{.Timer}}. Each comes with its pictures when they are on the drive or the computer is online. You can keep reading.</p>
+  <p class="small muted">{{if .Phase}}{{.Phase}} · {{end}}{{.Done}} of {{.Total}} articles saved · {{.Timer}}. Each comes with its pictures when they are on the drive or the computer is online. You can keep reading.</p>
   {{else}}
   <strong>Essentials</strong>: {{.Count}} articles worth having first when there is no help to call, in ten collections: first aid, medicine, water, food, farming, shelter and fire, tools, navigation and radio, energy, natural dangers. Each is saved as a page that opens in any browser, on any phone or computer, even without NABU.
   <p>{{if $.EnglishBook}}<a class="btn primary" href="#" data-action="essentials">{{if $.HasEssentials}}Bring the Essentials up to date{{else}}Make the Essentials collections{{end}}</a>{{else}}<span class="small">They come from English Wikipedia (or Simple English): put it on the drive first.</span>{{end}}</p>

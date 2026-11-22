@@ -65,8 +65,10 @@ if [ -z "${NO_LEGACY:-}" ]; then
 fi
 
 cp launchers/"Start NABU (Windows).bat" launchers/"Start NABU (Mac).command" \
-   launchers/start-nabu-linux.sh launchers/"READ ME FIRST.txt" "$OUT/"
-chmod +x "$OUT/Start NABU (Mac).command" "$OUT/start-nabu-linux.sh" "$M"/nabu-darwin-* "$L"/nabu-linux-*
+   launchers/start-nabu-linux.sh launchers/"READ ME FIRST.txt" \
+   launchers/"Set up NABU (Windows).bat" launchers/"Set up NABU (Mac).command" \
+   launchers/set-up-nabu-linux.sh "$OUT/"
+chmod +x "$OUT/Start NABU (Mac).command" "$OUT/start-nabu-linux.sh" "$OUT/Set up NABU (Mac).command" "$OUT/set-up-nabu-linux.sh" "$M"/nabu-darwin-* "$L"/nabu-linux-*
 cp LICENSE "$OUT/licenses/NABU-MIT.txt"
 cp internal/web/assets/fonts/OFL-LICENSE.txt "$OUT/licenses/Libertinus-OFL.txt"
 cp internal/web/assets/WORLD-MAP-LICENSE.txt "$OUT/licenses/World-map.txt"

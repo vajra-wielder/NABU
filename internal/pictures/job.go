@@ -414,3 +414,35 @@ func minDur(a, b time.Duration) time.Duration {
 	}
 	return b
 }
+
+// Keep fetches the given pictures that the stores do not have yet, the
+// way whole-wiki downloads do: names looked up 50 at a time, downloads
+// two at a time, network trouble waited out. report is told how many of
+// the pictures to fetch are done.
+func Keep(ctx context.Context, names []string, st Stores, f *Fetcher, host string, report func(done, total int)) error {
+	var todo []string
+	seen := map[string]bool{}
+	for _, n := range names {
+		n = Normalize(n)
+		if n != "" && !seen[n] && !st.Has(n) {
+			seen[n] = true
+			todo = append(todo, n)
+		}
+	}
+	j := &Job{}
+	for i := 0; i < len(todo); i += apiBatch {
+		end := i + apiBatch
+		if end > len(todo) {
+			end = len(todo)
+		}
+		if err := fetchAll(ctx, todo[i:end], st, f, host, nil, func(string) {}, j); err != nil {
+			st.Sync()
+			return err
+		}
+		if report != nil {
+			report(end, len(todo))
+		}
+	}
+	st.Sync()
+	return nil
+}

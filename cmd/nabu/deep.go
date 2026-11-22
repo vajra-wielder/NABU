@@ -74,9 +74,13 @@ func openForScan(d *drive.Layout, f *dump.Files) (*dump.Reader, error) {
 	if err != nil {
 		os.MkdirAll(filepath.Dir(out), 0o755)
 		tmp := d.Temp(f.Key())
-		fmt.Printf("%s: preparing the title index first\n", f.Key())
-		err = dump.Build(f, out, tmp, library.BuildBudget(), nil)
+		pr := newProgress(f.Key() + ": title index")
+		err = dump.Build(f, out, tmp, library.BuildBudget(), pr.update)
+		took := pr.done()
 		os.RemoveAll(tmp)
+		if err == nil {
+			fmt.Printf("%s: title index built in %s\n", f.Key(), took)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -100,24 +104,15 @@ func prepareFullText(d *drive.Layout, f *dump.Files) error {
 		return err
 	}
 	defer rd.Close()
-	start := time.Now()
 	tmp := d.Temp(f.Key() + "-fts")
-	err = fulltext.Build(rd, out, tmp, fulltext.Options{
-		MemBudget: library.BuildBudget(),
-		Progress: func(done, total int64) {
-			if done%50 == 0 || done == total {
-				el := time.Since(start)
-				eta := time.Duration(float64(el) * float64(total-done) / float64(done))
-				fmt.Printf("\r%s: search inside articles %5.1f%%  (about %v left)   ", f.Key(), 100*float64(done)/float64(total), eta.Round(time.Second))
-			}
-		},
-	})
+	pr := newProgress(f.Key() + ": search inside articles")
+	err = fulltext.Build(rd, out, tmp, fulltext.Options{MemBudget: library.BuildBudget(), Progress: pr.update})
+	took := pr.done()
 	os.RemoveAll(tmp)
 	if err != nil {
-		fmt.Println()
 		return err
 	}
-	fmt.Printf("\r%s: search inside articles built in %v                    \n", f.Key(), time.Since(start).Round(time.Second))
+	fmt.Printf("%s: search inside articles built in %s\n", f.Key(), took)
 	return nil
 }
 
@@ -464,65 +459,74 @@ func cmdSlim(args []string) error {
 		if len(want) > 0 && !want[f.DB] {
 			continue
 		}
-		need, err := dump.NeedsSlim(f)
-		if err != nil {
-			return fmt.Errorf("%s: %w", f.Key(), err)
+		if err := slimOne(ctx, d, f); err != nil {
+			return err
 		}
-		if !need {
-			fmt.Printf("%s: already without the pages NABU never shows\n", f.Key())
-			continue
-		}
-		// Written next to the original when the drive has room, else on
-		// this computer and then copied over the original.
-		room := f.Size*9/10 + 64<<20
-		dir := d.Wikipedia
-		if free, err := sysutil.FreeSpace(dir); err == nil && free < room {
-			dir = filepath.Join(update.ComputerIncoming(), "slim-"+f.Key())
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return err
-			}
-			defer os.RemoveAll(dir)
-			if free, err := sysutil.FreeSpace(dir); err == nil && free < room {
-				return fmt.Errorf("%s: needs %s free on the drive or on this computer", f.Key(), update.HumanBytes(room))
-			}
-		}
-		fmt.Printf("%s: leaving out the pages NABU never shows (%s)…\n", f.Key(), update.HumanBytes(f.Size))
-		remove := func() error {
-			for _, p := range f.Pairs {
-				for _, x := range append(append([]string{}, p.Data...), p.Index) {
-					if err := os.Remove(x); err != nil {
-						return err
-					}
-				}
-			}
-			return nil
-		}
-		pr := newProgress(f.Key())
-		res, err := dump.Slim(f, dir, dump.SlimOptions{PartSize: update.PartSize, Stop: ctx.Done(),
-			Progress: pr.update}, func() error {
-			if dir == d.Wikipedia {
-				return remove()
-			}
-			return nil
-		})
-		took := pr.done()
-		if err != nil {
-			return fmt.Errorf("%s: %w (the dump is unchanged)", f.Key(), err)
-		}
-		if dir != d.Wikipedia {
-			if err := remove(); err != nil {
-				return err
-			}
-			ents, _ := os.ReadDir(dir)
-			for _, e := range ents {
-				if err := update.CopyFile(filepath.Join(dir, e.Name()), filepath.Join(d.Wikipedia, e.Name())); err != nil {
-					return fmt.Errorf("copying %s to the drive: %w", e.Name(), err)
-				}
-			}
-		}
-		fmt.Printf("%s: %s to %s; %d of %d pages kept, in %s. Its indexes are rebuilt when NABU next starts.\n",
-			f.Key(), update.HumanBytes(res.Before), update.HumanBytes(res.After), res.Kept, res.Pages, took)
 	}
+	return nil
+}
+
+// slimOne leaves out of one dump on the drive the pages NABU never shows
+// (and repacks it in small bundles), if it still needs it.
+func slimOne(ctx context.Context, d *drive.Layout, f *dump.Files) error {
+	need, err := dump.NeedsSlim(f)
+	if err != nil {
+		return fmt.Errorf("%s: %w", f.Key(), err)
+	}
+	if !need {
+		fmt.Printf("%s: already without the pages NABU never shows\n", f.Key())
+		return nil
+	}
+	// Written next to the original when the drive has room, else on this
+	// computer and then copied over the original.
+	room := f.Size*9/10 + 64<<20
+	dir := d.Wikipedia
+	if free, err := sysutil.FreeSpace(dir); err == nil && free < room {
+		dir = filepath.Join(update.ComputerIncoming(), "slim-"+f.Key())
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+		defer os.RemoveAll(dir)
+		if free, err := sysutil.FreeSpace(dir); err == nil && free < room {
+			return fmt.Errorf("%s: needs %s free on the drive or on this computer", f.Key(), update.HumanBytes(room))
+		}
+	}
+	fmt.Printf("%s: leaving out the pages NABU never shows (%s)…\n", f.Key(), update.HumanBytes(f.Size))
+	remove := func() error {
+		for _, p := range f.Pairs {
+			for _, x := range append(append([]string{}, p.Data...), p.Index) {
+				if err := os.Remove(x); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	pr := newProgress(f.Key())
+	res, err := dump.Slim(f, dir, dump.SlimOptions{PartSize: update.PartSize, Stop: ctx.Done(),
+		Progress: pr.update}, func() error {
+		if dir == d.Wikipedia {
+			return remove()
+		}
+		return nil
+	})
+	took := pr.done()
+	if err != nil {
+		return fmt.Errorf("%s: %w (the dump is unchanged)", f.Key(), err)
+	}
+	if dir != d.Wikipedia {
+		if err := remove(); err != nil {
+			return err
+		}
+		ents, _ := os.ReadDir(dir)
+		for _, e := range ents {
+			if err := update.CopyFile(filepath.Join(dir, e.Name()), filepath.Join(d.Wikipedia, e.Name())); err != nil {
+				return fmt.Errorf("copying %s to the drive: %w", e.Name(), err)
+			}
+		}
+	}
+	fmt.Printf("%s: %s to %s; %d of %d pages kept, in %s.\n",
+		f.Key(), update.HumanBytes(res.Before), update.HumanBytes(res.After), res.Kept, res.Pages, took)
 	return nil
 }
 
