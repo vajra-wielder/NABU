@@ -1,19 +1,33 @@
 #!/usr/bin/env bash
 # Unattended test of NABU against a real, full-size dump.
 #
-#   scripts/realtest.sh [step...]      steps: prepare check serve (default: all)
+#   scripts/realtest.sh [folder] [step...]   steps: prepare check serve (default: all)
+#   scripts\realtest.bat [folder] [step...]  the same, from a Windows terminal
+#
+# folder is the NABU folder with the dumps (or set NABU_DRIVE). Without one,
+# the checkout's test folder ("Nabu Test system") is used.
 #
 # Environment:
 #   NABU_BIN    the nabu program            (default: build ./cmd/nabu)
-#   NABU_DRIVE  the NABU folder with dumps  (required; dump already downloaded)
+#   NABU_DRIVE  the NABU folder with dumps  (dump already downloaded)
 #   WIKI        the wiki to test            (default: enwiki)
 #   CRAWL       random articles to open     (default: 3000)
 #   PORT        port for the test server    (default: 8765)
 #
-# Writes a short report to $NABU_DRIVE/realtest/report.txt (meant to be read
-# whole) and full logs next to it (opened only when a failure needs them).
+# Shows each step live, writes a short report to <folder>/realtest/report.txt
+# (meant to be read whole) and full logs next to it.
 set -u
-DRIVE=${NABU_DRIVE:?set NABU_DRIVE to the NABU folder}
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+if [ $# -gt 0 ] && [ -d "$1" ]; then NABU_DRIVE=$1; shift; fi
+if [ -z "${NABU_DRIVE:-}" ]; then
+	for d in "$ROOT"/*/; do
+		n=$(basename "$d")
+		if echo "$n" | grep -qiE '^nabu[ _-]*test'; then NABU_DRIVE=${d%/}; break; fi
+	done
+fi
+[ -n "${NABU_DRIVE:-}" ] || { echo "No NABU folder: give it as the first argument, or set NABU_DRIVE."; exit 2; }
+command -v cygpath >/dev/null && NABU_DRIVE=$(cygpath -u "$NABU_DRIVE") # C:\... from a Windows terminal
+DRIVE=$NABU_DRIVE
 WIKI=${WIKI:-enwiki}
 CRAWL=${CRAWL:-3000}
 PORT=${PORT:-8765}
@@ -28,7 +42,6 @@ if [ -z "${NABU_BIN:-}" ] && [ -n "$WIN" ] && [ -x "$DRIVE/programs/windows/nabu
 fi
 if [ -z "${NABU_BIN:-}" ]; then
 	NABU_BIN=$OUT/nabu${WIN:+.exe}
-	ROOT=$(cd "$(dirname "$0")/.." && pwd)
 	GO=go; for g in "$ROOT"/requisites/toolchains/go1.24.7/bin/go "$ROOT"/requisites/toolchains/go1.24.7/bin/go.exe; do [ -x "$g" ] && GO=$g && break; done
 	(cd "$ROOT" && CGO_ENABLED=0 GOTOOLCHAIN=local "$GO" build -o "$NABU_BIN" ./cmd/nabu) || { echo "build failed"; exit 1; }
 fi
@@ -46,8 +59,10 @@ say "$(head -5 "$OUT/info.log")"
 run_step() { # name, command...
 	local name=$1; shift
 	local t0=$(now)
-	"$@" > "$OUT/$name.log" 2>&1
-	local rc=$?
+	echo "[$name] running... (live below; also in $OUT/$name.log)"
+	"$@" 2>&1 | tee "$OUT/$name.log"
+	local rc=${PIPESTATUS[0]}
+	echo
 	local res=PASS; [ $rc -ne 0 ] && res="FAIL (exit $rc)"
 	say "[$name] $res in $(secs "$t0" "$(now)") s"
 	[ $rc -ne 0 ] && tr '\r' '\n' < "$OUT/$name.log" | grep -v '^\s*$' | tail -5 | sed 's/^/    /' | tee -a "$REPORT"
@@ -64,7 +79,9 @@ check)
 	say "    $(tr '\r' '\n' < "$OUT/check.log" | grep -v '^\s*$' | tail -1)"
 	;;
 serve)
-	"$NABU_BIN" --drive "$DRIVE" --offline --no-browser --port "$PORT" > "$OUT/server.log" 2>&1 &
+	# NABU_FROM_COPY: serve from this very program, not a copy it starts
+	# apart (one that would outlive the test and keep the port).
+	NABU_FROM_COPY=1 "$NABU_BIN" --drive "$DRIVE" --offline --no-browser --port "$PORT" > "$OUT/server.log" 2>&1 &
 	SRV=$!
 	trap 'kill $SRV 2>/dev/null' EXIT
 	t0=$(now)
@@ -125,7 +142,9 @@ serve)
 			cf=$((cf+1)); echo "crawl FAIL $code $size $url" >> "$OUT/failures.log"
 		fi
 		awk -v t="$t" 'BEGIN{exit !(t>2)}' && echo "slow $t $url" >> "$OUT/slow.log"
+		[ $((i % 50)) -eq 0 ] || [ "$i" = "$CRAWL" ] && printf '\r  crawl: %d / %d articles, %d failed ' "$i" "$CRAWL" "$cf"
 	done
+	echo
 	read -r med max <<< "$(stats "$OUT/t_crawl")"
 	say "[crawl] $CRAWL random articles, $cf failed, median ${med}s, max ${max}s, $(wc -l < "$OUT/slow.log" 2>/dev/null || echo 0) over 2 s"
 

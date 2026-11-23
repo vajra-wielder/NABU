@@ -44,3 +44,15 @@ It needs about 30 GB free on the computer for the download (otherwise it downloa
 the drive). Stop it whenever you like (Ctrl+C or close the window) and run it again: it
 carries on, and next month it updates. When it finishes it starts NABU, so the pictures
 keep coming in while NABU runs.
+
+## The automatic test (realtest)
+
+From the NABU checkout, with the dumps in its **Nabu Test system** folder:
+
+- Windows, in Command Prompt, PowerShell or Windows Terminal: `scripts\realtest.bat`
+  (needs Git for Windows; runs in that same window).
+- Mac or Linux: `scripts/realtest.sh`
+
+Each step shows its progress live; the report is in `Nabu Test system/realtest/report.txt`.
+Give another folder as the first argument, `WIKI=simplewiki` for a smaller wiki,
+or `CRAWL=300` for a shorter run.
