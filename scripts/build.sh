@@ -68,6 +68,12 @@ cp launchers/"Start NABU (Windows).bat" launchers/"Start NABU (Mac).command" \
    launchers/start-nabu-linux.sh launchers/"READ ME FIRST.txt" \
    launchers/"Set up NABU (Windows).bat" launchers/"Set up NABU (Mac).command" \
    launchers/set-up-nabu-linux.sh "$OUT/"
+# Windows reads batch files with Windows line endings only reliably (with
+# bare LF it can drop or garble characters), whatever the checkout did;
+# the read-me too, for old Notepad.
+for f in "$OUT"/*.bat "$OUT/READ ME FIRST.txt"; do
+  sed -i.tmp -e 's/\r*$/\r/' "$f" && rm -f "$f.tmp"
+done
 chmod +x "$OUT/Start NABU (Mac).command" "$OUT/start-nabu-linux.sh" "$OUT/Set up NABU (Mac).command" "$OUT/set-up-nabu-linux.sh" "$M"/nabu-darwin-* "$L"/nabu-linux-*
 cp LICENSE "$OUT/licenses/NABU-MIT.txt"
 cp internal/web/assets/fonts/OFL-LICENSE.txt "$OUT/licenses/Libertinus-OFL.txt"

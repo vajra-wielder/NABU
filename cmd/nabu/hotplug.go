@@ -49,8 +49,17 @@ func runFromCopy(root string) (done bool, err error) {
 		fmt.Println("  (Could not copy NABU to this computer; running it from the drive:", err, ")")
 		return false, nil
 	}
-	cmd := exec.Command(cp, os.Args[1:]...)
+	// The copy is told where the drive is: it no longer starts there.
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return false, nil
+	}
+	cmd := exec.Command(cp, append(append([]string{}, os.Args[1:]...), "--drive", abs)...)
 	cmd.Env = append(os.Environ(), fromCopyEnv+"=1")
+	// Its current folder on the computer too: a process's current folder
+	// is held open like a file (on Windows, the launcher's folder on the
+	// drive), and nothing on the drive may stay open.
+	cmd.Dir = filepath.Dir(cp)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	detached := sysutil.Detach(cmd)
 	if detached {
@@ -61,6 +70,7 @@ func runFromCopy(root string) (done bool, err error) {
 	if err := cmd.Start(); err != nil {
 		return false, nil
 	}
+	os.Chdir(filepath.Dir(cp)) // this one lets go of the drive's folder too
 	if detached {
 		// Ctrl+C or closing the window stops the copy too.
 		sig := make(chan os.Signal, 1)
