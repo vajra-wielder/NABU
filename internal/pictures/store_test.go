@@ -90,6 +90,9 @@ func TestStore(t *testing.T) {
 	for _, f := range s.packs {
 		f.Close()
 	}
+	if s.index != nil { // Windows can't delete the folder while it is open
+		s.index.Close()
+	}
 	s, err = Open(dir)
 	if err != nil {
 		t.Fatal(err)

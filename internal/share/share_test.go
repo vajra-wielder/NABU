@@ -3,6 +3,7 @@ package share
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -84,7 +85,8 @@ func TestCopy(t *testing.T) {
 			t.Errorf("should not be in the copy: %s", not)
 		}
 	}
-	if st, _ := os.Stat(filepath.Join(dest, "start-nabu-linux.sh")); st.Mode()&0o100 == 0 {
+	// Windows file systems have no executable bit to check.
+	if st, _ := os.Stat(filepath.Join(dest, "start-nabu-linux.sh")); runtime.GOOS != "windows" && st.Mode()&0o100 == 0 {
 		t.Error("launcher not executable")
 	}
 	// Copying again only copies what changed.

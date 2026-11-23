@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -157,13 +158,15 @@ func (d *File) Close() error {
 // name, flushed to the drive itself, then renamed. Pulled out at any
 // moment, the drive holds the old file or the new, never half of one;
 // and once WriteFile returns, the new one is on the drive, not waiting
-// in the computer's memory.
+// in the computer's memory. Each write has a temporary name of its own,
+// so two parts of NABU saving the same file at once can't rename away
+// each other's half-written copy.
 func WriteFile(path string, data []byte) error {
-	tmp := path + ".tmp"
-	f, err := os.Create(tmp)
+	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
 	if err != nil {
 		return err
 	}
+	tmp := f.Name()
 	_, err = f.Write(data)
 	if err == nil {
 		err = f.Sync()
@@ -172,7 +175,7 @@ func WriteFile(path string, data []byte) error {
 		err = cerr
 	}
 	if err == nil {
-		err = os.Rename(tmp, path)
+		err = Rename(tmp, path)
 	}
 	if err != nil {
 		os.Remove(tmp)
@@ -180,6 +183,19 @@ func WriteFile(path string, data []byte) error {
 	}
 	syncDir(filepath.Dir(path))
 	return nil
+}
+
+// Rename replaces to with from. Windows refuses while anyone has the old
+// file open for a moment: another part of NABU reading it (the picture
+// download's progress, a page showing settings), an antivirus scan or
+// the search indexer. Those let go quickly, so try again for a while.
+func Rename(from, to string) error {
+	err := os.Rename(from, to)
+	for wait := 10 * time.Millisecond; err != nil && runtime.GOOS == "windows" && wait < 3*time.Second; wait *= 2 {
+		time.Sleep(wait)
+		err = os.Rename(from, to)
+	}
+	return err
 }
 
 // syncDir flushes a folder's list of files (where the system allows it),
