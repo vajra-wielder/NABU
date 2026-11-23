@@ -3,6 +3,7 @@ package drivefile
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -74,5 +75,51 @@ func TestWriteAtAndWriteFile(t *testing.T) {
 	}
 	if _, err := os.Stat(q + ".tmp"); !os.IsNotExist(err) {
 		t.Fatal("temporary file left")
+	}
+}
+
+// Replacing a file someone is reading at that moment works (on Windows
+// the rename is refused while the old file is open, and NABU's picture
+// download stopped on it).
+func TestWriteFileWhileRead(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "job.json")
+	if err := WriteFile(p, []byte("one")); err != nil {
+		t.Fatal(err)
+	}
+	r, err := os.Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		r.Close()
+	}()
+	if err := WriteFile(p, []byte("two")); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(p); string(b) != "two" {
+		t.Fatalf("got %q", b)
+	}
+}
+
+// Two parts of NABU saving the same file at once both succeed, and the
+// file is one of the two whole versions.
+func TestWriteFileConcurrent(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "job.json")
+	errs := make(chan error, 8)
+	for i := 0; i < 8; i++ {
+		go func(i int) { errs <- WriteFile(p, []byte(strings.Repeat(string(rune('a'+i)), 5000))) }(i)
+	}
+	for i := 0; i < 8; i++ {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+	b, _ := os.ReadFile(p)
+	if len(b) != 5000 || strings.Trim(string(b), string(b[:1])) != "" {
+		t.Fatalf("mixed or short file: %d bytes", len(b))
+	}
+	if left, _ := filepath.Glob(p + "*.tmp"); len(left) > 0 {
+		t.Fatalf("left behind: %v", left)
 	}
 }

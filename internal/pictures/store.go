@@ -432,7 +432,7 @@ func (s *Store) compact() error {
 		s.index.Close()
 		s.index = nil
 	}
-	if err := os.Rename(tmp, s.indexPath()); err != nil {
+	if err := drivefile.Rename(tmp, s.indexPath()); err != nil { // another NABU may be reading it
 		return err
 	}
 	// Only once the merged index is safely in place is the log emptied.

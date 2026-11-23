@@ -29,8 +29,11 @@ const (
 	maxDownloads = 2
 	maxRate      = 2_000_000 // bytes a second (16 Mbps)
 	apiGap       = 400 * time.Millisecond
-	apiBatch     = 50
 )
+
+// apiBatch is how many pictures one API request asks about (a variable
+// only so tests can make it small).
+var apiBatch = 50
 
 var minBackoff = 5 * time.Second
 

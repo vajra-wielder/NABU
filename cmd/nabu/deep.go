@@ -302,7 +302,8 @@ func cmdPictures(args []string) error {
 		if st.Total > 0 {
 			pct = 100 * float64(st.Done) / float64(st.Total)
 		}
-		line := fmt.Sprintf("\r  %5.1f%%  %d pictures, %s", pct, st.Pictures, update.HumanBytes(st.Bytes))
+		// Most pictures are Commons ones, kept in the shared store.
+		line := fmt.Sprintf("\r  %5.1f%%  %d pictures, %s", pct, st.Pictures+st.Shared, update.HumanBytes(st.Bytes+st.SBytes))
 		if st.ETA > 0 {
 			line += fmt.Sprintf(", about %v left", st.ETA.Round(time.Minute))
 		}

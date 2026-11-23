@@ -243,42 +243,90 @@ func runPass(ctx context.Context, j *Job, rd *dump.Reader, st Stores, f *Fetcher
 	go func() { wg.Wait(); close(results) }()
 
 	// Stage 2, in stream order: ask where the pictures are, download them.
+	// Names are gathered over several streams and asked about apiBatch at
+	// a time: in a pass over long articles a stream often has only one or
+	// two, and one API request each made English take weeks. A stream
+	// counts as done (j.Stream) only once its pictures are kept, so a job
+	// stopped midway goes on from the right place.
 	pending := map[int]names{}
 	lastSave := time.Now()
+	next := j.Stream // the next stream to take from the workers
+	type queued struct {
+		name   string
+		stream int
+	}
+	var buf []queued
+	inBuf := map[string]bool{}
+	// flush asks about whole batches (all that is left at the end of a
+	// pass) and moves j.Stream up to the first stream still waiting.
+	flush := func(final bool) error {
+		n := len(buf)
+		if !final {
+			n -= n % apiBatch
+		}
+		if n > 0 {
+			if full != nil && full() {
+				return ErrFull
+			}
+			list := make([]string, n)
+			for i, q := range buf[:n] {
+				list[i] = q.name
+				delete(inBuf, q.name)
+			}
+			if err := fetchAll(ctx, list, st, f, host, busy, func(w string) {
+				report(Progress{Job: *j, Waiting: w})
+			}, j); err != nil {
+				return err
+			}
+			buf = append([]queued(nil), buf[n:]...)
+		}
+		j.Stream = next
+		if len(buf) > 0 {
+			j.Stream = buf[0].stream
+		}
+		j.Seconds = elapsed()
+		report(Progress{Job: *j})
+		if time.Since(lastSave) > 20*time.Second {
+			save()
+			lastSave = time.Now()
+		}
+		return nil
+	}
 	for r := range results {
 		pending[r.s] = r
 		for {
-			r, ok := pending[j.Stream]
+			r, ok := pending[next]
 			if !ok {
 				break
 			}
-			delete(pending, j.Stream)
+			delete(pending, next)
 			if r.err != nil {
 				save()
 				return r.err
 			}
-			if len(r.names) > 0 && full != nil && full() {
-				save()
-				return ErrFull
+			for _, n := range r.names {
+				// Workers run ahead: a name may have been kept since.
+				if !inBuf[n] && !st.Has(n) {
+					inBuf[n] = true
+					buf = append(buf, queued{n, next})
+				}
 			}
-			if err := fetchAll(ctx, r.names, st, f, host, busy, func(w string) {
-				report(Progress{Job: *j, Waiting: w})
-			}, j); err != nil {
-				save()
-				return err
-			}
-			j.Stream++
-			j.Seconds = elapsed()
-			report(Progress{Job: *j})
-			if time.Since(lastSave) > 20*time.Second {
-				save()
-				lastSave = time.Now()
+			next++
+			if len(buf) == 0 || len(buf) >= apiBatch {
+				if err := flush(false); err != nil {
+					save()
+					return err
+				}
 			}
 		}
 	}
 	if ctx.Err() != nil {
 		save()
 		return ctx.Err()
+	}
+	if err := flush(true); err != nil {
+		save()
+		return err
 	}
 	return nil
 }
