@@ -47,12 +47,13 @@ keep coming in while NABU runs.
 
 ## The automatic test (realtest)
 
-From the NABU checkout, with the dumps in its **Nabu Test system** folder:
+From the NABU checkout, with the dumps in the test folder: the one `NABU_TEST` names
+(`set NABU_TEST=C:\path\to\NABU-test`), else the checkout's **Nabu Test system** folder:
 
 - Windows, in Command Prompt, PowerShell or Windows Terminal: `scripts\realtest.bat`
   (needs Git for Windows; runs in that same window).
 - Mac or Linux: `scripts/realtest.sh`
 
-Each step shows its progress live; the report is in `Nabu Test system/realtest/report.txt`.
+Each step shows its progress live; the report is in `realtest/report.txt` inside the test folder.
 Give another folder as the first argument, `WIKI=simplewiki` for a smaller wiki,
 or `CRAWL=300` for a shorter run.

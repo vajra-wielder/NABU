@@ -68,3 +68,37 @@ func TestTestFolderNames(t *testing.T) {
 		}
 	}
 }
+
+// NABU_TEST puts the test folder anywhere: whatever points into the
+// source code lands there, a drive elsewhere is left alone.
+func TestTestFolderFromEnv(t *testing.T) {
+	c := fakeCheckout(t)
+	ext := filepath.Join(t.TempDir(), "NABU-test")
+	t.Setenv(TestEnv, ext)
+	for _, asked := range []string{c, filepath.Join(c, "internal")} {
+		if l := Find(asked, ""); l.Root != ext || !l.Moved || l.Wikipedia != filepath.Join(ext, Wikipedia) {
+			t.Fatalf("--drive %s: %+v", asked, l)
+		}
+	}
+	if !isDir(ext) || isDir(filepath.Join(c, TestFolder)) {
+		t.Fatal("test folder made in the wrong place")
+	}
+	// Pointed at it directly, or a copy of the source code in it: as is.
+	os.WriteFile(filepath.Join(ext, "go.mod"), []byte("module github.com/vajra-wielder/nabu\n"), 0o644)
+	if l := Find(ext, ""); l.Root != ext || l.Moved {
+		t.Fatalf("test folder itself: %s", l.Root)
+	}
+	// A real drive or a package is never redirected.
+	other := t.TempDir()
+	if l := Find(other, ""); l.Root != other || l.Moved {
+		t.Fatalf("real drive: %s", l.Root)
+	}
+	pkg := filepath.Join(c, "dist", "NABU")
+	if l := Find(pkg, ""); l.Root != pkg || l.Moved {
+		t.Fatalf("package: %s", l.Root)
+	}
+	// --library in the source code: read there, written to NABU_TEST.
+	if l := Find("", filepath.Join(c, "testdata")); l.Root != ext || l.Wikipedia != filepath.Join(c, "testdata") {
+		t.Fatalf("--library: %+v", l)
+	}
+}

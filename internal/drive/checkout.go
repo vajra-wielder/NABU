@@ -14,9 +14,26 @@ import (
 // a test folder inside it instead, "Nabu Test system" by default (any
 // folder named "Nabu Test…" will do; Git ignores them), so nothing is
 // written among the source files and pulls and pushes stay clean.
+//
+// The test folder can be anywhere else too: set NABU_TEST to it (a folder
+// on another disk with room for a full dump, say). Everything NABU keeps
+// (dumps, indexes, pictures, settings) then goes there whenever it runs
+// from the source code. A NABU drive or a built package never looks at
+// NABU_TEST, so the real drive is not affected by it.
 
 // TestFolder is the test folder made in a checkout when it has none.
 const TestFolder = "Nabu Test system"
+
+// TestEnv names the variable holding a test folder outside the checkout.
+const TestEnv = "NABU_TEST"
+
+// TestFolderSet returns the folder NABU_TEST names, if it is set.
+func TestFolderSet() string {
+	if v := strings.TrimSpace(os.Getenv(TestEnv)); v != "" {
+		return abs(strings.Trim(v, `"`))
+	}
+	return ""
+}
 
 var testFolderRe = regexp.MustCompile(`(?i)^nabu[ _-]*test`)
 
@@ -54,6 +71,9 @@ func checkoutOf(dir string) string {
 // testFolderIn is the checkout's test folder: the one there is (the
 // first by name if several), or TestFolder.
 func testFolderIn(checkout string) string {
+	if t := TestFolderSet(); t != "" {
+		return t
+	}
 	ents, _ := os.ReadDir(checkout)
 	var found []string
 	for _, e := range ents {
@@ -72,6 +92,11 @@ func testFolderIn(checkout string) string {
 // is in a checkout but not in one of its test folders becomes the
 // checkout's test folder. Moved reports that it did.
 func awayFromSource(root string) (string, bool) {
+	if t := TestFolderSet(); t != "" {
+		if rel, err := filepath.Rel(t, abs(root)); err == nil && !strings.HasPrefix(rel, "..") {
+			return root, false // in the test folder NABU_TEST names
+		}
+	}
 	c := checkoutOf(root)
 	if c == "" {
 		return root, false

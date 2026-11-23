@@ -5,11 +5,13 @@
 #   scripts\realtest.bat [folder] [step...]  the same, from a Windows terminal
 #
 # folder is the NABU folder with the dumps (or set NABU_DRIVE). Without one,
-# the checkout's test folder ("Nabu Test system") is used.
+# the test folder NABU_TEST names is used, else the checkout's own test
+# folder ("Nabu Test system").
 #
 # Environment:
 #   NABU_BIN    the nabu program            (default: build ./cmd/nabu)
 #   NABU_DRIVE  the NABU folder with dumps  (dump already downloaded)
+#   NABU_TEST   the test folder NABU uses when run from the source code
 #   WIKI        the wiki to test            (default: enwiki)
 #   CRAWL       random articles to open     (default: 3000)
 #   PORT        port for the test server    (default: 8765)
@@ -19,6 +21,7 @@
 set -u
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 if [ $# -gt 0 ] && [ -d "$1" ]; then NABU_DRIVE=$1; shift; fi
+[ -z "${NABU_DRIVE:-}" ] && [ -n "${NABU_TEST:-}" ] && NABU_DRIVE=$NABU_TEST
 if [ -z "${NABU_DRIVE:-}" ]; then
 	for d in "$ROOT"/*/; do
 		n=$(basename "$d")
