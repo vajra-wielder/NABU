@@ -7,3 +7,5 @@
 .DS_Store
 # NABU test drives in the checkout ("Nabu Test system"): data, not source.
 /[Nn][Aa][Bb][Uu]*[Tt][Ee][Ss][Tt]*/
+# Test reports and logs written into a checkout by mistake; keep reports in docs/realtest/.
+/realtest/

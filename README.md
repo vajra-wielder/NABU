@@ -616,8 +616,8 @@ unrendered.
   appears as its TeX source.
 - **Search inside articles is optional.** It needs a one-time pass over the whole
   dump. Simple English (395 MB) takes about a minute on 3 cores and adds a 49 MB
-  index (12% of the dump). English Wikipedia should take roughly 1–1.5 hours on a
-  4-core laptop and add about 3.2 GB. Title search needs none of this. It is built once
+  index (12% of the dump). English Wikipedia took 2 h 24 min on a
+  Windows laptop and added 2.4 GB (11% of its 22.8 GB dump). Title search needs none of this. It is built once
   per dump, on any computer, and travels with the drive: other computers use it as is.
 - **Collection copies are snapshots.** They don't change when the dump is updated
   (that is the point); use **Refresh copies** to bring them up to date.
