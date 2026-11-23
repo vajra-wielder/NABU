@@ -10,6 +10,7 @@ import (
 	"github.com/vajra-wielder/nabu/internal/drive"
 	"github.com/vajra-wielder/nabu/internal/dump"
 	"github.com/vajra-wielder/nabu/internal/library"
+	"github.com/vajra-wielder/nabu/internal/sysutil"
 	"github.com/vajra-wielder/nabu/internal/timer"
 )
 
@@ -97,6 +98,7 @@ func (s *Server) startCheck() error {
 	c.started, c.finished = time.Now(), time.Time{}
 	stop := c.stop
 	go func() {
+		defer sysutil.KeepAwake()()
 		var results []*bookCheck
 		var err error
 		for _, b := range s.Lib.Books() {

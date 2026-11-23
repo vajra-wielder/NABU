@@ -470,6 +470,7 @@ func cmdSlim(args []string) error {
 // slimOne leaves out of one dump on the drive the pages NABU never shows
 // (and repacks it in small bundles), if it still needs it.
 func slimOne(ctx context.Context, d *drive.Layout, f *dump.Files) error {
+	defer sysutil.KeepAwake()()
 	need, err := dump.NeedsSlim(f)
 	if err != nil {
 		return fmt.Errorf("%s: %w", f.Key(), err)
@@ -555,10 +556,12 @@ func cmdCheck(args []string) error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", f.Key(), err)
 		}
+		awake := sysutil.KeepAwake()
 		pr := newProgress("checking " + f.Key())
 		res, err := rd.Check(dump.CheckOptions{Stop: ctx.Done(), Progress: pr.update})
 		rd.Close()
 		took := pr.done()
+		awake()
 		if err != nil {
 			return err
 		}

@@ -64,6 +64,8 @@ func cmdSetup(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	release := sysutil.KeepAwake() // until NABU starts at the end
+	defer release()
 	start := time.Now()
 	var took []string
 	step := func(name string, f func() error) error {
@@ -214,6 +216,7 @@ func cmdSetup(args []string) error {
 		return finish(say, err, took, start)
 	}
 	finish(say, nil, took, start)
+	release() // NABU keeps the computer awake itself while it works
 
 	// NABU itself, so the pictures keep coming in.
 	say("")

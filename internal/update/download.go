@@ -249,6 +249,7 @@ func (m *Manager) set(f func(s *Status)) {
 }
 
 func (m *Manager) run(ctx context.Context, rel *Release) error {
+	defer sysutil.KeepAwake()()                       // hours of downloading and slimming
 	if err := os.MkdirAll(m.Dir, 0o755); err != nil { // a new drive has no wikipedia folder yet
 		return friendlyWriteErr(err)
 	}

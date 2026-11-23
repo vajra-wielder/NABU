@@ -279,6 +279,7 @@ func checkDest(root, dest string) error {
 }
 
 func (c *Copier) run(ctx context.Context, root, dest string, files []File) {
+	defer sysutil.KeepAwake()()
 	err := func() error {
 		for _, f := range files {
 			if ctx.Err() != nil {

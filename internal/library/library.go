@@ -14,6 +14,7 @@ import (
 	"github.com/vajra-wielder/nabu/internal/drive"
 	"github.com/vajra-wielder/nabu/internal/dump"
 	"github.com/vajra-wielder/nabu/internal/pictures"
+	"github.com/vajra-wielder/nabu/internal/sysutil"
 )
 
 // Book states.
@@ -220,6 +221,7 @@ func (l *Library) prepare(b *Book) {
 	}
 	b.state, b.started = Preparing, time.Now()
 	b.mu.Unlock()
+	defer sysutil.KeepAwake()()
 
 	out := l.indexPath(b.Files)
 	os.MkdirAll(filepath.Dir(out), 0o755)

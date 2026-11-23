@@ -13,6 +13,7 @@ import (
 
 	"github.com/vajra-wielder/nabu/internal/dump"
 	"github.com/vajra-wielder/nabu/internal/fulltext"
+	"github.com/vajra-wielder/nabu/internal/sysutil"
 )
 
 // Full-text index states. Search inside article text is optional: it
@@ -158,6 +159,7 @@ func (l *Library) buildFullText(b *Book) {
 	b.closeFullText()
 	b.mu.Unlock()
 
+	defer sysutil.KeepAwake()()
 	out := l.ftPath(b.Files)
 	tmp := l.Drive.Temp(b.Files.Key() + "-fts")
 	os.MkdirAll(filepath.Dir(out), 0o755)

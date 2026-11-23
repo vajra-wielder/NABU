@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/vajra-wielder/nabu/internal/pictures"
+	"github.com/vajra-wielder/nabu/internal/sysutil"
 )
 
 // Picture download states, per wiki.
@@ -327,6 +328,7 @@ func (l *Library) runPictures(ctx context.Context, db string) error {
 	if rd == nil { // closed meanwhile (NABU stopping, or the dump removed)
 		return context.Canceled
 	}
+	defer sysutil.KeepAwake()() // (not while waiting to be allowed online)
 	err = pictures.Run(ctx, j, rd, st, l.pics.Fetch, rd.Site().Host(), l.pics.Busy, l.pics.Full, func(p pictures.Progress) {
 		l.picReport(db, p)
 	})
