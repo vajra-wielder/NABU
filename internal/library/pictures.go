@@ -29,6 +29,7 @@ type picJobs struct {
 	queue   chan string
 	running string
 	cancel  context.CancelFunc
+	closed  bool // the library is closed: start no more downloads
 }
 
 type picState struct {
@@ -243,7 +244,9 @@ func (l *Library) picWorker() {
 	for db := range l.pj.queue {
 		l.pj.mu.Lock()
 		ps := l.pj.state[db]
-		if ps == nil || ps.state != PicQueued {
+		// After Close, a queued job would reopen stores Close just shut,
+		// leaving files open (on Windows that keeps the drive busy).
+		if l.pj.closed || ps == nil || ps.state != PicQueued {
 			l.pj.mu.Unlock()
 			continue
 		}

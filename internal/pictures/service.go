@@ -26,7 +26,10 @@ type Service struct {
 	stores   map[string]*Store
 	failed   map[string]time.Time // picture → do not try again before
 	lastView time.Time
+	closed   bool // after Close no store is opened again
 }
+
+var errClosed = errors.New("pictures: closed")
 
 // NewService returns the pictures of the folder dir.
 func NewService(dir string, f *Fetcher) *Service {
@@ -41,6 +44,11 @@ func (s *Service) Store(db string, create bool) (*Store, error) {
 	defer s.mu.Unlock()
 	if st, ok := s.stores[db]; ok {
 		return st, nil
+	}
+	if s.closed {
+		// A late request or job would otherwise reopen files that stay
+		// open for good (on Windows that keeps the drive busy).
+		return nil, errClosed
 	}
 	dir := filepath.Join(s.Dir, db)
 	if _, err := os.Stat(filepath.Join(dir, "index.bin")); err != nil && !create {
@@ -232,6 +240,7 @@ func (s *Service) Sync() {
 func (s *Service) Close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.closed = true
 	for db, st := range s.stores {
 		st.Close()
 		delete(s.stores, db)

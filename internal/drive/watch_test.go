@@ -43,7 +43,14 @@ func TestWatchGoneAndBack(t *testing.T) {
 	default:
 	}
 	os.RemoveAll(root)
-	os.Rename(root+"-out", root)
+	// On Windows a folder the watcher was just looking at can stay "delete
+	// pending" for a moment, and renaming onto it fails: try again.
+	for i := 0; i < 50; i++ {
+		if err := os.Rename(root+"-out", root); err == nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	select {
 	case e := <-events:
 		if e != "back" || <-backAt != root {

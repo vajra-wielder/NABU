@@ -22,9 +22,15 @@ mkdir -p "$OUT"
 REPORT=$OUT/report.txt
 STEPS=${*:-prepare check serve}
 
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) WIN=1 ;; *) WIN= ;; esac
+if [ -z "${NABU_BIN:-}" ] && [ -n "$WIN" ] && [ -x "$DRIVE/programs/windows/nabu-windows-amd64.exe" ]; then
+	NABU_BIN=$DRIVE/programs/windows/nabu-windows-amd64.exe # test the program on the drive
+fi
 if [ -z "${NABU_BIN:-}" ]; then
-	NABU_BIN=$OUT/nabu
-	(cd "$(dirname "$0")/.." && go build -o "$NABU_BIN" ./cmd/nabu) || { echo "build failed"; exit 1; }
+	NABU_BIN=$OUT/nabu${WIN:+.exe}
+	ROOT=$(cd "$(dirname "$0")/.." && pwd)
+	GO=go; for g in "$ROOT"/requisites/toolchains/go1.24.7/bin/go "$ROOT"/requisites/toolchains/go1.24.7/bin/go.exe; do [ -x "$g" ] && GO=$g && break; done
+	(cd "$ROOT" && CGO_ENABLED=0 GOTOOLCHAIN=local "$GO" build -o "$NABU_BIN" ./cmd/nabu) || { echo "build failed"; exit 1; }
 fi
 
 say() { echo "$*" | tee -a "$REPORT"; }
@@ -68,7 +74,9 @@ serve)
 
 	# get URL -> "code seconds bytes"
 	get() { curl -s -o "$OUT/last.html" -w '%{http_code} %{time_total} %{size_download}' --max-time 60 "$1"; }
-	enc() { python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$1"; }
+	# percent-encode UTF-8 bytes (no python3 needed: Windows has none by default)
+	enc() { local LC_ALL=C s=$1 i c o=; for ((i=0; i<${#s}; i++)); do c=${s:i:1}
+		case $c in [A-Za-z0-9._~/-]) o+=$c ;; *) printf -v c '%%%02X' "'$c"; o+=${c: -3} ;; esac; done; echo "$o"; }
 	# stats over a file of seconds -> "median max"
 	stats() { sort -n "$1" | awk '{a[NR]=$1} END{if(NR==0){print "- -";exit} printf "%.3f %.3f", a[int((NR+1)/2)], a[NR]}'; }
 
@@ -124,7 +132,12 @@ serve)
 	errs=$(grep -ci 'panic\|error' "$OUT/server.log")
 	say "[server log] $errs error/panic lines$([ "$errs" -gt 0 ] && echo ", first ones:")"
 	grep -i 'panic\|error' "$OUT/server.log" | head -5 | cut -c1-200 | sed 's/^/    /' | tee -a "$REPORT"
-	say "[memory] server peak RSS $(grep VmHWM /proc/$SRV/status 2>/dev/null | awk '{print $2/1024 " MB"}' || echo n/a)"
+	if [ -r "/proc/$SRV/winpid" ]; then # Git Bash: ask Windows for the peak working set
+		peak=$(powershell.exe -NoProfile -Command "[math]::Round((Get-Process -Id $(cat /proc/$SRV/winpid)).PeakWorkingSet64/1MB)" 2>/dev/null | tr -d '\r')
+	else
+		peak=$(awk '/VmHWM/{print int($2/1024)}' "/proc/$SRV/status" 2>/dev/null)
+	fi
+	say "[memory] server peak RSS ${peak:-n/a}${peak:+ MB}"
 	kill $SRV 2>/dev/null
 	;;
 *) echo "unknown step $step"; exit 2 ;;
