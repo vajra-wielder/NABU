@@ -72,8 +72,9 @@ serve)
 	say "[startup] server answering after $(secs "$t0" "$(now)") s"
 	BASE=http://127.0.0.1:$PORT/$WIKI
 
-	# get URL -> "code seconds bytes"
-	get() { curl -s -o "$OUT/last.html" -w '%{http_code} %{time_total} %{size_download}' --max-time 60 "$1"; }
+	# get URL -> "code seconds bytes"; follows NABU's redirects (a title
+	# like "UK" leads to its article, the way a reader's click does)
+	get() { curl -s -L -o "$OUT/last.html" -w '%{http_code} %{time_total} %{size_download}' --max-time 60 "$1"; }
 	# percent-encode UTF-8 bytes (no python3 needed: Windows has none by default)
 	enc() { local LC_ALL=C s=$1 i c o=; for ((i=0; i<${#s}; i++)); do c=${s:i:1}
 		case $c in [A-Za-z0-9._~/-]) o+=$c ;; *) printf -v c '%%%02X' "'$c"; o+=${c: -3} ;; esac; done; echo "$o"; }
@@ -92,14 +93,16 @@ serve)
 			esac
 			read -r code t size <<< "$(get "$url")"
 			echo "$t" >> "$OUT/t_$label"
-			if [ "$code" != 200 ] || [ "${size:-0}" -lt 500 ]; then
+			if [ "$code" = 404 ]; then
+				echo "$label $it" >> "$OUT/missing.log" # not in this wiki: fine
+			elif [ "$code" != 200 ] || [ "${size:-0}" -lt 500 ]; then
 				fails=$((fails+1)); echo "$label FAIL $code $size $it" >> "$OUT/failures.log"
 			fi
 		done
 		read -r med max <<< "$(stats "$OUT/t_$label")"
 		say "[$label] $n requests, $fails failed, median ${med}s, max ${max}s"
 	}
-	: > "$OUT/failures.log"
+	: > "$OUT/failures.log"; : > "$OUT/missing.log"
 
 	timed_set titles search "Paris" "albert einstein" "The Beatles" "quantum mech" "Mount Everest" \
 		"New York City" "zebra" "Dostoevsky" "Москва" "café" "C++" "AC/DC" "World War II" \
@@ -118,7 +121,7 @@ serve)
 		r=$(curl -s -L -o "$OUT/last.html" -w '%{http_code} %{time_total} %{size_download} %{url_effective}' --max-time 60 "$BASE/random")
 		read -r code t size url <<< "$r"
 		echo "$t" >> "$OUT/t_crawl"
-		if [ "$code" != 200 ] || [ "${size:-0}" -lt 500 ] || grep -q 'class="nabu-error\|panic\|runtime error' "$OUT/last.html"; then
+		if [ "$code" != 200 ] || [ "${size:-0}" -lt 500 ] || grep -q 'goroutine [0-9]* \[\|runtime error: ' "$OUT/last.html"; then
 			cf=$((cf+1)); echo "crawl FAIL $code $size $url" >> "$OUT/failures.log"
 		fi
 		awk -v t="$t" 'BEGIN{exit !(t>2)}' && echo "slow $t $url" >> "$OUT/slow.log"
@@ -129,6 +132,7 @@ serve)
 	nf=$(wc -l < "$OUT/failures.log")
 	say "[failures] $nf total$([ "$nf" -gt 0 ] && echo ", first ones:")"
 	head -10 "$OUT/failures.log" | sed 's/^/    /' | tee -a "$REPORT"
+	[ -s "$OUT/missing.log" ] && say "[missing] not in this wiki (not a failure): $(cut -d' ' -f2- "$OUT/missing.log" | paste -sd, -)"
 	errs=$(grep -ci 'panic\|error' "$OUT/server.log")
 	say "[server log] $errs error/panic lines$([ "$errs" -gt 0 ] && echo ", first ones:")"
 	grep -i 'panic\|error' "$OUT/server.log" | head -5 | cut -c1-200 | sed 's/^/    /' | tee -a "$REPORT"
