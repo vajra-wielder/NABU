@@ -1,8 +1,14 @@
 package dump
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
+	"github.com/vajra-wielder/nabu/internal/bzip2w"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -101,7 +107,7 @@ func TestSlimInPlace(t *testing.T) {
 	if need, _ := NeedsSlim(scanOne(t, dir, "testwiki")); need {
 		t.Fatal("not slimmed")
 	}
-	// Stopped: nothing changes, nothing is left behind.
+	// Stopped before it starts: no dump is made (only what lets it carry on).
 	stop := make(chan struct{})
 	close(stop)
 	g := scanOne(t, "../../testdata", "testwiki")
@@ -109,8 +115,8 @@ func TestSlimInPlace(t *testing.T) {
 	if _, err := Slim(g, out, SlimOptions{Stop: stop}, nil); err == nil {
 		t.Fatal("not stopped")
 	}
-	if ents, _ := os.ReadDir(out); len(ents) != 0 {
-		t.Fatalf("left behind after stopping: %d files", len(ents))
+	if eds, _ := Scan(out); len(eds) != 0 {
+		t.Fatalf("a dump left after stopping: %v", eds)
 	}
 }
 
@@ -196,4 +202,94 @@ func timeOpen(t *testing.T, orig, slim *Reader) {
 		}
 		t.Logf("   opening an article: %.1f ms on average (%d articles)", float64(total.Microseconds())/1000/float64(len(titles)), len(titles))
 	}
+}
+
+// Interrupted, a slim carries on from its last checkpoint, and the result
+// is the same, byte for byte, as without the interruption.
+func TestSlimResumes(t *testing.T) {
+	old := checkpointEvery
+	checkpointEvery = 0 // a checkpoint after every stream
+	defer func() { checkpointEvery = old }()
+	src := manyStreams(t, 60)
+	opt := SlimOptions{PartSize: 20000, Bundle: 1500, Workers: 2}
+
+	whole := t.TempDir()
+	if _, err := Slim(src, whole, opt, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	for round := 0; ; round++ {
+		stop := make(chan struct{})
+		var once sync.Once
+		var firstSeen int64 = -1
+		o := opt
+		o.Stop = stop
+		o.Progress = func(done, total int64) {
+			if firstSeen < 0 {
+				firstSeen = done
+			}
+			// Stopped at a third, then at two thirds, then to the end.
+			if round < 2 && done > total*int64(round+1)/3 {
+				once.Do(func() { close(stop) })
+			}
+		}
+		if round > 0 && firstSeen == 0 {
+			t.Fatal("started again from the beginning")
+		}
+		_, err := Slim(src, dir, o, nil)
+		if round > 0 && firstSeen <= 0 {
+			t.Fatalf("round %d did not carry on (first progress %d)", round, firstSeen)
+		}
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, ErrSlimStopped) || round > 2 {
+			t.Fatalf("round %d: %v", round, err)
+		}
+	}
+	ents, _ := os.ReadDir(whole)
+	for _, e := range ents {
+		a, _ := os.ReadFile(filepath.Join(whole, e.Name()))
+		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil || !bytes.Equal(a, b) {
+			t.Fatalf("%s differs after carrying on (%v)", e.Name(), err)
+		}
+	}
+	left, _ := os.ReadDir(dir)
+	if len(left) != len(ents) {
+		t.Fatalf("%d files, want %d (temporary files left?)", len(left), len(ents))
+	}
+}
+
+// manyStreams makes a dump of n streams of 20 pages each, one in five of
+// them a page NABU leaves out.
+func manyStreams(t *testing.T, n int) *Files {
+	t.Helper()
+	dir := t.TempDir()
+	var data, index bytes.Buffer
+	data.Write(bzip2w.Compress([]byte(`<mediawiki xml:lang="en"><siteinfo><sitename>Wikipedia</sitename><dbname>testwiki</dbname>` +
+		`<base>https://en.wikipedia.org/wiki/Main_Page</base><case>first-letter</case><namespaces>` +
+		`<namespace key="0" case="first-letter" /><namespace key="4" case="first-letter">Wikipedia</namespace></namespaces></siteinfo>` + "\n")))
+	id := 0
+	for s := 0; s < n; s++ {
+		off := data.Len()
+		var xml strings.Builder
+		for p := 0; p < 20; p++ {
+			id++
+			ns, title := 0, fmt.Sprintf("Article %d", id)
+			if id%5 == 0 {
+				ns, title = 4, fmt.Sprintf("Wikipedia:Talk %d", id)
+			}
+			fmt.Fprintf(&xml, "  <page>\n    <title>%s</title>\n    <ns>%d</ns>\n    <id>%d</id>\n    <revision><text>%s</text></revision>\n  </page>\n",
+				title, ns, id, strings.Repeat(fmt.Sprintf("Text of page %d. ", id), 30))
+			fmt.Fprintf(&index, "%d:%d:%s\n", off, id, title)
+		}
+		data.Write(bzip2w.Compress([]byte(xml.String())))
+	}
+	data.Write(bzip2w.Compress([]byte("</mediawiki>\n")))
+	name := filepath.Join(dir, "testwiki-20261101-pages-articles-multistream")
+	os.WriteFile(name+".xml.bz2", data.Bytes(), 0o644)
+	os.WriteFile(name+"-index.txt.bz2", bzip2w.Compress(index.Bytes()), 0o644)
+	return scanOne(t, dir, "testwiki")
 }

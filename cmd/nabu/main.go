@@ -17,6 +17,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/vajra-wielder/nabu/internal/timer"
 	"net"
 	"net/http"
 	"os"
@@ -558,8 +559,22 @@ func cmdDownload(args []string) error {
 		if st.Total > 0 {
 			pct = 100 * float64(st.Done) / float64(st.Total)
 		}
-		fmt.Printf("\r  %-11s %5.1f%%  %s / %s  %s/s        ", st.State, pct,
-			update.HumanBytes(st.Done), update.HumanBytes(st.Total), update.HumanBytes(int64(st.Speed)))
+		// Downloading: how much, how fast, how long left. Slimming (no
+		// network): how far and how long, from the time it has taken.
+		line := fmt.Sprintf("  %-11s %5.1f%%  %s / %s", st.State, pct, update.HumanBytes(st.Done), update.HumanBytes(st.Total))
+		switch st.State {
+		case update.StateDownloading:
+			line += "  " + update.HumanBytes(int64(st.Speed)) + "/s"
+			if st.ETA > 0 {
+				line += " · " + timer.Left(time.Duration(st.ETA)*time.Second) + " left"
+			}
+		case update.StateSlimming:
+			line = fmt.Sprintf("  writing to the drive without the pages NABU never shows: %.1f%%", pct)
+			if st.Timer != "" {
+				line += " · " + st.Timer
+			}
+		}
+		fmt.Printf("\r%-100s", line)
 		switch st.State {
 		case update.StateDone:
 			fmt.Println("\nDone and verified. Run \"nabu prepare\" now, or NABU prepares it on next start.")

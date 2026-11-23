@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"compress/bzip2"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/vajra-wielder/nabu/internal/drivefile"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/vajra-wielder/nabu/internal/bzip2w"
 )
@@ -210,10 +213,45 @@ func Slim(f *Files, dir string, opt SlimOptions, replace func() error) (SlimResu
 			opt.Workers = 1
 		}
 	}
+	bundle := opt.Bundle
+	if bundle <= 0 {
+		bundle = BundleSize
+	}
 	var total, done int64
 	for _, p := range f.Pairs {
 		total += p.Size
 	}
+	names := func(p Pair) (dataName, idxName string) {
+		dataName = filepath.Base(p.Data[0])
+		if m := dataRe.FindStringSubmatch(dataName); m != nil && m[5] != "" {
+			dataName = dataName[:len(dataName)-2] // pieces: name.bz2aa
+		}
+		idxName = filepath.Base(p.Index)
+		if opt.Name != nil {
+			dataName, idxName = opt.Name(p.Data[0]), opt.Name(p.Index)
+		}
+		return
+	}
+
+	// Carry on from an interrupted slim of the same dump, if there is one.
+	first, _ := names(f.Pairs[0])
+	statePath := filepath.Join(dir, first+".slim-tmp-state.json")
+	st := loadSlimState(statePath, f, bundle)
+	if st == nil {
+		st = &slimState{Version: slimStateVersion, Sources: SourcesOf(f), Bundle: bundle}
+		for _, p := range f.Pairs { // what an older, different slim left
+			d, i := names(p)
+			old, _ := filepath.Glob(filepath.Join(dir, d) + ".slim-tmp-[0-9][0-9][0-9]")
+			for _, o := range append(old, filepath.Join(dir, i)+".slim-tmp") {
+				os.Remove(o)
+			}
+		}
+	}
+	save := func() error {
+		b, _ := json.Marshal(st)
+		return drivefile.WriteFile(statePath, b)
+	}
+
 	type rename struct{ from, to string }
 	var renames []rename
 	var temps []string
@@ -221,36 +259,59 @@ func Slim(f *Files, dir string, opt SlimOptions, replace func() error) (SlimResu
 		for _, t := range temps {
 			os.Remove(t)
 		}
+		os.Remove(statePath)
 	}
-	for _, p := range f.Pairs {
+	for pi, p := range f.Pairs {
 		if st, err := os.Stat(p.Index); err == nil {
 			res.Before += st.Size()
 		}
 		res.Before += p.Size
-		dataName := filepath.Base(p.Data[0])
-		if m := dataRe.FindStringSubmatch(dataName); m != nil && m[5] != "" {
-			dataName = dataName[:len(dataName)-2] // pieces: name.bz2aa
-		}
-		idxName := filepath.Base(p.Index)
-		if opt.Name != nil {
-			dataName, idxName = opt.Name(p.Data[0]), opt.Name(p.Index)
-		}
+		dataName, idxName := names(p)
 		dw := &pieceWriter{base: filepath.Join(dir, dataName), part: opt.PartSize}
 		idxOut := filepath.Join(dir, idxName) + ".slim-tmp"
 		temps = append(temps, idxOut)
-		err := slimPair(p, dw, idxOut, opt, &res, func(n int64) {
-			if opt.Progress != nil {
-				opt.Progress(done+n, total)
+		var err error
+		if pi < st.Pair { // finished before the interruption
+			for i := 0; i < st.Done[pi]; i++ {
+				dw.names = append(dw.names, fmt.Sprintf("%s.slim-tmp-%03d", dw.base, i))
 			}
-		})
-		if err == nil {
-			err = dw.close()
 		} else {
-			dw.closeCurrent()
+			rs := slimResume{checkpoint: func(next int, pieces []int64, indexLen int64) error {
+				st.Pair, st.Next, st.Pieces, st.Index = pi, next, pieces, indexLen
+				st.Pages, st.Kept = res.Pages, res.Kept
+				return save()
+			}}
+			if pi == st.Pair && st.Next > 0 {
+				if err = dw.resume(st.Pieces); err == nil {
+					rs.next, rs.indexLen = st.Next, st.Index
+					res.Pages, res.Kept = st.Pages, st.Kept
+				}
+			}
+			if err == nil {
+				err = slimPair(p, dw, idxOut, opt, &res, func(n int64) {
+					if opt.Progress != nil {
+						opt.Progress(done+n, total)
+					}
+				}, rs)
+			}
+			if err == nil {
+				err = dw.close()
+			} else {
+				dw.closeCurrent()
+			}
+			if err == nil {
+				st.Done = append(st.Done[:pi], len(dw.names))
+				st.Pair, st.Next, st.Pieces, st.Index = pi+1, 0, nil, 0
+				err = save()
+			}
 		}
 		temps = append(temps, dw.names...)
 		if err != nil {
-			cleanup()
+			// Stopped: kept to carry on from the last checkpoint. Any
+			// other trouble: nothing is left behind.
+			if !errors.Is(err, ErrSlimStopped) {
+				cleanup()
+			}
 			return res, err
 		}
 		done += p.Size
@@ -280,7 +341,52 @@ func Slim(f *Files, dir string, opt SlimOptions, replace func() error) (SlimResu
 			return res, fmt.Errorf("putting %s in place: %w", filepath.Base(r.to), err)
 		}
 	}
+	os.Remove(statePath)
 	return res, nil
+}
+
+// checkpointEvery is how often a slim records its place.
+var checkpointEvery = 30 * time.Second
+
+const slimStateVersion = 1
+
+// slimState is where a slim stands, saved beside its temporary files so
+// an interrupted one (stopped, or the computer switched off) carries on
+// from its last checkpoint instead of starting again: English takes over
+// an hour.
+type slimState struct {
+	Version int      `json:"version"`
+	Sources []Source `json:"sources"` // the dump being slimmed
+	Bundle  int      `json:"bundle"`
+	Done    []int    `json:"done"`   // pieces of each finished pair
+	Pair    int      `json:"pair"`   // the pair being slimmed
+	Next    int      `json:"next"`   // its next source stream
+	Pieces  []int64  `json:"pieces"` // sizes of its data pieces so far
+	Index   int64    `json:"index"`  // bytes of its index so far
+	Pages   int      `json:"pages"`
+	Kept    int      `json:"kept"`
+}
+
+func loadSlimState(path string, f *Files, bundle int) *slimState {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var st slimState
+	if json.Unmarshal(b, &st) != nil || st.Version != slimStateVersion || st.Bundle != bundle ||
+		len(st.Done) < st.Pair || st.Pair > len(f.Pairs) {
+		return nil
+	}
+	want := SourcesOf(f)
+	if len(want) != len(st.Sources) {
+		return nil
+	}
+	for i := range want {
+		if want[i] != st.Sources[i] {
+			return nil
+		}
+	}
+	return &st
 }
 
 // pieceWriter writes a file in pieces of at most part bytes, under
@@ -348,6 +454,59 @@ func (p *pieceWriter) closeCurrent() error {
 	return err
 }
 
+// sync puts what was written on the drive and returns each piece's size.
+func (p *pieceWriter) sync() ([]int64, error) {
+	if p.f != nil {
+		if err := p.w.Flush(); err != nil {
+			return nil, err
+		}
+		if err := p.f.Sync(); err != nil {
+			return nil, err
+		}
+	}
+	sizes := make([]int64, len(p.names))
+	for i := range p.names {
+		sizes[i] = p.part
+		if i == len(p.names)-1 {
+			sizes[i] = p.n
+		}
+	}
+	return sizes, nil
+}
+
+// resume reopens the pieces written before a checkpoint, cut back to
+// their sizes then (anything written after it is dropped).
+func (p *pieceWriter) resume(sizes []int64) error {
+	p.names, p.pos = nil, 0
+	for i, size := range sizes {
+		name := fmt.Sprintf("%s.slim-tmp-%03d", p.base, i)
+		if err := os.Truncate(name, size); err != nil {
+			return err
+		}
+		p.names = append(p.names, name)
+		p.pos += size
+	}
+	for i := len(sizes); ; i++ { // pieces begun after the checkpoint
+		if os.Remove(fmt.Sprintf("%s.slim-tmp-%03d", p.base, i)) != nil {
+			break
+		}
+	}
+	if len(sizes) == 0 {
+		return nil
+	}
+	f, err := os.OpenFile(p.names[len(p.names)-1], os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	last := sizes[len(sizes)-1]
+	if _, err := f.Seek(last, io.SeekStart); err != nil {
+		f.Close()
+		return err
+	}
+	p.f, p.w, p.n = f, bufio.NewWriterSize(f, 1<<20), last
+	return nil
+}
+
 func (p *pieceWriter) close() error {
 	if p.f == nil && len(p.names) == 0 {
 		if err := p.next(); err != nil { // an empty file is still a file
@@ -381,7 +540,17 @@ type bundle struct {
 	lines [][]byte
 }
 
-func slimPair(p Pair, dw *pieceWriter, idxOut string, opt SlimOptions, res *SlimResult, progress func(int64)) error {
+// slimResume is where slimPair carries on from, and how it records
+// where it is.
+type slimResume struct {
+	next     int   // first source stream still to do (0: from the start)
+	indexLen int64 // bytes of the index written so far
+	// checkpoint records the place once everything before it is on the
+	// drive: the next stream, the size of each data piece, the index.
+	checkpoint func(next int, pieces []int64, indexLen int64) error
+}
+
+func slimPair(p Pair, dw *pieceWriter, idxOut string, opt SlimOptions, res *SlimResult, progress func(int64), rs slimResume) error {
 	data, size, err := OpenData(p.Data)
 	if err != nil {
 		return err
@@ -429,12 +598,17 @@ func slimPair(p Pair, dw *pieceWriter, idxOut string, opt SlimOptions, res *Slim
 	}
 
 	// The header (site information) is copied as it is.
-	head := make([]byte, streams[0].off)
-	if _, err := data.ReadAt(head, 0); err != nil {
-		return err
+	if rs.next == 0 {
+		head := make([]byte, streams[0].off)
+		if _, err := data.ReadAt(head, 0); err != nil {
+			return err
+		}
+		if _, err := dw.Write(head); err != nil {
+			return friendly(err)
+		}
 	}
-	if _, err := dw.Write(head); err != nil {
-		return friendly(err)
+	if rs.next > len(streams) {
+		return errors.New("dump: the place to carry on from is past the end")
 	}
 
 	bundleSize := opt.Bundle
@@ -464,7 +638,8 @@ func slimPair(p Pair, dw *pieceWriter, idxOut string, opt SlimOptions, res *Slim
 	var readErr error
 	go func() {
 		defer close(jobs)
-		for i, s := range streams {
+		for i := rs.next; i < len(streams); i++ {
+			s := streams[i]
 			end := size
 			if i+1 < len(streams) {
 				end = streams[i+1].off
@@ -489,22 +664,62 @@ func slimPair(p Pair, dw *pieceWriter, idxOut string, opt SlimOptions, res *Slim
 
 	// Write in order, with the new index.
 	var idxText bytes.Buffer
-	idxW, err := os.Create(idxOut)
+	flags := os.O_CREATE | os.O_WRONLY | os.O_TRUNC
+	if rs.next > 0 {
+		flags = os.O_CREATE | os.O_WRONLY
+	}
+	idxW, err := os.OpenFile(idxOut, flags, 0o644)
 	if err != nil {
 		return err
 	}
 	defer idxW.Close()
+	if rs.next > 0 { // the index up to the checkpoint, the rest dropped
+		if err := idxW.Truncate(rs.indexLen); err != nil {
+			return err
+		}
+		if _, err := idxW.Seek(rs.indexLen, io.SeekStart); err != nil {
+			return err
+		}
+	}
+	indexLen := rs.indexLen
 	idxBuf := bufio.NewWriterSize(idxW, 1<<20)
 	flushIndex := func() error {
 		if idxText.Len() == 0 {
 			return nil
 		}
-		_, err := idxBuf.Write(bzip2w.Compress(idxText.Bytes()))
+		z := bzip2w.Compress(idxText.Bytes())
+		_, err := idxBuf.Write(z)
+		indexLen += int64(len(z))
 		idxText.Reset()
 		return err
 	}
+	// Every half minute, everything so far goes to the drive and the place
+	// is recorded: stopped or cut off, slimming carries on from there.
+	lastCheckpoint := time.Now()
+	checkpoint := func(next int) error {
+		if rs.checkpoint == nil {
+			return nil
+		}
+		if err := flushIndex(); err != nil {
+			return err
+		}
+		if err := idxBuf.Flush(); err != nil {
+			return err
+		}
+		if err := idxW.Sync(); err != nil {
+			return err
+		}
+		pieces, err := dw.sync()
+		if err != nil {
+			return err
+		}
+		return rs.checkpoint(next, pieces, indexLen)
+	}
 	pending := map[int]slimOut{}
-	next := 0
+	next := rs.next
+	if next > 0 && next < len(streams) {
+		progress(streams[next].off)
+	}
 	var firstErr error
 	for r := range results {
 		pending[r.n] = r
@@ -551,12 +766,21 @@ func slimPair(p Pair, dw *pieceWriter, idxOut string, opt SlimOptions, res *Slim
 				end = streams[next].off
 			}
 			progress(end)
+			if firstErr == nil && time.Since(lastCheckpoint) > checkpointEvery {
+				lastCheckpoint = time.Now()
+				if err := checkpoint(next); err != nil {
+					firstErr = friendly(err)
+					halt()
+				}
+			}
 		}
 	}
-	select {
-	case <-opt.Stop:
-		return ErrSlimStopped
-	default:
+	if next < len(streams) { // (all done: no point calling it stopped)
+		select {
+		case <-opt.Stop:
+			return ErrSlimStopped
+		default:
+		}
 	}
 	if firstErr == nil {
 		firstErr = readErr
