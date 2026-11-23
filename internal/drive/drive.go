@@ -45,6 +45,10 @@ type Layout struct {
 	Collections string
 	Personal    string
 	Work        string
+
+	// Moved: asked for (or found in) NABU's source code, the test folder
+	// is used instead (see checkout.go).
+	Moved bool
 }
 
 // At is the standard layout of a NABU folder.
@@ -90,6 +94,22 @@ func (l *Layout) PersonalFile(name string) string { return filepath.Join(l.Perso
 // the program is: programs/<system>/nabu… inside the NABU folder, the
 // older nabu/nabu-… layout, or the current folder.
 func Find(driveFlag, libraryFlag string) *Layout {
+	l := find(driveFlag, libraryFlag)
+	// Never NABU's own source code: its test folder instead. Dumps given
+	// with --library (testdata/, say) are still read where they are.
+	if root, moved := awayFromSource(l.Root); moved {
+		os.MkdirAll(root, 0o755)
+		lib := l.Wikipedia
+		l = At(root)
+		if libraryFlag != "" && driveFlag == "" {
+			l.Wikipedia = lib
+		}
+		l.Moved = true
+	}
+	return l
+}
+
+func find(driveFlag, libraryFlag string) *Layout {
 	switch {
 	case driveFlag != "":
 		return At(driveFlag)

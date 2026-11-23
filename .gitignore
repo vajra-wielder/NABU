@@ -5,3 +5,5 @@
 .nabu/
 *.nidx
 .DS_Store
+# NABU test drives in the checkout ("Nabu Test system"): data, not source.
+/[Nn][Aa][Bb][Uu]*[Tt][Ee][Ss][Tt]*/

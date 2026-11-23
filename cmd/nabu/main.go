@@ -214,6 +214,9 @@ func parse(name string, args []string) (*opts, *flag.FlagSet, error) {
 // layout.
 func findDrive(o *opts) *drive.Layout {
 	d := drive.Find(o.drive, o.library)
+	if d.Moved {
+		fmt.Println("  This is NABU's source code; using its test folder instead:", d.Root)
+	}
 	for _, n := range d.Migrate() {
 		fmt.Println("  Updated the drive's layout:", n)
 	}

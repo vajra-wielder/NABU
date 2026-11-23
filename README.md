@@ -546,6 +546,13 @@ go test ./...
 go run ./cmd/nabu --library testdata --offline
 ```
 
+Run from the source code, NABU never uses it as a drive: everything it writes (indexes,
+search, pictures, history, settings, downloads in progress) goes into a test folder at
+the top of the checkout, `Nabu Test system/` (any folder named `Nabu Test…` is used if
+there is one), which Git ignores, so pulls and pushes stay clean. Dumps given with
+`--library` are read where they are. Put real dumps for testing in
+`Nabu Test system/wikipedia/` and run `go run ./cmd/nabu`.
+
 To test against real dumps, put a few small ones (for example `simplewiki`, `abwiki`,
 `yiwiki`) in a folder and run:
 
