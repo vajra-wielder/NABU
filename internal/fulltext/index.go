@@ -29,6 +29,7 @@ type Index struct {
 	docOffs  []uint64
 	docsEnd  int64
 	geo      []geoRec
+	lens     []byte // format 3: each article's length (lenByte)
 
 	mu    sync.Mutex
 	cache map[int][]dictRow
@@ -91,15 +92,24 @@ func (ix *Index) load() error {
 		o[i] = int64(binary.LittleEndian.Uint64(tr[i*8:]))
 	}
 	dictOff, dirOff, docsOff, docDirOff, geoOff, metaOff := o[0], o[1], o[2], o[3], o[4], o[5]
-	if o[6] != FormatVersion || !(dictOff <= dirOff && dirOff <= docsOff && docsOff <= docDirOff && docDirOff <= geoOff && geoOff <= metaOff && metaOff <= size-ftsTrailer) {
+	if (o[6] != FormatVersion && o[6] != 2) || !(dictOff <= dirOff && dirOff <= docsOff && docsOff <= docDirOff && docDirOff <= geoOff && geoOff <= metaOff && metaOff <= size-ftsTrailer) {
 		return ErrStale
 	}
 	mb := make([]byte, size-ftsTrailer-metaOff)
 	if _, err := ix.f.ReadAt(mb, metaOff); err != nil {
 		return err
 	}
-	if err := json.Unmarshal(mb, &ix.Meta); err != nil || ix.Meta.Version != FormatVersion {
+	if err := json.Unmarshal(mb, &ix.Meta); err != nil || int64(ix.Meta.Version) != o[6] {
 		return ErrStale
+	}
+	if ix.Meta.Version >= 3 {
+		if ix.Meta.LensOff < geoOff || ix.Meta.LensOff+int64(ix.Meta.Docs) > metaOff {
+			return ErrStale
+		}
+		ix.lens = make([]byte, ix.Meta.Docs)
+		if _, err := ix.f.ReadAt(ix.lens, ix.Meta.LensOff); err != nil {
+			return err
+		}
 	}
 	ix.rules = NewRules(ix.Meta.Stopwords, ix.Meta.Capital)
 	ix.common = map[string]bool{}
@@ -109,17 +119,17 @@ func (ix *Index) load() error {
 	r := bufio.NewReader(io.NewSectionReader(ix.f, dirOff, docsOff-dirOff))
 	n, err := binary.ReadUvarint(r)
 	if err != nil {
-		return ErrStale
+		return stale(err)
 	}
 	for i := uint64(0); i < n; i++ {
 		off, e1 := binary.ReadUvarint(r)
 		l, e2 := binary.ReadUvarint(r)
 		if e1 != nil || e2 != nil || l > 1024 {
-			return ErrStale
+			return stale(e1, e2)
 		}
 		t := make([]byte, l)
 		if _, err := io.ReadFull(r, t); err != nil {
-			return ErrStale
+			return stale(err)
 		}
 		ix.dictOff = append(ix.dictOff, int64(off))
 		ix.dictTerm = append(ix.dictTerm, string(t))
@@ -129,7 +139,7 @@ func (ix *Index) load() error {
 	r = bufio.NewReader(io.NewSectionReader(ix.f, docDirOff, geoOff-docDirOff))
 	n, err = binary.ReadUvarint(r)
 	if err != nil {
-		return ErrStale
+		return stale(err)
 	}
 	ix.docOffs = make([]uint64, 0, n)
 	for i := uint64(0); i < n; i++ {
@@ -142,18 +152,29 @@ func (ix *Index) load() error {
 	r = bufio.NewReader(io.NewSectionReader(ix.f, geoOff, metaOff-geoOff))
 	n, err = binary.ReadUvarint(r)
 	if err != nil {
-		return ErrStale
+		return stale(err)
 	}
 	ix.geo = make([]geoRec, 0, n)
 	var g [12]byte
 	for i := uint64(0); i < n; i++ {
 		if _, err := io.ReadFull(r, g[:]); err != nil {
-			return ErrStale
+			return stale(err)
 		}
 		ix.geo = append(ix.geo, geoRec{binary.LittleEndian.Uint32(g[0:]),
 			math.Float32frombits(binary.LittleEndian.Uint32(g[4:])), math.Float32frombits(binary.LittleEndian.Uint32(g[8:]))})
 	}
 	return nil
+}
+
+// stale tells an index that is cut short or garbled (ErrStale: it goes)
+// from one that could not be read just now (kept for next time).
+func stale(errs ...error) error {
+	for _, err := range errs {
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+			return err
+		}
+	}
+	return ErrStale
 }
 
 // Sections reports the bytes of each part of the index file, to see
@@ -240,6 +261,13 @@ func (ix *Index) postings(row dictRow) ([]posting, error) {
 		return nil, err
 	}
 	out := make([]posting, 0, row.df)
+	if ix.Meta.Version >= 3 {
+		out, ok := readList(buf, row.df, out)
+		if !ok {
+			return nil, ErrStale
+		}
+		return out, nil
+	}
 	var doc uint32
 	for i := 0; i < len(buf); {
 		v, n := binary.Uvarint(buf[i:])
@@ -295,6 +323,82 @@ func (ix *Index) Doc(n uint32) (Doc, error) {
 	}
 }
 
+// docBlock reads block blk of the article table: its first article's
+// number, and each article's stream, page and title.
+func (ix *Index) docBlock(blk int, fn func(n uint32, stream uint32, id uint64, title []byte) bool) error {
+	end := ix.docsEnd
+	if blk+1 < len(ix.docOffs) {
+		end = ix.docsOff + int64(ix.docOffs[blk+1])
+	}
+	start := ix.docsOff + int64(ix.docOffs[blk])
+	buf := make([]byte, end-start)
+	if _, err := ix.f.ReadAt(buf, start); err != nil {
+		return err
+	}
+	var stream, id uint64
+	for i, n := 0, uint32(blk)*docBlock; i < len(buf); n++ {
+		ds, k1 := binary.Uvarint(buf[i:])
+		if k1 <= 0 {
+			return ErrStale
+		}
+		did, k2 := binary.Varint(buf[i+k1:])
+		if k2 <= 0 {
+			return ErrStale
+		}
+		l, k3 := binary.Uvarint(buf[i+k1+k2:])
+		i += k1 + k2 + k3
+		if k3 <= 0 || i+int(l) > len(buf) {
+			return ErrStale
+		}
+		stream += ds
+		id = uint64(int64(id) + did)
+		if !fn(n, uint32(stream), id, buf[i:i+int(l)]) {
+			return nil
+		}
+		i += int(l)
+	}
+	return nil
+}
+
+// DocOf finds the number of the article at page id in stream. Articles
+// are numbered in the dump's order, so by stream.
+func (ix *Index) DocOf(stream uint32, id uint64) (uint32, bool) {
+	firstStream := func(blk int) (uint32, bool) {
+		var s uint32
+		ok := ix.docBlock(blk, func(_ uint32, st uint32, _ uint64, _ []byte) bool { s = st; return false }) == nil
+		return s, ok
+	}
+	// The last block starting at or before the stream; a stream's
+	// articles may go on into the next blocks.
+	blk := sort.Search(len(ix.docOffs), func(i int) bool {
+		s, ok := firstStream(i)
+		return !ok || s >= stream
+	})
+	if blk > 0 {
+		blk--
+	}
+	var found uint32
+	ok := false
+	for ; blk < len(ix.docOffs) && !ok; blk++ {
+		past := false
+		ix.docBlock(blk, func(n uint32, st uint32, pid uint64, _ []byte) bool {
+			if st == stream && pid == id {
+				found, ok = n, true
+				return false
+			}
+			if st > stream {
+				past = true
+				return false
+			}
+			return true
+		})
+		if past {
+			break
+		}
+	}
+	return found, ok
+}
+
 // Hit is a search result.
 type Hit struct {
 	Doc
@@ -310,8 +414,16 @@ type Result struct {
 	Ignored []string // too common to search
 }
 
-// Search finds articles containing every term of q, best first.
-func (ix *Index) Search(q string, offset, limit int) (*Result, error) {
+const bm25K1 = 1.2
+
+// bm25B is how much an article's length counts (0: not at all; 1: fully).
+// titleBoost is added for each searched word in the title.
+var bm25B, titleBoost, rerank = 0.3, 4.0, 400
+
+// Search finds articles containing every term of q, best first. An
+// article in first (the one whose title is q, say) comes first when it
+// has the words.
+func (ix *Index) Search(q string, offset, limit int, first ...Doc) (*Result, error) {
 	res := &Result{}
 	type termList struct {
 		term string
@@ -350,18 +462,35 @@ func (ix *Index) Search(q string, offset, limit int) (*Result, error) {
 	sort.Slice(lists, func(i, j int) bool { return lists[i].df < lists[j].df })
 	N := float64(ix.Meta.Docs)
 	idf := func(df uint32) float64 { return math.Log(1 + (N-float64(df)+0.5)/(float64(df)+0.5)) }
+	// BM25: a word's weight in an article grows with how often it is
+	// there, less and less, and less in a long article (format 3 knows
+	// their lengths; format 2 counts every article as average).
+	norm := [256]float64{}
+	for i := range norm {
+		norm[i] = bm25K1
+		if ix.lens != nil && ix.Meta.AvgLen > 0 {
+			norm[i] = bm25K1 * (1 - bm25B + bm25B*byteLen(byte(i))/ix.Meta.AvgLen)
+		}
+	}
+	tfw := func(doc uint32, tf uint8) float64 {
+		k := bm25K1
+		if ix.lens != nil {
+			k = norm[ix.lens[doc]]
+		}
+		return float64(tf) / (float64(tf) + k)
+	}
 	type cand struct {
 		doc   uint32
 		score float64
 	}
-	first, err := ix.postings(lists[0].row)
+	ps0, err := ix.postings(lists[0].row)
 	if err != nil {
 		return nil, err
 	}
-	cands := make([]cand, len(first))
+	cands := make([]cand, len(ps0))
 	w := idf(lists[0].df)
-	for i, p := range first {
-		cands[i] = cand{p.doc, w * float64(p.tf) / (float64(p.tf) + 1.2)}
+	for i, p := range ps0 {
+		cands[i] = cand{p.doc, w * tfw(p.doc, p.tf)}
 	}
 	for _, l := range lists[1:] {
 		ps, err := ix.postings(l.row)
@@ -376,7 +505,7 @@ func (ix *Index) Search(q string, offset, limit int) (*Result, error) {
 				j++
 			}
 			if j < len(ps) && ps[j].doc == c.doc {
-				c.score += w * float64(ps[j].tf) / (float64(ps[j].tf) + 1.2)
+				c.score += w * tfw(c.doc, ps[j].tf)
 				out = append(out, c)
 			}
 		}
@@ -386,10 +515,21 @@ func (ix *Index) Search(q string, offset, limit int) (*Result, error) {
 		}
 	}
 	res.Total = len(cands)
+	// cands are in article order: the ones asked to come first are found
+	// by number.
+	lead := map[uint32]bool{}
+	for _, d := range first {
+		if n, ok := ix.DocOf(d.Stream, d.PageID); ok {
+			if i := sort.Search(len(cands), func(i int) bool { return cands[i].doc >= n }); i < len(cands) && cands[i].doc == n {
+				cands[i].score += 1000
+				lead[n] = true
+			}
+		}
+	}
 	sort.Slice(cands, func(i, j int) bool { return cands[i].score > cands[j].score })
 	// Re-rank the best few with their titles: a title containing the
 	// words, or equal to the query, comes first.
-	top := offset + limit + 50
+	top := offset + limit + rerank
 	if top > len(cands) {
 		top = len(cands)
 	}
@@ -405,7 +545,9 @@ func (ix *Index) Search(q string, offset, limit int) (*Result, error) {
 		}
 		h := Hit{Doc: d, N: c.doc, Score: c.score}
 		ft := dump.Fold(d.Title)
-		if ft == fq {
+		if lead[c.doc] {
+			// already first
+		} else if ft == fq {
 			h.Score += 100
 		} else {
 			inTitle := 0
@@ -485,6 +627,12 @@ func haversine(lat1, lon1, lat2, lon2 float64) float64 {
 // Snippet returns HTML: about width characters of text around the first
 // place the terms occur, with the terms marked.
 func Snippet(text string, terms []string, width int) string {
+	s, _ := snippet(text, terms, width)
+	return s
+}
+
+// snippet is Snippet, reporting whether the terms were found.
+func snippet(text string, terms []string, width int) (string, bool) {
 	want := map[string]bool{}
 	for _, t := range terms {
 		want[t] = true
@@ -503,6 +651,7 @@ func Snippet(text string, terms []string, width int) string {
 			break
 		}
 	}
+	found := at >= 0
 	if at < 0 {
 		at = 0
 	}
@@ -537,5 +686,29 @@ func Snippet(text string, terms []string, width int) string {
 	if i < len(words) {
 		b.WriteString(" …")
 	}
-	return b.String()
+	return b.String(), found
+}
+
+// TitleDoc is the article whose title is q (or that q redirects to), for
+// Search to put first: nothing when there is none.
+func (ix *Index) TitleDoc(rd *dump.Reader, q string) []Doc {
+	q = strings.TrimSpace(q)
+	if rd == nil || q == "" {
+		return nil
+	}
+	e, _, err := rd.Index.Find(q)
+	if err != nil || e.NS != dump.NSMain {
+		return nil
+	}
+	if _, ok := ix.DocOf(e.Stream, e.ID); !ok {
+		// not an article of its own: a redirect, read to follow it
+		p, err := rd.Load(e)
+		if err != nil || p.Redirect == "" {
+			return nil
+		}
+		if e, _, err = rd.Index.Find(p.Redirect); err != nil {
+			return nil
+		}
+	}
+	return []Doc{{Stream: e.Stream, PageID: e.ID, Title: e.Title}}
 }

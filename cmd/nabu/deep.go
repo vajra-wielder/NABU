@@ -91,13 +91,21 @@ func openForScan(d *drive.Layout, f *dump.Files) (*dump.Reader, error) {
 	return dump.NewReader(f, ix)
 }
 
-func prepareFullText(d *drive.Layout, f *dump.Files) error {
+func prepareFullText(d *drive.Layout, f *dump.Files, rebuild bool) error {
 	out := d.FullText(f.Key())
 	os.MkdirAll(d.Search, 0o755)
 	if ix, err := fulltext.Open(out, f); err == nil {
+		v := ix.Meta.Version
 		fmt.Printf("%s: search inside articles ready (%d articles)\n", f.Key(), ix.Meta.Docs)
 		ix.Close()
-		return nil
+		if v >= fulltext.FormatVersion || !rebuild {
+			if v < fulltext.FormatVersion {
+				fmt.Printf("  It is in an older format. It works as it is; built again (nabu prepare --full-text --rebuild)\n" +
+					"  it takes about a tenth less room and ranks results better. The one there is kept until the new one is ready.\n")
+			}
+			return nil
+		}
+		fmt.Printf("%s: building it again in the current format\n", f.Key())
 	}
 	rd, err := openForScan(d, f)
 	if err != nil {

@@ -1,0 +1,251 @@
+== size ==
+(2026-11-26 18:00Z, linux/amd64, 4 CPUs)
+simplewiki-20261101: index 48.9 MB for a dump of 367.9 MB (13.3%), 286133 articles, 856585 words, 21757021 postings
+parts: postings 36.9 MB, dictionary 5.9 MB (+ directory 0.1 MB), articles 5.6 MB, places 38677
+words by how many articles they are in:
+  articles            words     postings        bytes  B/post
+  1-1                481378       481378       1.4 MB    2.97
+  2-2                121187       242374       0.7 MB    2.85
+  3-4                 94292       317336       0.9 MB    2.76
+  5-16                96377       795241       2.1 MB    2.62
+  17-256              53126      3258663       7.0 MB    2.16
+  257-4096             9408      8557439      14.6 MB    1.71
+  4097-65536            816      8026434      10.0 MB    1.25
+  65537-more              1        78156       0.1 MB    1.01
+weights (once/twice/3-5/more): 74.5% 13.0% 8.9% 3.6%, 1.18 bits of information each (2 kept)
+the postings written other ways:
+  now: varint of delta<<2|tf                                          36.9 MB    +0.0%
+  varint deltas, tf 2 bits packed apart                               37.6 MB    +2.0%
+  blocks of 128 packed to the widest (FOR), tf 2 bits                 36.7 MB    -0.4%
+  blocks of 128, width chosen with exceptions (PFOR), tf 2 bits       34.8 MB    -5.5%
+  Elias-Fano, tf 2 bits                                               34.7 MB    -5.8%
+  best of varint/PFOR/EF per list, tf 2 bits                          34.1 MB    -7.4%
+  best per list, tf 1 bit (once / more often)                         31.5 MB   -14.4%
+  best per list, tf in 1-3 bits (once: 1 bit)                         32.5 MB   -11.7%
+  varint or Elias-Fano per list, tf in 1-3 bits                       32.6 MB   -11.5%
+  as now under 16 articles, else varint/Elias-Fano + tf 1-3 bits      31.3 MB   -15.0%
+  best per list, no tf at all                                         28.2 MB   -23.5%
+dictionary: 856585 words, 6.7 MB of letters (7.8 a word); with digits 42930 (24806 in one article only); over 15 letters 8184; not Latin letters 54794
+  some words in one article only: 1359bc 1b67 2h6 3270s 381c 4723 5613 77t6 8271 8979 9xx ababacc abelisaurids abraomas acocksii adats aeish afinskaya agyejip akobhyavyha alayaron algpark almskog altfeld amnestics anilio annotta anthropenic anupma aprovacion argimiro arlingon arquitecture askalaphos atcm atruvera ausiliara avramovo ayleston babarashani bacteroidia bajlo barake barguzinskyi basketballklubb battagliadicascina bedolliere beimbetov bellenger benedic berattarfestivalen beshellem bevistock bharatsai bibeltreuer bigend bipradas bobbiolson boldoutline bongahwah
+  the commonest words still indexed (in % of articles, bytes): websites 27.3% 0.1 MB, born 22.3% 0.1 MB, first 19.6% 0.1 MB, one 18.7% 0.1 MB, people 17.9% 0.1 MB, known 17.0% 0.0 MB, american 16.8% 0.0 MB, united 16.6% 0.0 MB, new 15.1% 0.0 MB, states 14.5% 0.0 MB, city 13.5% 0.0 MB, two 13.3% 0.0 MB, died 12.7% 0.0 MB, made 11.9% 0.0 MB, many 11.9% 0.0 MB, called 11.8% 0.0 MB, time 11.5% 0.0 MB, world 11.4% 0.0 MB, national 10.6% 0.0 MB, part 10.3% 0.0 MB, used 10.2% 0.0 MB, 10 10.0% 0.0 MB, name 9.9% 0.0 MB, year 9.6% 0.0 MB, 2020 9.5% 0.0 MB, state 9.5% 0.0 MB, january 9.3% 0.0 MB, years 9.3% 0.0 MB, became 9.1% 0.0 MB, related 9.0% 0.0 MB, france 9.0% 0.0 MB, north 8.8% 0.0 MB, history 8.6% 0.0 MB, 12 8.6% 0.0 MB, may 8.5% 0.0 MB, march 8.4% 0.0 MB, three 8.3% 0.0 MB, later 8.3% 0.0 MB, october 8.3% 0.0 MB, september 8.2% 0.0 MB, age 8.2% 0.0 MB, 20 8.1% 0.0 MB, second 8.1% 0.0 MB, de 8.1% 0.0 MB, south 8.0% 0.0 MB, 11 8.0% 0.0 MB, june 8.0% 0.0 MB, 15 8.0% 0.0 MB, like 8.0% 0.0 MB, november 8.0% 0.0 MB, july 7.9% 0.0 MB, august 7.8% 0.0 MB, april 7.8% 0.0 MB, county 7.8% 0.0 MB, pages 7.8% 0.0 MB, december 7.7% 0.0 MB, 13 7.5% 0.0 MB, 14 7.4% 0.0 MB, life 7.4% 0.0 MB, movie 7.3% 0.0 MB
+  dropped as in over 40% of articles: references
+articles: 5.6 MB, of which titles 4.7 MB (16.5 bytes a title)
+== build ==
+(2026-11-26 18:01Z, linux/amd64, 4 CPUs)
+simplewiki-20261101: 2000 of 14200 bundles, 40129 articles, 148.2 MB of wikitext, on one CPU:
+  reading (decompress, XML)   14.1 s  44.2%
+  wikitext to plain text     12.6 s  39.5%
+  words and counting          5.2 s  16.3%
+  so the whole dump: about 4 min on one CPU, 1 min on 3 (the rest of a build is sorting and writing)
+== snippets ==
+(2026-11-26 18:01Z, linux/amd64, 4 CPUs)
+simplewiki-20261101: 577 snippets; from the whole article 3.8 ms each, from the paragraph 1.4 ms each (3× faster)
+  the same snippet 549 times (95%); words marked in both 577
+  some that differ:
+  "capital of Mongolia" in First Turkic Khaganate:
+    whole: … Tungus GOGU- RYEO Tocharians !Status |Khaganate (Nomadic empire) <mark>!Capital</mark> | * Ötüken (eastern) * Suyab (western) !Common languages | * Old Turkic (official, dynastic and common) * Sogdian (official, diplomacy, coinage) * …
+    paragraph: … the eastern part of the empire centered on <mark>Mongolia</mark> and defeated the Hephthalite Empire. Bumin&#39;s brother Istämi (d. 576) bore the title &#34;Yabghu of the West&#34;. This western branch of the Ashina clan was de facto independent …
+  "capital of Mongolia" in Lists of office-holders:
+    whole: … shogunate **Tokugawa shogunate **List of emperors of Japan <mark>*Mongolia</mark> **Grand Khan of <mark>Mongolia</mark> **Presidents of <mark>Mongolia</mark> **Prime Minister of <mark>Mongolia</mark> *Korea **Rulers of Korea **North Korea ***First Secretary of the Workers&#39; …
+    paragraph: **List of emperors of Japan <mark>*Mongolia</mark> **Grand Khan of <mark>Mongolia</mark> **Presidents of <mark>Mongolia</mark> **Prime Minister of <mark>Mongolia</mark> *Korea **Rulers of Korea **North Korea ***First Secretary of the Workers&#39; Party of Korea (supreme leader) …
+  "capital of Mongolia" in List of countries in the 1920s:
+    whole: … Widely-recognized by other states. Sovereign states !width=60%|Name and <mark>capital</mark> city !width=40%|Information on status and recognition of sovereignty |colspan=2| ---- |colspan=3| A |colspan=2| ---- |valign=top| Abkhazia – …
+    paragraph: * Mirdita – Republic of Mirdita * <mark>Mongolia</mark> * North Ingria – Republic of North Ingria * Rhineland – Rhenish Republic * Rif – Confederal Republic of the Tribes of the Rif * Siberia, Autonomous – Provisional Government of Autonomous …
+  "boiling point of water" in Roselle juice:
+    whole: … served warm. Preparation Roselle juice is prepared with <mark>water,</mark> bissap flowers, sugar and sometimes other flavouring ingredients such as ginger. *Wash bissap flowers in clean <mark>water.</mark> *Either pour <mark>boiling</mark> <mark>water</mark> over the flowers, …
+    paragraph: Preparation Roselle juice is prepared with <mark>water,</mark> bissap flowers, sugar and sometimes other flavouring ingredients such as ginger. *Wash bissap flowers in clean <mark>water.</mark> *Either pour <mark>boiling</mark> <mark>water</mark> over the flowers, or put …
+  "first moon landing" in NASA:
+    whole: … the ISS, and Apollo 11, which put the <mark>first</mark> man on the <mark>Moon</mark> in 1969. NASA was founded on July 29, 1958. The Artemis 2 mission launched April 1, 2026. Four astronauts from NASA, are in space as of 2025&#39;s second quarter. Three …
+    paragraph: … the ISS, and Apollo 11, which put the <mark>first</mark> man on the <mark>Moon</mark> in 1969. NASA was founded on July 29, 1958.
+  "first moon landing" in List of accidents and incidents involving commercial aircraft 1919 – 1959:
+    whole: … sources). 1922 * April 7 – In the <mark>first</mark> mid-air collision of airliners, a de Havilland DH.18A, G-EAWO, operated by Daimler Hire Ltd., collides with a Farman F.60 Goliath, F-GEAD, operated by Compagnie des Grands Express …
+    paragraph: 1922 * April 7 – In the <mark>first</mark> mid-air collision of airliners, a de Havilland DH.18A, G-EAWO, operated by Daimler Hire Ltd., collides with a Farman F.60 Goliath, F-GEAD, operated by Compagnie des Grands Express Aériens (CGEA), …
+  "first moon landing" in Disney Television Animation:
+    whole: … (2012) * Doc McStuffins (2012) * Sofia the <mark>First</mark> (2012) * Henry Hugglemonster (2013) * Mickey Mouse (2013) * Wander Over Yonder (2013) * Ask Anything (2013; with Alphablocks Ltd.) * The 7D (2014; with Toon City) * Penn Zero: …
+    paragraph: * Doc McStuffins (2012) * Sofia the <mark>First</mark> (2012) * Henry Hugglemonster (2013) * Mickey Mouse (2013) * Wander Over Yonder (2013) * Ask Anything (2013; with Alphablocks Ltd.) * The 7D (2014; with Toon City) * Penn Zero: Part-Time …
+  "migration of birds" in Collective animal behaviour:
+    whole: … same type of fish and a flock of <mark>birds</mark> will have the same type of bird. A herd is a large group of hoofed, herbivorous mammals. Animals tend to behave in such a way because this behaviour offers them a benefit. The group …
+    paragraph: … of animals moving together (such as fish or <mark>birds)</mark> save energy. Many of the larger <mark>birds</mark> fly in flocks. Flying in flocks helps in reducing the energy needed. Many large <mark>birds</mark> fly in a V-formation, which helps individuals …
+== ranking ==
+(2026-11-26 18:01Z, linux/amd64, 4 CPUs)
+simplewiki-20261101, 2 weights (once / more often): 189 of 290 top-10 results stay in the top 10 (65%)
+    "theory of relativity": now Theory of relativity; Special relativity; String theory; General relativity; Principle of relativity; M-theory; Theory of everything; Relativity; Scientific theory; Gravity | would be Theory of relativity; String theory; Theory of everything; M-theory; General relativity; Relativity; Principle of relativity; Special relativity; Scientific theory; Quantum theory
+    "invented the telephone": now Fax; Alexander Graham Bell; Computer; Wireless; Antonio Meucci; Doctor Who; Apple Inc.; Writing; Information technology; Marcel Proust | would be Antonio Meucci; Fax; Wireless; Hughes Medal; Doctor Who; Oliver Heaviside; Apple Inc.; Alexander Graham Bell; Ambulance; French literature
+    "capital of Mongolia": now Inner Mongolia; Mongolia; History of Mongolia; History of modern Mongolia; Genghis Khan; National Museum of Mongolia; Provinces of Mongolia; Ulaanbaatar; List of countries in the 1950s; List of countries in the 1960s | would be Inner Mongolia; Mongolia; History of modern Mongolia; National Museum of Mongolia; Provinces of Mongolia; History of Mongolia; Lists of office-holders; Genghis Khan; People's Republic of China; Ulaanbaatar
+    "boiling point of water": now Boiling point; Water; Boiling; Celsius; Chemistry; Alcoholic proof; Where's My Water?; Réaumur scale; Evaporation; Calcium | would be Boiling point; Water; Boiling; Where's My Water?; Calcium; Réaumur scale; Enthalpy of vaporization; Chemistry; Simmering; Solvent
+    "first moon landing": now Moon landing conspiracy theories; Moon landing; Apollo program; Kennedy Space Center; Space Age; SpaceX Starship; NASA; A Trip to the Moon; Apollo 11; Apollo Lunar Module | would be Moon landing; Moon landing conspiracy theories; A Trip to the Moon; NASA; Derby Playhouse; Cassini–Huygens; Kennedy Space Center; A Grand Day Out; Apollo 11; Space Age
+    "chlorophyll": now Chlorophyll; Trophic state index; Plant; Plant colour; Photosynthesis; Chloroplast; Chlorella; Yellow-green algae; Fungus; Xanthophyll | would be Chlorophyll; Light-dependent reaction; Organomagnesium chemistry; Plant; Plant colour; Photosynthesis; Yellow-green algae; Chlorella; Fungus; Leaf
+simplewiki-20261101, no weights: 129 of 290 top-10 results stay in the top 10 (44%)
+    "theory of relativity": now Theory of relativity; Special relativity; String theory; General relativity; Principle of relativity; M-theory; Theory of everything; Relativity; Scientific theory; Gravity | would be Theory of relativity; String theory; M-theory; General relativity; Relativity; Principle of relativity; Special relativity; Scientific theory; Theory of everything; Quantum theory
+    "invented the telephone": now Fax; Alexander Graham Bell; Computer; Wireless; Antonio Meucci; Doctor Who; Apple Inc.; Writing; Information technology; Marcel Proust | would be Belgium; Computer; Number; Writing; Alexander Graham Bell; Edinburgh; Apple Inc.; February 14; March 7; Vacuum tube
+    "capital of Mongolia": now Inner Mongolia; Mongolia; History of Mongolia; History of modern Mongolia; Genghis Khan; National Museum of Mongolia; Provinces of Mongolia; Ulaanbaatar; List of countries in the 1950s; List of countries in the 1960s | would be Mongolia; Inner Mongolia; Provinces of Mongolia; National Museum of Mongolia; History of modern Mongolia; History of Mongolia; Beijing; December; People's Republic of China; Russia
+    "boiling point of water": now Boiling point; Water; Boiling; Celsius; Chemistry; Alcoholic proof; Where's My Water?; Réaumur scale; Evaporation; Calcium | would be Boiling point; Water; Water vapor; Boiling; Where's My Water?; Chemistry; Earth; Hydrogen; Helium; Zinc
+    "first moon landing": now Moon landing conspiracy theories; Moon landing; Apollo program; Kennedy Space Center; Space Age; SpaceX Starship; NASA; A Trip to the Moon; Apollo 11; Apollo Lunar Module | would be Moon landing conspiracy theories; Moon landing; A Trip to the Moon; Saturn; Soviet Union; 2001; 2006; Carl Sagan; December 23; October 25
+    "chlorophyll": now Chlorophyll; Trophic state index; Plant; Plant colour; Photosynthesis; Chloroplast; Chlorella; Yellow-green algae; Fungus; Xanthophyll | would be Chlorophyll; Biology; Green; Plant; Seed; Photosynthesis; Variegated leaf; Magnesium; Fungus; Leaf
+== new format ==
+(2026-11-26 18:01Z, linux/amd64, 4 CPUs)
+simplewiki-20261101: format 2 48.9 MB, format 3 43.5 MB (-11.0%)
+  postings      36.9 MB ->    31.2 MB (-15.3%)
+  dictionary     5.9 MB ->     5.9 MB (-0.0%)
+  docs           5.6 MB ->     5.6 MB (+0.0%)
+  search (without snippets): 1.14 ms -> 1.79 ms on average
+  "theory of relativity"
+    before: Theory of relativity; Special relativity; String theory; General relativity; Principle of relativity; M-theory; Theory of everything; Relativity; Scientific theory; Gravity
+    now:    Theory of relativity; Theory of everything; Relativity; General relativity; Principle of relativity; M-theory; Scientific theory; Quantum theory; Special relativity; Relative
+  "largest desert"
+    before: Desert; Gobi Desert; Thar Desert; Kalahari Desert; Great Victoria Desert; Solar power plants in the Mojave Desert; Katpana Desert; Libyan Desert; Desert scorpion; Great Sandy Desert
+    now:    Thar Desert; Gobi Desert; Desert; Katpana Desert; Libyan Desert; Desert scorpion; Solar power plants in the Mojave Desert; Great Sandy Desert; Great Victoria Desert; Kalahari Desert
+  "invented the telephone"
+    before: Fax; Alexander Graham Bell; Computer; Wireless; Antonio Meucci; Doctor Who; Apple Inc.; Writing; Information technology; Marcel Proust
+    now:    Antonio Meucci; Fax; Wireless; Lewis Howard Latimer; Vacuum tube; Alexander Graham Bell; Phonograph; Loudspeaker; 1870s; 1876
+  "capital of Mongolia"
+    before: Inner Mongolia; Mongolia; History of Mongolia; History of modern Mongolia; Genghis Khan; National Museum of Mongolia; Provinces of Mongolia; Ulaanbaatar; List of countries in the 1950s; List of countries in the 1960s
+    now:    Inner Mongolia; History of modern Mongolia; National Museum of Mongolia; History of Mongolia; Mongolia; Provinces of Mongolia; Ulaanbaatar; East Asia; Otuken; Xinjiang
+  "boiling point of water"
+    before: Boiling point; Water; Boiling; Celsius; Chemistry; Alcoholic proof; Where's My Water?; Réaumur scale; Evaporation; Calcium
+    now:    Boiling point; Boiling; Evaporation; Réaumur scale; Simmering; Celsius; Cryogenics; Alcoholic proof; Enthalpy of vaporization; Delisle scale
+  "first moon landing"
+    before: Moon landing conspiracy theories; Moon landing; Apollo program; Kennedy Space Center; Space Age; SpaceX Starship; NASA; A Trip to the Moon; Apollo 11; Apollo Lunar Module
+    now:    Moon landing; Moon landing conspiracy theories; A Trip to the Moon; Blue Ghost Mission 1; Apollo program; Space Age; Mare Tranquillitatis; Apollo 11; Lunar mare; Rover (space exploration)
+  "chlorophyll"
+    before: Chlorophyll; Trophic state index; Plant; Plant colour; Photosynthesis; Chloroplast; Chlorella; Yellow-green algae; Fungus; Xanthophyll
+    now:    Chlorophyll; Chlorella; Plant colour; Chloroplast; Xanthophyll; Trophic state index; Organomagnesium chemistry; Yellow-green algae; Photosynthesis; Light-dependent reaction
+  "migration of birds"
+    before: Migration; Monarch butterfly; Bardsey Island; Masai Mara; Bird; Collective animal behaviour; Yellowstone National Park; List of children's movies; Bullfinch; Falcon
+    now:    Migration; Masai Mara; Bullfinch; Ornithology; Monarch butterfly; Falcon; Cape May Bird Observatory; Collective animal behaviour; King eider; Jackdaw
+  "Silk Road trade"
+    before: Silk Road; Middle Ages; Derby Silk Mill; Caravan (travellers); Sogdiana; Trade; Trade route; History of Uzbekistan; List of accidents and incidents involving commercial aircraft 1990 – 2021; Samarkand
+    now:    Silk Road; Caravan (travellers); Trade route; Trade; Derby Silk Mill; Middle Ages; History of Uzbekistan; Han dynasty; Sogdiana; Samarkand
+  "volcanic eruption"
+    before: Volcanic eruption; 2021 Cumbre Vieja volcanic eruption; Volcanic winter; Volcanic Explosivity Index; 2018 lower Puna eruption; Hōei eruption; Plinian eruption; Volcanic bomb; Garibaldi Volcanic Belt; 2019 Whakaari / White Island eruption
+    now:    Volcanic eruption; 2021 Cumbre Vieja volcanic eruption; Volcanic winter; Garibaldi Volcanic Belt; 2018 lower Puna eruption; Volcanic Explosivity Index; Oruanui eruption; Eruption; Volcanic bomb; Hatepe eruption
+  "how to purify water"
+    before: Water; Chemistry; Separation process; Fresh water; Jichinsai; Copper(II) sulfate; Selenium tetrachloride; Calcium; Thionyl chloride; Enthalpy of vaporization
+    now:    Fresh water; Separation process; Reverse osmosis; Jichinsai; Selenium tetrachloride; Thionyl chloride; Barium chloride; Condensation; Barium bromide; Copper(II) sulfate
+  "first aid burns"
+    before: Russo-Ukrainian war (2022–present); 100 Women (BBC); List of American Civil War Medal of Honor recipients: A–F; Wicca; August 5; July 15; 1985 in American television; Bill Ward; Emergency medical technician; September 5
+    now:    Emergency medical technician; Laws of war; Wicca; The Master and Margarita; 1985 in American television; Bill Ward; Black Panther: Wakanda Forever; July 15; The Flash (1990 series); August 5
+  "edible wild plants"
+    before: Fungus; Hidaklon; Bromeliad; Mushroom; Cúc Phương National Park; Mustard plant; Jackie French; Strawberry; Monstera; Grape
+    now:    Hidaklon; Mushroom; Mustard plant; Bromeliad; Monstera; Strawberry; Sesamum; Fungus; Monstera deliciosa; Pome
+  "broken bone splint"
+    before: 
+    now:    
+  "solar eclipse"
+    before: Solar eclipse; Solar eclipse of August 12, 2026; Solar eclipse of July 16, 2186; Solar eclipse of December 14, 2020; Solar eclipse of August 23, 2044; Solar eclipse of April 8, 2024; Solar eclipse of February 28, 2044; Solar eclipse of June 10, 2021; Solar eclipse of June 21, 2020; Solar eclipse of August 21, 2017
+    now:    Solar eclipse; Solar eclipse of April 8, 2024; Solar eclipse of February 28, 2044; Solar eclipse of June 10, 2021; Solar eclipse of July 16, 2186; Solar eclipse of December 14, 2020; Solar eclipse of August 12, 2026; Solar eclipse of June 21, 2020; Solar eclipse of August 23, 2044; Solar eclipse of August 21, 2017
+  "world war"
+    before: World war; Mediterranean and Middle East theatres of World War II; World War Z (movie); Causes of World War I; European theatre of World War II; Adriatic campaign of World War II; European theatre of World War I; Memorial for the Jewish Soldiers in the Soviet army in World War II; Memorial for the Jewish Soldiers in the Polish army in World War II; Memorial for the Yeshuv volunteers in World War II
+    now:    World war; Memorial for the Jewish Soldiers in the Polish army in World War II; Memorial for the Yeshuv volunteers in World War II; Memorial for the Jewish Soldiers in the Soviet army in World War II; Women of World War I; Adriatic campaign of World War II; Indian Ocean in World War II; World War Z (movie); Allied Powers of World War I; Baltic Sea campaigns (World War II)
+  "football club"
+    before: Coburg Football Club; Frankston Football Club; Port Melbourne Football Club; Sandringham Football Club; Werribee Football Club; Williamstown Football Club; Southport Australian Football Club; Glenelg Football Club; Odisha Football Club; Fitzroy Football Club
+    now:    Football team; Sandringham Football Club; Coburg Football Club; Frankston Football Club; Williamstown Football Club; Werribee Football Club; Glenelg Football Club; Odisha Football Club; Southport Australian Football Club; Port Melbourne Football Club
+  "united states army"
+    before: United States Army; United States Army Center of Military History; United States Army Air Force; Korean Augmentation to the United States Army; United States Army Nurse Corps; United States Secretary of the Army; United States Army Corps of Engineers; United States Army Reserve; United States Army trucks; United States Army Rangers
+    now:    United States Army; United States Army Center of Military History; United States Army Nurse Corps; United States Army Air Force; United States Army Rangers; United States Army Reserve; Korean Augmentation to the United States Army; United States Army Corps of Engineers; United States Secretary of the Army; National Guard (United States)
+  "US army"
+    before: America's Army; List of serving senior officers of the British Army; United States Army trucks; United States Army Reserve; Yugoslav People's Army; US Second Lieutenant; Myanmar Army; Italian Co-belligerent Army; People's Liberation Army; Negro Rebellion
+    now:    United States Army Reserve; US Second Lieutenant; Yugoslav People's Army; Italian Co-belligerent Army; Army of Islam; People's Liberation Army; Recruiting (Army); United States Army trucks; America's Army; Medal of Honor
+  "river"
+    before: River; Fulda River; Vennaaru River; Klamath River; Battle of Diyala River (1822); Vettar River; Veera Chozhan River; Vashista River; Woady Yaloak River; Nandalar River
+    now:    River; Green River (Duwamish River tributary); Little River (Withlacoochee River); Neosho River; Cimarron River; Kalamazoo River; River Lark; Chicopee River; River Erewash; Roşoşa River
+  "village in poland"
+    before: Rudawa, Lesser Poland Voivodeship; Racism in Poland; Rudno, Lesser Poland Voivodeship; Poland, Ohio; Russo-Ukrainian war (2022–present); Konin (disambiguation); Ulma family; Meanings of minor planet names: 1–1000; Ethnic cleansing; Alphonse de Lamartine
+    now:    Rudawa, Lesser Poland Voivodeship; Poland, Ohio; Rudno, Lesser Poland Voivodeship; Konin (disambiguation); Racism in Poland; Ulma family; Czeklin; Barłogi, Lubusz Voivodeship; Licheń Stary; Kurów
+  "american politician"
+    before: Deaths in August 2014; Deaths in January 2014; Kirk; Deaths in June 2016; 1925; Deaths in 2011; Deaths in 2025; Deaths in January 2017; Deaths in February 2017; Grace (given name)
+    now:    George Allen (American politician); Nick Smith (American politician); John Joyce (American politician); David Bishop (American politician); Robert Finch (American politician); Bill Bowman (American politician); Roger Williams (American politician); Mark Robinson (American politician); Mike Cox (American politician); Brian Fitzpatrick (American politician)
+  "population census"
+    before: 1961 Census of Manipur; 2021 Russian census; List of countries and dependencies by population density; 1790 United States census; List of U.S. states by population; National Institute of Statistics and Census of Costa Rica; List of countries and dependencies by population; 1921 Canadian census; List of United States cities by population; List of federal subjects of Russia by population
+    now:    National Institute of Statistics and Census of Costa Rica; 1921 Canadian census; 1840 United States census; 1961 Census of Manipur; 2001 Nepal census; Census; 2000 United States Census; 1911 Canadian census; Population without double counting; Chugach Census Area, Alaska
+  "album released"
+    before: Electra Heart (album); Beyoncé (album); Autobiography (album); Clancy (album); Restart (Aurea album); Red (Taylor Swift album); After Hours (album); Lungs (album); Reputation (album); Christina Aguilera (album)
+    now:    Lungs (album); Zig (album); Diary of a Madman (album); Electra Heart (album); Reputation (album); After Hours (album); Wonderful Wonderful (The Killers album); Red (Taylor Swift album); Beyoncé (album); Stop (Plain White T's album)
+  "photosynthesis light reaction"
+    before: Light-dependent reaction; Photosynthesis; Light-independent reaction; Water; Chlorophyll; Photocatalysis; Chemistry; Biology; Earth science; Sun
+    now:    Light-dependent reaction; Light-independent reaction; Photosynthesis; Photocatalysis; Chlorophyll; Photodissociation; Photochemistry; Calvin cycle; Quantum biology; List of biochemistry topics
+  "Napoleon Bonaparte"
+    before: Napoléon Louis Bonaparte; Napoléon III; Napoleon; House of Bonaparte; Joseph Bonaparte; Louis Bonaparte; Lucien Bonaparte; Jérôme Bonaparte; Marie Laetitia Bonaparte; Alphonse de Lamartine
+    now:    Napoleon; Napoléon Louis Bonaparte; Joseph Bonaparte; Jérôme Bonaparte; House of Bonaparte; Louis Bonaparte; Lucien Bonaparte; Napoléon III; Carlo Bonaparte; Marie Laetitia Bonaparte
+  "Mount Everest expedition"
+    before: 1953 British Mount Everest expedition; Mount Everest; K2; Andrew Comyn Irvine; Pumori; List of highest mountains; George Mallory; Herman Plugge; Ranulph Fiennes; List of people who disappeared mysteriously: 1910–1990
+    now:    1953 British Mount Everest expedition; Mount Everest; Andrew Comyn Irvine; Pumori; Herman Plugge; K2; George Mallory; Jim Whittaker; Tine Mena; Ranulph Fiennes
+  "penicillin discovery"
+    before: Science; Chemistry; Alexander Fleming; Applied science; Copley Medal; List of Nobel Prize winners in Physiology or Medicine; Gonville and Caius College, Cambridge; Sulfonamide (medicine); Ernst Chain; Antitoxin
+    now:    Alexander Fleming; Ernst Chain; Gonville and Caius College, Cambridge; Sulfonamide (medicine); Antitoxin; Cephalosporins; Serratia; List of scientists from North America; Antibiotic resistance; List of Nobel Prize winners in Physiology or Medicine
+  "earthquake tsunami"
+    before: 2011 Tōhoku earthquake and tsunami; 2004 Indian Ocean earthquake and tsunami; 2018 Sulawesi earthquake and tsunami; Tsunami; 2025 Kamchatka Peninsula earthquake; December 2023 Mindanao earthquake; 2024 Noto earthquake; 2018 Lombok earthquake; 1896 Sanriku earthquake; 2024 Taiwan earthquake
+    now:    2018 Sulawesi earthquake and tsunami; 2004 Indian Ocean earthquake and tsunami; 2011 Tōhoku earthquake and tsunami; 1896 Sanriku earthquake; 2025 Kamchatka Peninsula earthquake; 2024 Taiwan earthquake; Great Chilean Earthquake; December 2023 Mindanao earthquake; Earthquake engineering; Tsunami
+  "Einstein"
+    before: Bose–Einstein condensate; Einstein field equations; Arik Einstein; Albert Einstein Square; Albert Einstein; Meir Einstein; Bob Einstein; Elsa Einstein; Bose-Einstein statistics; Einstein Bros. Bagels
+    now:    Albert Einstein; Arik Einstein; Meir Einstein; Albert Einstein Square; Bob Einstein; Einstein field equations; Einstein Bros. Bagels; Elsa Einstein; Bose-Einstein statistics; Einstein on the Beach
+  192 of 290 top-10 results the same (66%); the same articles match every query
+== search ==
+(2026-11-26 18:02Z, linux/amd64, 4 CPUs)
+simplewiki-20261101: each query twice (the second with the file in the computer's memory); times in milliseconds
+  query                             matches  lists   dict   lists   merge  titles  search snip1by1   snip||
+  theory of relativity (1st)            114   2974    0.1     0.0     0.0     0.5     1.0    178.8     46.1
+  theory of relativity                  114   2974    0.0     0.0     0.0     0.3     0.7    179.7     52.3
+  largest desert (1st)                  230  11238    0.1     0.1     0.0     0.7     1.3    197.5     56.7
+  largest desert                        230  11238    0.0     0.1     0.0     0.8     1.5    214.6     67.9
+  invented the telephone (1st)           37   2481    0.1     0.0     0.0     0.1     0.2    252.4     56.3
+  invented the telephone                 37   2481    0.0     0.1     0.0     0.2     0.5    240.1     67.2
+  capital of Mongolia (1st)              88  10809    0.1     0.1     0.0     0.4     0.9    266.2     67.1
+  capital of Mongolia                    88  10809    0.0     0.1     0.0     0.3     0.5    243.6     80.9
+  boiling point of water (1st)           66  17179    0.1     0.2     0.0     0.2     0.5    304.7    114.5
+  boiling point of water                 66  17179    0.0     0.2     0.0     0.3     0.9    315.9    124.7
+  first moon landing (1st)              107  59611    0.1     0.3     0.1     0.3     0.8    164.2     43.1
+  first moon landing                    107  59611    0.0     0.7     0.1     0.6     1.7    167.1     44.2
+  chlorophyll (1st)                      52     52    0.1     0.0     0.0     0.3     0.4    112.5     31.2
+  chlorophyll                            52     52    0.0     0.0     0.0     0.2     0.3    116.9     37.9
+  migration of birds (1st)               41   2543    0.1     0.0     0.0     0.2     0.3    174.8     33.3
+  migration of birds                     41   2543    0.0     0.0     0.0     0.1     0.2    132.0     33.0
+  Silk Road trade (1st)                  45   9215    0.1     0.1     0.0     0.1     0.3    146.4     35.9
+  Silk Road trade                        45   9215    0.0     0.1     0.0     0.1     0.3    143.2     40.7
+  volcanic eruption (1st)               172    905    0.1     0.0     0.0     0.6     1.1     98.3     34.5
+  volcanic eruption                     172    905    0.0     0.0     0.0     0.5     0.9     91.2     40.2
+  how to purify water (1st)              27  10382    0.0     0.4     0.0     0.2     0.7    275.8    102.3
+  how to purify water                    27  10382    0.0     0.1     0.0     0.1     0.2    309.5    103.9
+  first aid burns (1st)                  21  58083    0.1     0.3     0.0     0.1     0.4    282.4     55.7
+  first aid burns                        21  58083    0.0     0.7     0.1     0.1     0.7    281.1     53.7
+  edible wild plants (1st)               20   6809    0.1     0.1     0.0     0.1     0.2    121.1     35.5
+  edible wild plants                     20   6809    0.0     0.1     0.0     0.1     0.3    120.1     34.0
+  broken bone splint (1st)                0   2883    0.1     0.1     0.0     0.0     0.0      0.0      0.0
+  broken bone splint                      0   2883    0.0     0.1     0.0     0.0     0.0      0.0      0.0
+  solar eclipse (1st)                   130   1547    0.1     0.0     0.0     0.7     1.0    139.9     35.7
+  solar eclipse                         130   1547    0.0     0.0     0.0     0.5     0.7    129.2     44.8
+  world war (1st)                      8403  48129    0.1     0.7     0.5     1.8     5.1    147.8     41.5
+  world war                            8403  48129    0.0     0.6     0.6     1.8     5.1    158.3     52.0
+  football club (1st)                  8437  28163    0.1     0.2     0.2     3.2     4.5     77.2     29.2
+  football club                        8437  28163    0.0     0.3     0.2     1.4     4.3     74.2     37.0
+  united states army (1st)             2165  95512    0.1     1.0     0.5     1.9     4.6    181.3     63.5
+  united states army                   2165  95512    0.0     0.4     0.2     0.9     5.2    194.7     60.9
+  US army (1st)                         984  14432    0.0     0.1     0.2     1.6     2.2    312.5     75.1
+  US army                               984  14432    0.0     0.2     0.2     1.0     2.1    269.7     76.0
+  river (1st)                         10497  10497    0.0     0.1     0.0     1.2     3.4     49.8     29.3
+  river                               10497  10497    0.0     0.2     0.1     1.7     3.9     67.3     21.8
+  village in poland (1st)               195  10893    0.1     0.1     0.1     1.0     1.4    364.8     54.8
+  village in poland                     195  10893    0.0     0.1     0.1     0.6     1.2    320.3     78.7
+  american politician (1st)            5012  63103    0.1     0.6     0.4     1.6     3.8    260.9     49.0
+  american politician                  5012  63103    0.0     0.7     0.3     1.6     3.8    236.9     51.1
+  population census (1st)              6438  25548    0.1     0.3     0.2     1.7     5.1    165.7     42.3
+  population census                    6438  25548    0.0     0.4     0.3     2.2     4.8    162.2     40.3
+  album released (1st)                 7076  29461    0.1     0.4     0.3     1.7     4.6    155.6     35.9
+  album released                       7076  29461    0.0     0.3     0.3     1.7     3.7    132.0     36.3
+  photosynthesis light reaction (1st)       22   7417    0.1     0.1     0.0     0.1     0.2    228.0     55.1
+  photosynthesis light reaction          22   7417    0.0     0.1     0.0     0.1     0.3    278.3     63.4
+  Napoleon Bonaparte (1st)              238   1040    0.1     0.0     0.0     0.9     1.3    193.7     39.1
+  Napoleon Bonaparte                    238   1040    0.0     0.0     0.0     0.9     1.3    178.9     49.3
+  Mount Everest expedition (1st)         28   3335    0.1     0.1     0.0     0.1     0.3    198.1     67.8
+  Mount Everest expedition               28   3335    0.0     0.1     0.0     0.3     0.2    192.6     66.3
+  penicillin discovery (1st)             17   2101    0.1     0.0     0.0     0.1     0.1    209.3     49.4
+  penicillin discovery                   17   2101    0.0     0.0     0.0     0.1     0.1    206.6     36.0
+  earthquake tsunami (1st)              164   1322    0.1     0.0     0.0     0.6     0.9    106.5     44.1
+  earthquake tsunami                    164   1322    0.0     0.0     0.0     0.7     1.0    114.5     37.0
+  Einstein (1st)                        358    358    0.0     0.0     0.0     2.0     2.8    166.8     47.5
+  Einstein                              358    358    0.0     0.0     0.0     1.7     2.9    180.6     42.2
+  average (2nd runs)                                  0.0     0.2     0.1     0.7     1.6    181.7     52.5
+  the 20 snippets one by one (2nd runs, average): reading the articles 104.1 ms, wikitext to text 70.7 ms, finding the words 6.9 ms; 580 kB of wikitext
+  (lists: postings read; dict/lists/merge/titles: the stages of a search; search: all of it;
+   snip1by1: the 20 snippets one after another from whole articles, as NABU did;
+   snip||: side by side from the paragraphs with the words, as it does now)

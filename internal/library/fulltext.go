@@ -56,8 +56,11 @@ func (l *Library) ftPath(f *dump.Files) string {
 func (l *Library) openFullText(b *Book) {
 	ix, err := fulltext.Open(l.ftPath(b.Files), b.Files)
 	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			os.Remove(l.ftPath(b.Files)) // stale: from an older dump
+		// Only an index of another dump (or one cut short) goes; one that
+		// could not be read just now (a drive with a loose connection)
+		// is kept for next time: it took hours to build.
+		if errors.Is(err, fulltext.ErrStale) {
+			os.Remove(l.ftPath(b.Files))
 		}
 		return
 	}

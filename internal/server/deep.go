@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/vajra-wielder/nabu/internal/dump"
 	"github.com/vajra-wielder/nabu/internal/fulltext"
@@ -123,7 +124,7 @@ func (s *Server) searchText(b *library.Book, q string, page int) *textSearch {
 		return ts
 	}
 	const per = 20
-	res, err := ft.Search(q, (page-1)*per, per)
+	res, err := ft.Search(q, (page-1)*per, per, ft.TitleDoc(b.Reader(), q)...)
 	if err != nil {
 		return ts
 	}
@@ -132,14 +133,25 @@ func (s *Server) searchText(b *library.Book, q string, page int) *textSearch {
 	if ts.Pages > 20 {
 		ts.Pages = 20 // results are ranked; beyond 400 they are noise
 	}
+	// The snippets take nearly all of a results page's time (each article
+	// read from its bundle): made side by side, one per processor.
 	rd := b.Reader()
-	for _, h := range res.Hits {
-		hit := textHit{Title: h.Title, URL: articleURL(b, h.Title)}
-		if p, err := rd.Load(dump.Entry{Stream: h.Stream, ID: h.PageID}); err == nil {
-			hit.Snippet = template.HTML(fulltext.Snippet(wikitext.PlainText(p.Text, rd.Site()), res.Terms, 220))
-		}
-		ts.Results = append(ts.Results, hit)
+	plain := func(s string) string { return wikitext.PlainText(s, rd.Site()) }
+	ts.Results = make([]textHit, len(res.Hits))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, runtime.NumCPU())
+	for i, h := range res.Hits {
+		ts.Results[i] = textHit{Title: h.Title, URL: articleURL(b, h.Title)}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int, h fulltext.Hit) {
+			defer func() { <-sem; wg.Done() }()
+			if p, err := rd.Load(dump.Entry{Stream: h.Stream, ID: h.PageID}); err == nil {
+				ts.Results[i].Snippet = template.HTML(fulltext.WikiSnippet(p.Text, res.Terms, 220, plain))
+			}
+		}(i, h)
 	}
+	wg.Wait()
 	base := "/" + b.ID + "/search?list=1&q=" + urlQuery(q) + "&p="
 	if page > 1 {
 		ts.Prev = base + strconv.Itoa(page-1)

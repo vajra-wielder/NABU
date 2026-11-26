@@ -1,6 +1,7 @@
 package fulltext
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,7 +94,19 @@ func TestStopwordsAndJunk(t *testing.T) {
 	}
 }
 
+// Both formats: the current one, and format 2, which NABU still reads
+// (indexes of English take hours to build).
 func TestBuildSearchNearby(t *testing.T) {
+	for _, v := range []int{FormatVersion, 2} {
+		t.Run(fmt.Sprintf("format %d", v), func(t *testing.T) {
+			buildVersion = v
+			defer func() { buildVersion = FormatVersion }()
+			checkBuildSearch(t, v)
+		})
+	}
+}
+
+func checkBuildSearch(t *testing.T, version int) {
 	rd := openDump(t, "../../testdata", "testwiki")
 	out := filepath.Join(t.TempDir(), "t.nfts")
 	// A tiny memory budget forces several runs to merge.
@@ -105,6 +118,9 @@ func TestBuildSearchNearby(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
+	if ix.Meta.Version != version || (version >= 3) != (ix.lens != nil) {
+		t.Fatalf("format %d, lengths %v", ix.Meta.Version, ix.lens != nil)
+	}
 	if ix.Meta.Docs < 240 || ix.Meta.Geo != 2 {
 		t.Fatalf("meta %+v", ix.Meta)
 	}
@@ -161,6 +177,27 @@ func TestBuildSearchNearby(t *testing.T) {
 	if s := Snippet("The Ishtar Gate of Babylon was built", []string{"babylon"}, 80); !strings.Contains(s, "<mark>Babylon</mark>") {
 		t.Fatalf("snippet %q", s)
 	}
+	// Every article is found by its stream and page; the one titled as
+	// searched comes first.
+	for n := uint32(0); n < uint32(ix.Meta.Docs); n += 7 {
+		d, _ := ix.Doc(n)
+		if got, ok := ix.DocOf(d.Stream, d.PageID); !ok || got != n {
+			t.Fatalf("DocOf %d (%s): %d %v", n, d.Title, got, ok)
+		}
+	}
+	if _, ok := ix.DocOf(1<<30, 1); ok {
+		t.Fatal("DocOf found what is not there")
+	}
+	first := ix.TitleDoc(rd, "nabu")
+	if len(first) != 1 || first[0].Title != "Nabu" {
+		t.Fatalf("title doc: %+v", first)
+	}
+	if res, _ := ix.Search("god", 0, 3, first...); res.Hits[0].Title != "Nabu" {
+		t.Fatalf("title match not first: %s", res.Hits[0].Title)
+	}
+	if len(ix.TitleDoc(rd, "no such article at all")) != 0 {
+		t.Fatal("title doc for nothing")
+	}
 	// A changed dump makes the index stale.
 	if _, err := Open(out, &dump.Files{DB: "x", Pairs: []dump.Pair{{Index: "x"}}}); err != ErrStale {
 		t.Fatalf("stale not detected: %v", err)
@@ -209,5 +246,78 @@ func TestRealFullText(t *testing.T) {
 			t.Logf("   near Babylon: %v", titles)
 		}
 		ix.Close()
+	}
+}
+
+// Snippets come from the paragraph the words are in, not from templates,
+// references, comments or tables around them; otherwise from the whole
+// article.
+func TestWikiSnippet(t *testing.T) {
+	filler := strings.Repeat("Some running text about other things entirely. ", 150)
+	src := "{{Infobox river|name=Danube boiling}}\n'''Rivers''' flow.\n\n" + filler +
+		"\n\n<!-- boiling note --> A ref<ref>boiling in a ref</ref> here.\n\n" +
+		"{| class=wikitable\n| boiling cell\n|}\n\n" + filler +
+		"\n\nWater starts '''boiling''' at a hundred degrees.\n\n" + filler
+	plainCalls := 0
+	plain := func(s string) string {
+		plainCalls++
+		s = strings.NewReplacer("'''", "", "<!-- boiling note -->", "", "<ref>boiling in a ref</ref>", "").Replace(s)
+		for {
+			i := strings.Index(s, "{")
+			j := strings.LastIndex(s, "}")
+			if i < 0 || j < i {
+				return s
+			}
+			s = s[:i] + s[j+1:]
+		}
+	}
+	got := WikiSnippet(src, []string{"boiling"}, 80, plain)
+	if !strings.Contains(got, "<mark>boiling</mark> at a hundred") {
+		t.Fatalf("snippet: %s", got)
+	}
+	if plainCalls != 1 {
+		t.Fatalf("turned %d pieces into text; want only the paragraph", plainCalls)
+	}
+	if len(paragraphsWith(src, []string{"boiling"}, 4)) != 1 {
+		t.Fatal("found the word in markup")
+	}
+	// Words written with accents or not found in the wikitext: the whole
+	// article, as before.
+	plainCalls = 0
+	if got := WikiSnippet(src, []string{"école"}, 80, plain); plainCalls != 1 || strings.Contains(got, "<mark>") {
+		t.Fatalf("no match: %d calls, %s", plainCalls, got)
+	}
+	if !hasTerm("Big RIVER, small", []string{"river"}) || hasTerm("rivers", []string{"river"}) {
+		t.Fatal("hasTerm")
+	}
+}
+
+// Article lists of every shape come back as they were written.
+func TestListRoundTrip(t *testing.T) {
+	rnd := uint32(7)
+	next := func() uint32 { rnd = rnd*1103515245 + 12345; return rnd >> 8 }
+	for _, c := range []struct{ n, gap int }{{1, 5}, {3, 1}, {15, 900}, {16, 1}, {17, 3}, {200, 1}, {500, 40}, {3000, 2000}, {20000, 7}, {5000, 1 << 16}} {
+		var ps []posting
+		doc := uint32(0)
+		for i := 0; i < c.n; i++ {
+			if i > 0 || next()%2 == 0 {
+				doc += 1 + next()%uint32(c.gap)
+			}
+			ps = append(ps, posting{doc, bucketTF[next()%4]})
+		}
+		buf := appendList([]byte{0xAA}, ps)
+		got, ok := readList(buf[1:], uint32(len(ps)), nil)
+		if !ok || len(got) != len(ps) {
+			t.Fatalf("%d gap %d: ok %v, %d back", c.n, c.gap, ok, len(got))
+		}
+		for i := range ps {
+			if got[i] != ps[i] {
+				t.Fatalf("%d gap %d: #%d is %v, wrote %v", c.n, c.gap, i, got[i], ps[i])
+			}
+		}
+		// Cut short: noticed, not read wrong.
+		if _, ok := readList(buf[1:len(buf)-1], uint32(len(ps)), nil); ok && c.n >= shortList {
+			t.Fatalf("%d gap %d: a list cut short read as whole", c.n, c.gap)
+		}
 	}
 }

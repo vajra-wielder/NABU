@@ -25,9 +25,10 @@ import (
 // File layout of a full-text index (".nfts"):
 //
 //	"NABUFTS1"
-//	postings    per term, one uvarint per article: the doc-number delta
-//	            shifted left 2, with the term's weight in that article
-//	            (tfBucket) in the low 2 bits
+//	postings    per term, its articles with the term's weight in each
+//	            (tfBucket); format 3: see postings.go (format 2: one uvarint
+//	            per article, the doc-number delta shifted left 2, with the
+//	            weight in the low 2 bits)
 //	dictionary  terms in byte order, 128 per block; a block starts with
 //	            the postings offset of its first term, then each term
 //	            front-coded with its document count and postings length
@@ -36,6 +37,8 @@ import (
 //	            previous article, absolute at the start of each block of
 //	            128), title
 //	geo         articles with coordinates: doc, latitude, longitude
+//	lengths     format 3: per article a byte, 8·log2(1+words), so long
+//	            articles do not win on length alone
 //	meta        JSON
 //	trailer     section offsets, "NABUEND2"
 const (
@@ -44,8 +47,12 @@ const (
 	dictBlock     = 128
 	docBlock      = 128
 	ftsTrailer    = 7*8 + 8
-	FormatVersion = 2
+	FormatVersion = 3
 )
+
+// buildVersion is the format Build writes: FormatVersion, or 2 in tests
+// that check older indexes still work.
+var buildVersion = FormatVersion
 
 // Meta describes a full-text index.
 type Meta struct {
@@ -58,6 +65,8 @@ type Meta struct {
 	Capital   []string      `json:"capital"`   // little words still indexed when capitalised ("May")
 	Common    []string      `json:"common"`    // the words dropped for being in over 40% of articles
 	Postings  int64         `json:"postings"`
+	AvgLen    float64       `json:"avg_len,omitempty"`  // words in an average article (format 3)
+	LensOff   int64         `json:"lens_off,omitempty"` // where the lengths are (format 3)
 	Sources   []dump.Source `json:"sources"`
 	Built     time.Time     `json:"built"`
 	Seconds   float64       `json:"seconds"`
@@ -78,6 +87,7 @@ type docOut struct {
 	stream uint32
 	pageID uint64
 	title  string
+	length uint32 // words indexed, title words counted thrice
 	terms  []termTF
 	coord  *wikitext.Coord
 }
@@ -190,7 +200,7 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 	if err := b.docs.Flush(); err != nil {
 		return err
 	}
-	meta := &Meta{Version: FormatVersion, Lang: lang, Stopwords: Stopwords(lang), Capital: CapitalNames(lang), Docs: int(b.ndocs), Geo: len(b.geo), Sources: dump.SourcesOf(rd.Files), Built: time.Now().UTC()}
+	meta := &Meta{Version: buildVersion, Lang: lang, Stopwords: Stopwords(lang), Capital: CapitalNames(lang), Docs: int(b.ndocs), Geo: len(b.geo), Sources: dump.SourcesOf(rd.Files), Built: time.Now().UTC()}
 	tmpOut := out + ".tmp"
 	if err := b.write(tmpOut, docsTmp, meta, start); err != nil {
 		os.Remove(tmpOut)
@@ -235,6 +245,7 @@ func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules) str
 		TokenizeCase(wikitext.PlainText(p.Text, site), add(1))
 		d := docOut{stream: s, pageID: p.ID, title: p.Title, terms: make([]termTF, 0, len(counts))}
 		for t, c := range counts {
+			d.length += uint32(c)
 			if c > 255 {
 				c = 255
 			}
@@ -264,6 +275,8 @@ type ftsBuilder struct {
 	docOffs []uint64 // offset in docs temp file of every docBlock-th doc
 	docPos  uint64
 	geo     []geoRec
+	lens    []byte
+	words   int64
 
 	lastStream uint32 // previous article in the block
 	lastID     uint64
@@ -289,6 +302,8 @@ func (b *ftsBuilder) addStream(docs []docOut) error {
 		b.docs.Write(tmp[:n])
 		b.docs.WriteString(d.title)
 		b.docPos += uint64(n + len(d.title))
+		b.lens = append(b.lens, lenByte(d.length))
+		b.words += int64(d.length)
 		if d.coord != nil {
 			b.geo = append(b.geo, geoRec{doc, float32(d.coord.Lat), float32(d.coord.Lon)})
 		}
@@ -442,6 +457,7 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 	var dict []dictEntry
 	common := uint32(meta.Docs * 2 / 5)
 	var docs []posting
+	var list []byte
 	for h.Len() > 0 {
 		term := h[0].term
 		docs = docs[:0]
@@ -472,10 +488,15 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 			continue
 		}
 		off := pos
-		last := uint32(0)
-		for _, p := range docs {
-			uv(uint64(p.doc-last)<<2 | uint64(tfBucket(p.tf)))
-			last = p.doc
+		if buildVersion == 2 {
+			last := uint32(0)
+			for _, p := range docs {
+				uv(uint64(p.doc-last)<<2 | uint64(tfBucket(p.tf)))
+				last = p.doc
+			}
+		} else {
+			list = appendList(list[:0], docs)
+			write(list)
 		}
 		meta.Postings += int64(len(docs))
 		dict = append(dict, dictEntry{term, uint32(len(docs)), uint64(off), uint64(pos - off)})
@@ -540,12 +561,21 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 		write(g[:])
 	}
 
+	// Lengths.
+	if buildVersion >= 3 {
+		meta.LensOff = pos
+		write(b.lens)
+		if meta.Docs > 0 {
+			meta.AvgLen = float64(b.words) / float64(meta.Docs)
+		}
+	}
+
 	metaOff := pos
 	meta.Seconds = time.Since(start).Seconds()
 	mj, _ := json.Marshal(meta)
 	write(mj)
 	var tr [ftsTrailer]byte
-	for i, v := range []int64{dictOff, dirOff, docsOff, docDirOff, geoOff, metaOff, FormatVersion} {
+	for i, v := range []int64{dictOff, dirOff, docsOff, docDirOff, geoOff, metaOff, int64(buildVersion)} {
 		binary.LittleEndian.PutUint64(tr[i*8:], uint64(v))
 	}
 	copy(tr[56:], ftsEnd)
@@ -573,6 +603,18 @@ func tfBucket(tf uint8) uint8 {
 }
 
 var bucketTF = [4]uint8{1, 2, 4, 8}
+
+// lenByte keeps an article's length in a byte: 8·log2(1+words), within
+// 9% of it.
+func lenByte(words uint32) byte {
+	v := math.Round(8 * math.Log2(1+float64(words)))
+	if v > 255 {
+		v = 255
+	}
+	return byte(v)
+}
+
+func byteLen(b byte) float64 { return math.Exp2(float64(b)/8) - 1 }
 
 func commonPrefix(a, b string) int {
 	n := len(a)

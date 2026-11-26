@@ -3,6 +3,7 @@ package bzip2w
 import (
 	"errors"
 	"fmt"
+	"sync"
 )
 
 // Decompress decodes bzip2 data: one stream or several one after the
@@ -15,6 +16,12 @@ import (
 // is most of what opening one costs.
 func Decompress(src []byte) ([]byte, error) {
 	d := &decoder{br: bitReader{src: src}}
+	// The block buffer (up to 3.6 MB) is reused, not made and cleared
+	// for every bundle: an article opens that much sooner.
+	if p, ok := ttPool.Get().(*[]uint32); ok {
+		d.tt = *p
+	}
+	defer func() { ttPool.Put(&d.tt) }()
 	out := make([]byte, 0, len(src)*5)
 	for {
 		if d.br.bytesLeft() == 0 {
@@ -32,6 +39,8 @@ func Decompress(src []byte) ([]byte, error) {
 		}
 	}
 }
+
+var ttPool sync.Pool
 
 // ErrCorrupt reports data that is not valid bzip2 or fails its checksum.
 var ErrCorrupt = errors.New("bzip2: damaged data")

@@ -615,10 +615,26 @@ unrendered.
   ones show their main text or are left out. Navigation boxes are not shown. Maths
   appears as its TeX source.
 - **Search inside articles is optional.** It needs a one-time pass over the whole
-  dump. Simple English (395 MB) takes about a minute on 3 cores and adds a 49 MB
-  index (12% of the dump). English Wikipedia took 2 h 24 min on a
-  Windows laptop and added 2.4 GB (11% of its 22.8 GB dump). Title search needs none of this. It is built once
-  per dump, on any computer, and travels with the drive: other computers use it as is.
+  dump. Simple English (368 MB) takes about a minute on 3 cores and adds a 44 MB
+  index (12% of the dump). English Wikipedia took 2 h 24 min on a Windows laptop and
+  added 2.4 GB in the previous format (11% of its 22.8 GB dump); the current one is
+  about a tenth smaller. Title search needs none of this. It is built once per dump, on
+  any computer, and travels with the drive: other computers use it as is. An index in
+  the previous format keeps working; `nabu prepare --full-text --rebuild` builds it
+  again in the current one (the old one is used until the new one is ready).
+- **How search inside articles ranks.** Every searched word must be in an article.
+  Rare words count more than common ones, and a word counts more the more often it is
+  in an article, but less in a long one (BM25), so lists and long overviews do not win
+  on length alone. Words in the title count extra, and the article whose title is the
+  search (or that it redirects to) comes first. A results page takes a few tens of
+  milliseconds, nearly all of it reading the 20 articles for their snippets; only the
+  paragraphs with the words are turned into text.
+- **Studying a real index.** `NABU_STUDY=<NABU folder> go test ./internal/fulltext -run
+  Study -v -timeout 6h` reports where the room and the time go (sizes of each part,
+  other ways of writing the lists, the time of each stage of a search, how ranking
+  changes) into `docs/realtest/fts-study-<wiki>.txt`; with `NABU_STUDY_REBUILD=1` it
+  also builds the index in the current format beside the one there and compares the
+  two.
 - **Collection copies are snapshots.** They don't change when the dump is updated
   (that is the point); use **Refresh copies** to bring them up to date.
 - **Category pages** show their description but not member lists, which aren't in the

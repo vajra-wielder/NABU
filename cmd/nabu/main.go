@@ -112,7 +112,8 @@ func usage() {
   nabu catalog             newest dump of each offered Wikipedia
   nabu download <wiki>     download a dump (enwiki, frwiki, ... or en, fr, ...)
   nabu prepare [--full-text]  build the title index of every dump now
-                           (and search inside articles with --full-text)
+                           (and search inside articles with --full-text;
+                           --rebuild builds one in an older format again)
   nabu export <wiki>       write every article's structured data as JSON
                            lines (links, categories, templates, places,
                            infoboxes, tables, media, glossary)
@@ -626,7 +627,7 @@ func cmdPrepare(args []string) error {
 	}
 	if o.fullText {
 		for _, f := range eds {
-			if err := prepareFullText(d, f); err != nil {
+			if err := prepareFullText(d, f, o.rebuild); err != nil {
 				return err
 			}
 		}

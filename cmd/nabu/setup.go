@@ -147,7 +147,7 @@ func cmdSetup(args []string) error {
 	// Search inside articles for the first language (the one read most).
 	if f := newest[wikis[0]]; f != nil {
 		err = step("4. "+wikis[0]+": search inside articles", func() error {
-			return prepareFullText(d, f)
+			return prepareFullText(d, f, false)
 		})
 		if err != nil {
 			return finish(say, err, took, start)
