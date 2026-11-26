@@ -111,13 +111,20 @@ type textSearch struct {
 	Next     string
 	Minutes  int
 	Size     int64
+	Measured bool // Minutes timed on this computer, not guessed
 	Building bool
+	// No article has every word: these have most of them, not Missing.
+	Partial bool
+	Missing []string
+	// Suggest is the search spelled as words that are in articles.
+	Suggest, SuggestURL string
+	Corrected           bool
 }
 
 // searchText runs a search inside articles, with snippets.
 func (s *Server) searchText(b *library.Book, q string, page int) *textSearch {
 	ts := &textSearch{Status: b.FTStatus(), Page: page}
-	ts.Minutes, ts.Size = library.FullTextEstimate(b.Files.Size, runtime.NumCPU()-1)
+	ts.Minutes, ts.Size, ts.Measured = s.Lib.BuildEstimate(b)
 	ts.Building = ts.Status.State == library.FTBuilding || ts.Status.State == library.FTQueued
 	ft := b.FullText()
 	if ft == nil {
@@ -129,6 +136,10 @@ func (s *Server) searchText(b *library.Book, q string, page int) *textSearch {
 		return ts
 	}
 	ts.Total, ts.Ignored = res.Total, res.Ignored
+	ts.Partial, ts.Missing, ts.Corrected = res.Partial, res.Missing, res.Corrected
+	if res.Suggest != "" {
+		ts.Suggest, ts.SuggestURL = res.Suggest, "/"+b.ID+"/search?list=1&q="+urlQuery(res.Suggest)
+	}
 	ts.Pages = (res.Total + per - 1) / per
 	if ts.Pages > 20 {
 		ts.Pages = 20 // results are ranked; beyond 400 they are noise
@@ -147,7 +158,7 @@ func (s *Server) searchText(b *library.Book, q string, page int) *textSearch {
 		go func(i int, h fulltext.Hit) {
 			defer func() { <-sem; wg.Done() }()
 			if p, err := rd.Load(dump.Entry{Stream: h.Stream, ID: h.PageID}); err == nil {
-				ts.Results[i].Snippet = template.HTML(fulltext.WikiSnippet(p.Text, res.Terms, 220, plain))
+				ts.Results[i].Snippet = template.HTML(fulltext.WikiSnippet(p.Text, res.Marks, 220, plain))
 			}
 		}(i, h)
 	}

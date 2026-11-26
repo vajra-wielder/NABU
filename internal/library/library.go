@@ -39,6 +39,9 @@ type Book struct {
 	reader  *dump.Reader
 
 	ft ftState
+
+	ftEst    time.Duration // build time measured on this computer (0: not yet)
+	ftTiming bool          // being measured
 }
 
 // Status is a snapshot for display.

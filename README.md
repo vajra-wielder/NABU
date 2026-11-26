@@ -622,6 +622,15 @@ unrendered.
   any computer, and travels with the drive: other computers use it as is. An index in
   the previous format keeps working; `nabu prepare --full-text --rebuild` builds it
   again in the current one (the old one is used until the new one is ready).
+- **What search inside articles finds.** Each word is also searched in its plural or
+  singular (English: bird/birds, city/cities, box/boxes, volcano/volcanoes; French,
+  Spanish, Portuguese, Italian, Dutch and the Scandinavian languages: by -s). When no
+  article has every word, it shows the articles with the most of them and says which
+  word they lack; a word in no article at all is spelt again as the closest word that
+  is (one letter off), and those results are shown ("photosyntesis"). The sections
+  that only list sources and links elsewhere (References, External links, Further
+  reading... in the main languages) are not indexed, nor the "See also" heading
+  itself, nor machine codes ("7cb9e8") and picture sizes ("220px").
 - **How search inside articles ranks.** Every searched word must be in an article.
   Rare words count more than common ones, and a word counts more the more often it is
   in an article, but less in a long one (BM25), so lists and long overviews do not win

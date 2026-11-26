@@ -7,6 +7,7 @@ import (
 	"github.com/vajra-wielder/nabu/internal/drivefile"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -195,15 +196,46 @@ func (l *Library) buildFullText(b *Book) {
 	}
 }
 
-// FullTextEstimate guesses build time and size from the dump size,
-// measured on Simple English Wikipedia (395 MB: 71 s on 3 cores, 49 MB
-// with the little words left out).
+// FullTextEstimate guesses build time and size from the dump size
+// alone, until BuildEstimate has measured it. Measured on English
+// Wikipedia: 22.8 GB in 2 h 24 min on a laptop. Simple English goes three
+// times faster per byte (shorter articles, fewer templates), so the guess
+// takes the slower: about 0.6 MB a second for each core, counting at
+// most 4 (more share the memory and run hot).
 func FullTextEstimate(dumpBytes int64, cores int) (minutes int, bytes int64) {
 	if cores < 1 {
 		cores = 1
 	}
-	secs := float64(dumpBytes) / 5.4e6 * 3 / float64(cores) * 1.5 // 1.5: older machines and USB sticks
-	return int(secs/60) + 1, dumpBytes / 8
+	if cores > 4 {
+		cores = 4
+	}
+	secs := float64(dumpBytes) / (0.6e6 * float64(cores))
+	return int(secs/60) + 1, dumpBytes / 9
+}
+
+// BuildEstimate is how long building b's search inside articles would
+// take on this computer: timed on a sample of the dump (a few seconds,
+// in the background, once), and until then guessed from its size.
+func (l *Library) BuildEstimate(b *Book) (minutes int, bytes int64, measured bool) {
+	minutes, bytes = FullTextEstimate(b.Files.Size, runtime.NumCPU()-1)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.ftEst > 0 {
+		return int(b.ftEst.Minutes()) + 1, bytes, true
+	}
+	if !b.ftTiming && b.reader != nil {
+		b.ftTiming = true
+		rd := b.reader
+		go func() {
+			est, ok := fulltext.Estimate(rd, 3*time.Second)
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			if ok {
+				b.ftEst = est
+			}
+		}()
+	}
+	return minutes, bytes, false
 }
 
 // The wikis whose readers built search inside articles are remembered on

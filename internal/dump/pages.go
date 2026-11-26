@@ -210,6 +210,15 @@ func (c *streamCache) get(k uint32, load func() ([]byte, error)) ([]byte, error)
 // StreamCount is the number of bzip2 streams (of up to 100 pages).
 func (ix *Index) StreamCount() int { return len(ix.streams) }
 
+// StreamBytes is the compressed size of stream s.
+func (ix *Index) StreamBytes(s uint32) int64 {
+	_, start, end, err := ix.streamRange(s)
+	if err != nil {
+		return 0
+	}
+	return end - start
+}
+
 // StreamPages decompresses stream s and returns all its pages. It
 // bypasses the cache, so whole-dump scans don't evict what a reader is
 // looking at.

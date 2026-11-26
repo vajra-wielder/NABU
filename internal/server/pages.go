@@ -20,6 +20,7 @@ import (
 var funcs = template.FuncMap{
 	"bytes": update.HumanBytes,
 	"hours": func(h float64) string { return humanDur(time.Duration(h * float64(time.Hour))) },
+	"mins":  func(m int) string { return timer.Elapsed(time.Duration(m) * time.Minute) },
 	"count": humanCount,
 	"date":  dump.HumanDate,
 	"since": humanSince,

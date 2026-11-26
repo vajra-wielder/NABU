@@ -143,7 +143,7 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 		go func() {
 			defer wg.Done()
 			for s := range jobs {
-				results <- scanStream(rd, site, s, rules)
+				results <- scanStream(rd, site, s, rules, lang)
 			}
 		}()
 	}
@@ -223,7 +223,7 @@ func Lang(db string, site *dump.Siteinfo) string {
 	return strings.TrimSuffix(db, "wiki")
 }
 
-func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules) streamResult {
+func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules, lang string) streamResult {
 	pages, err := rd.StreamPages(s)
 	if err != nil {
 		return streamResult{stream: s, err: err}
@@ -242,7 +242,7 @@ func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules) str
 			}
 		}
 		TokenizeCase(p.Title, add(3)) // title words weigh more
-		TokenizeCase(wikitext.PlainText(p.Text, site), add(1))
+		TokenizeCase(wikitext.PlainText(withoutBoilerplate(p.Text, lang), site), add(1))
 		d := docOut{stream: s, pageID: p.ID, title: p.Title, terms: make([]termTF, 0, len(counts))}
 		for t, c := range counts {
 			d.length += uint32(c)
@@ -645,4 +645,13 @@ func containsNoSpace(s string) bool {
 		}
 	}
 	return false
+}
+
+// Estimate measures how long building the index of rd's dump would take
+// on this computer (MeasureBuild), sampling for about d.
+func Estimate(rd *dump.Reader, d time.Duration) (time.Duration, bool) {
+	site := rd.Site()
+	lang := Lang(rd.Files.DB, site)
+	rules := NewRules(Stopwords(lang), CapitalNames(lang))
+	return MeasureBuild(rd.Index, func(s uint32) { scanStream(rd, site, s, rules, lang) }, 0, d)
 }

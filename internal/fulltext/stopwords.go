@@ -120,13 +120,26 @@ func words(lists map[string]string, lang string) []string {
 }
 
 // junk reports terms not worth indexing: long numbers (identifiers,
-// coordinates, ISBNs) and long letter-and-digit codes. Years and short
-// numbers stay searchable.
+// coordinates, ISBNs), long letter-and-digit codes, codes that switch
+// between letters and digits again and again (hashes, catalogue and part
+// numbers: "7cb9e8", "1x7a6327"), picture sizes ("220px") and the parts
+// of web addresses. Years, short numbers and names like "mp3", "b52",
+// "4x4" or "covid19" stay searchable.
 func junk(t string) bool {
-	digits := 0
+	if webWords[t] {
+		return true
+	}
+	digits, runs := 0, 0
+	prev := -1
 	for i := 0; i < len(t); i++ {
+		d := 0
 		if t[i] >= '0' && t[i] <= '9' {
 			digits++
+			d = 1
+		}
+		if d != prev {
+			runs++
+			prev = d
 		}
 	}
 	switch {
@@ -134,7 +147,10 @@ func junk(t string) bool {
 		return false
 	case digits == len(t):
 		return len(t) > 4
-	default:
-		return len(t) > 8
+	case len(t) > 8, runs >= 4, runs == 3 && len(t) >= 5:
+		return true
 	}
+	return strings.HasSuffix(t, "px") && digits == len(t)-2
 }
+
+var webWords = map[string]bool{"www": true, "http": true, "https": true}

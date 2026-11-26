@@ -7,18 +7,21 @@
 <h2 class="section">In article text</h2>
 {{if eq .Status.State "ready"}}
   {{if .Ignored}}<p class="small muted">Too common to search: {{range $i, $w := .Ignored}}{{if $i}}, {{end}}“{{$w}}”{{end}}. Abbreviations are searched when typed in capitals, like US or WHO.</p>{{end}}
+  {{if .Corrected}}<p>Showing results for <strong>{{.Suggest}}</strong>: nothing has the words as typed.</p>
+  {{else if .Suggest}}<p>Did you mean <a href="{{.SuggestURL}}"><strong>{{.Suggest}}</strong></a>?</p>{{end}}
   {{if .Results}}
-  <p class="small muted">{{count (int64 .Total)}} articles contain {{if gt (len $.Query) 0}}every word{{end}}{{if gt .Pages 1}} · page {{.Page}} of {{.Pages}}{{end}}</p>
+  {{if .Partial}}<p class="small muted">No article has every word. {{count (int64 .Total)}} {{if eq .Total 1}}article has{{else}}articles have{{end}} all but {{range $i, $w := .Missing}}{{if $i}}, {{end}}“{{$w}}”{{end}}{{if gt .Pages 1}} · page {{.Page}} of {{.Pages}}{{end}}</p>
+  {{else}}<p class="small muted">{{count (int64 .Total)}} {{if eq .Total 1}}article contains{{else}}articles contain{{end}} every word (or its plural or singular){{if gt .Pages 1}} · page {{.Page}} of {{.Pages}}{{end}}</p>{{end}}
   <ol class="textresults" dir="auto">
   {{range .Results}}<li><a href="{{.URL}}">{{.Title}}</a><p>{{.Snippet}}</p></li>{{end}}
   </ol>
   <p class="toolbar">{{if .Prev}}<a class="btn" href="{{.Prev}}">← Previous</a>{{end}}{{if .Next}}<a class="btn" href="{{.Next}}">Next →</a>{{end}}</p>
-  {{else}}<p class="muted">No article contains all of these words.</p>{{end}}
+  {{else}}<p class="muted">No article contains these words.</p>{{end}}
 {{else if .Building}}
   <div class="notice lapis" data-prep-ft="{{$.Book.ID}}"><p><strong>Building search inside articles…</strong> {{pct .Status.Done .Status.Total}}% read · <span data-ft-timer>{{timer .Status.Elapsed .Status.Done .Status.Total}}</span>.</p>
   <div class="progress"><div style="width:{{pct .Status.Done .Status.Total}}%"></div></div></div>
 {{else}}
-  <div class="notice"><p><strong>Search inside articles</strong> needs a one-time index of every word in this Wikipedia: about {{.Minutes}} min on this computer, about {{bytes .Size}} on the drive. You can keep reading meanwhile.</p>
+  <div class="notice"><p><strong>Search inside articles</strong> needs a one-time index of every word in this Wikipedia: {{if .Measured}}about {{mins .Minutes}} on this computer (timed on a sample){{else}}roughly {{mins .Minutes}}{{end}}, about {{bytes .Size}} on the drive. You can keep reading meanwhile.</p>
   {{if .Status.Err}}<p class="small" style="color:var(--bad)">{{.Status.Err}}</p>{{end}}
   {{if $.Local}}<p><button class="btn primary" data-action="fulltext" data-book="{{$.Book.ID}}">Build search inside articles</button></p>{{end}}</div>
 {{end}}

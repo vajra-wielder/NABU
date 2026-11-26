@@ -88,7 +88,7 @@ func cmdSetup(args []string) error {
 	say("Leave this window open. You can stop it (Ctrl+C or close the window) and run it again later: it carries on.")
 	say("Roughly, for English on a 4-core laptop: downloading 25 GB (about 1 hour at 50 Mbit/s,")
 	say("6 hours at 10 Mbit/s), writing it to the drive about 2 hours, title index about 15 minutes,")
-	say("search inside articles about 2.5 hours, Essentials a few minutes. The pictures then")
+	say("search inside articles 2 to 3 hours (timed on this computer before it starts), Essentials a few minutes. The pictures then")
 	say("take about a week of NABU running online, and continue whenever it runs.")
 
 	client := httpClient()

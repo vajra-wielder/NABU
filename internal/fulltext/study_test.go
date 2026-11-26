@@ -863,3 +863,129 @@ func TestStudyNewFormat(t *testing.T) {
 		r.save(b.files.DB)
 	}
 }
+
+// TestStudyWords sorts the indexed words into kinds (numbers, codes,
+// other scripts, words in one article only...) with the room each kind
+// takes, and lists the commonest section headings: words that are in
+// nearly every article for its layout, not its subject.
+func TestStudyWords(t *testing.T) {
+	for _, b := range studyBooks(t) {
+		r := &report{t: t, name: "words"}
+		type kind struct {
+			name                  string
+			words, posts, onlyOne int64
+			bytes                 int64 // dictionary (estimated) + postings
+			sample                []string
+		}
+		kinds := map[string]*kind{}
+		order := []string{"years and numbers (1-4 digits)", "letters and digits mixed", "other scripts", "over 15 letters", "words"}
+		for _, k := range order {
+			kinds[k] = &kind{name: k}
+		}
+		var n int64
+		allRows(t, b.ix, func(row dictRow) {
+			n++
+			k := kinds["words"]
+			digits, letters, segs := 0, 0, 0
+			prevDigit := -1
+			for _, c := range row.term {
+				d := 0
+				if c >= '0' && c <= '9' {
+					digits++
+					d = 1
+				} else {
+					letters++
+				}
+				if d != prevDigit {
+					segs++
+					prevDigit = d
+				}
+			}
+			switch {
+			case letters == 0:
+				k = kinds["years and numbers (1-4 digits)"]
+			case digits > 0:
+				k = kinds["letters and digits mixed"]
+			case row.term[0] >= 0x80 && !strings.ContainsAny(row.term, "abcdefghijklmnopqrstuvwxyz"):
+				k = kinds["other scripts"]
+			case len([]rune(row.term)) > 15:
+				k = kinds["over 15 letters"]
+			}
+			k.words++
+			k.posts += int64(row.df)
+			k.bytes += int64(row.size) + int64(len(row.term))/2 + 4
+			if row.df == 1 {
+				k.onlyOne++
+			}
+			if n%(1+int64(b.ix.Meta.Terms)/2000) == 0 && len(k.sample) < 30 {
+				k.sample = append(k.sample, fmt.Sprintf("%s(%d)", row.term, row.df))
+			}
+		})
+		r.f("%s: %d words in the index", b.files.Key(), n)
+		r.f("  %-34s %10s %9s %12s %12s", "kind", "words", "in one", "postings", "room")
+		for _, name := range order {
+			k := kinds[name]
+			r.f("  %-34s %10d %8.0f%% %12d %12s", name, k.words, 100*float64(k.onlyOne)/float64(max64(k.words, 1)), k.posts, mb(k.bytes))
+		}
+		for _, name := range order {
+			r.f("  %s, for example: %s", name, strings.Join(kinds[name].sample, " "))
+		}
+
+		// Section headings in a sample of articles.
+		total := b.rd.Index.StreamCount()
+		sample := 1500
+		if sample > total {
+			sample = total
+		}
+		heads := map[string]int{}
+		articles := 0
+		for i := 0; i < sample; i++ {
+			ps, err := b.rd.StreamPages(uint32(int64(i) * int64(total) / int64(sample)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, p := range ps {
+				if p.NS != dump.NSMain || p.Redirect != "" {
+					continue
+				}
+				articles++
+				seen := map[string]bool{}
+				for _, line := range strings.Split(p.Text, "\n") {
+					line = strings.TrimSpace(line)
+					if len(line) > 4 && strings.HasPrefix(line, "==") && strings.HasSuffix(line, "==") {
+						h := strings.ToLower(strings.TrimSpace(strings.Trim(line, "=")))
+						if !seen[h] {
+							seen[h] = true
+							heads[h]++
+						}
+					}
+				}
+			}
+		}
+		type hc struct {
+			h string
+			n int
+		}
+		var hs []hc
+		for h, c := range heads {
+			hs = append(hs, hc{h, c})
+		}
+		sort.Slice(hs, func(i, j int) bool { return hs[i].n > hs[j].n })
+		var line []string
+		for i, h := range hs {
+			if i == 40 {
+				break
+			}
+			line = append(line, fmt.Sprintf("%s %.0f%%", h.h, 100*float64(h.n)/float64(articles)))
+		}
+		r.f("  commonest section headings (in %% of %d sampled articles): %s", articles, strings.Join(line, ", "))
+		r.save(b.files.DB)
+	}
+}
+
+func max64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}

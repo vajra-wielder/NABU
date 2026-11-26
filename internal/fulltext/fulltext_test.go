@@ -144,8 +144,20 @@ func checkBuildSearch(t *testing.T, version int) {
 	if res, _ = ix.Search("god of scribes us", 0, 10); strings.Join(res.Ignored, ",") != "of,us" {
 		t.Fatalf("lower-case us: %+v", res)
 	}
-	if res, _ = ix.Search("god of scribes US", 0, 10); strings.Join(res.Ignored, ",") != "of" || res.Total != 0 {
-		t.Fatalf("US in capitals is searched (and is in no article here): %+v", res)
+	// US in capitals is searched, and is in no article here: the
+	// articles with the other words, saying so.
+	if res, _ = ix.Search("god of scribes US", 0, 10); strings.Join(res.Ignored, ",") != "of" || !res.Partial || strings.Join(res.Missing, ",") != "us" || res.Total != 2 {
+		t.Fatalf("partial: %+v", res)
+	}
+	// Forms: the plural finds the singular and the other way round.
+	one, _ := ix.Search("scribe", 0, 10)
+	if one.Total != 2 || one.Partial || !strings.Contains(strings.Join(one.Marks, ","), "scribes") {
+		t.Fatalf("forms: %+v", one)
+	}
+	// A misspelt word: the articles with the others, and the spelling.
+	// (and the results for it, as it finds every word)
+	if res, _ = ix.Search("god of scirbes", 0, 10); res.Suggest != "god of scribes" || !res.Corrected || res.Partial || res.Total != 2 {
+		t.Fatalf("suggest: %+v", res)
 	}
 	if ix.Meta.Lang != "en" || ix.Meta.Postings == 0 {
 		t.Fatalf("meta %+v", ix.Meta)
@@ -319,5 +331,49 @@ func TestListRoundTrip(t *testing.T) {
 		if _, ok := readList(buf[1:len(buf)-1], uint32(len(ps)), nil); ok && c.n >= shortList {
 			t.Fatalf("%d gap %d: a list cut short read as whole", c.n, c.gap)
 		}
+	}
+}
+
+func TestJunkAndBoilerplate(t *testing.T) {
+	for w, want := range map[string]bool{"7cb9e8": true, "1x7a6327": true, "2b033": true, "220px": true, "www": true, "https": true, "123456": true,
+		"mp3": false, "b52": false, "4x4": false, "covid19": false, "1876": false, "2nd": false, "1690s": false, "10mm": false, "a1200": false, "html": false, "river": false} {
+		if junk(w) != want {
+			t.Errorf("junk(%q) = %v", w, !want)
+		}
+	}
+	src := "Intro text.\n== History ==\nOld times.\n=== Notes on dating ===\nKept.\n== References ==\n{{reflist}}\n=== Books ===\nBy someone\n== External links ==\n* [http://x.org Official website]\n== Légende ==\nkept too\n== See also ==\n* [[Linked subject]]\n"
+	got := withoutBoilerplate(src, "en")
+	for _, want := range []string{"Intro text.", "Old times.", "Kept.", "kept too", "Linked subject"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("lost %q:\n%s", want, got)
+		}
+	}
+	for _, gone := range []string{"Official website", "By someone", "reflist", "See also"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("kept %q:\n%s", gone, got)
+		}
+	}
+	if withoutBoilerplate(src, "xx") != src {
+		t.Error("a language without a list changed")
+	}
+	if g := withoutBoilerplate("A\n== Références ==\nx\n", "fr"); strings.Contains(g, "x") {
+		t.Errorf("French with accents: %q", g)
+	}
+}
+
+type fakeStreams int
+
+func (f fakeStreams) StreamCount() int           { return int(f) }
+func (f fakeStreams) StreamBytes(s uint32) int64 { return 100 }
+
+// The build time is extrapolated from a short sample of the real work.
+func TestMeasureBuild(t *testing.T) {
+	est, ok := MeasureBuild(fakeStreams(2000), func(uint32) { time.Sleep(time.Millisecond) }, 2, 150*time.Millisecond)
+	// 2000 bundles of 1 ms on 2 workers: about 1 s (+5% for writing).
+	if !ok || est < 600*time.Millisecond || est > 2*time.Second {
+		t.Fatalf("estimate %s", est)
+	}
+	if _, ok := MeasureBuild(fakeStreams(0), func(uint32) {}, 2, time.Millisecond); ok {
+		t.Fatal("estimate of nothing")
 	}
 }

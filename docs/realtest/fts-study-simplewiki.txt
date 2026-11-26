@@ -249,3 +249,18 @@ simplewiki-20261101: each query twice (the second with the file in the computer'
   (lists: postings read; dict/lists/merge/titles: the stages of a search; search: all of it;
    snip1by1: the 20 snippets one after another from whole articles, as NABU did;
    snip||: side by side from the paragraphs with the words, as it does now)
+== words ==
+(2026-11-26 18:15Z, linux/amd64, 4 CPUs)
+simplewiki-20261101: 856585 words in the index
+  kind                                    words    in one     postings         room
+  years and numbers (1-4 digits)          10850       19%      2243328       3.3 MB
+  letters and digits mixed                32080       71%       169165       0.6 MB
+  other scripts                           50898       83%        70882       0.6 MB
+  over 15 letters                          8147       77%        19744       0.2 MB
+  words                                  754610       54%     19253902      38.8 MB
+  years and numbers (1-4 digits), for example: 0116(4) 0806(3) 1211(57) 1362(59) 1836(665) 2082(13) 2501(13) 2689(5) 3420(6) 3680(7) 3940(3) 4151(6) 440(368) 4669(3) 4946(2) 5128(5) 539(227) 5948(4) 6001(10) 6268(1) 6540(2) 6810(4) 7188(3) 7761(1) 812(188) 8428(1) 8723(3) 9120(1) 942(177) 9729(3)
+  letters and digits mixed, for example: 040px(1) 100mcg(1) 10mm(6) 151st(9) 1690s(20) 196mb(1) 1ed4f(1) 1x7a6327(1) 2200z(1) 239a(1) 28r(4) 2b033(1) 2k(60) 304c(1) 320x204(1) 3ta4(1) 4ry(1) 565dq(1) 6l(16) 747sr(1) 7cb9e8(1) 8acx22(1) 9acx20(1) a1200(1) a4v(1) aa378747(1) ab37(1) adf9d8(1) ae372(1) atmega16(1)
+  other scripts, for example: ɯɾ̞̊(1) ˈɫ̪ɯ(1) αταίριαστοι(1) ευστρατίου(1) μαι(1) ρρ(1) ϯⲕⲉϣⲣⲱⲙⲓ(1) атентат(1) боже(6) ветлуга(1) гай(1) дасти(1) егејска(1) земле(4) калининский(1) косе(1) лео(1) мест(1) нарня(1) обрученные(1) петровский(1) пришло(1) рождения(5) сергі́й(2) србијо(1) телегейниң(1) усмань(1) цска(1) эмгек(1) ӱлген(1)
+  over 15 letters, for example: acromioclavicular(2) aplocheilichythinae(1) friiiiimnnnnnnkk(1) goldenbullatacama(1) hahnenkammschule(1) kleinhartpenning(1) landsgemeindeplatz(1) maximusnonillion(1) microarchitecture(11) nautiluscutawaylogarithmicspiral(1) nelamaruthahalli(1) onafhankelijkheidsplein(1) reifensaegmuehle(1) rhizodontiformes(2) zaimootnosheniya(1) ʋe̞lje̞y̯s̠t̪aeh̝de̞s̠t̪ae(1)
+  words, for example: aanes(4) abbenrode(1) abdulkajsov(1) abewela(1) abloy(6) abrosexual(1) abyaneh(2) accetti(1) achabbal(1) acidifying(1) adabel(1) addisu(1) adjuvant(4) adriaanse(5) aeroflot(34) afar(75) afric(1) agamid(3) aggett(2) agnosti(1) agudo(5) ahlborn(2) aid(1031) ainharp(3) aiseau(2) ajinca(1) akcent(1) akish(1) akudo(1) alandy(1)
+  commonest section headings (in % of 29236 sampled articles): references 67%, other websites 28%, related pages 8%, history 4%, notes 2%, career 2%, geography 1%, early life 1%, personal life 1%, honours 1%, biography 1%, track listing 1%, cast 1%, discography 1%, gallery 1%, sources 1%, club career statistics 1%, events 1%, career statistics 1%, death 1%, plot 1%, further reading 1%, international 1%, background 1%, filmography 1%, club 1%, life 1%, education 1%, people 1%, awards 0%, statistics 0%, reception 0%, deaths 0%, actors 0%, births 0%, population 0%, description 0%, bibliography 0%, results 0%, singles 0%

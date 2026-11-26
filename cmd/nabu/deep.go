@@ -24,6 +24,7 @@ import (
 	"github.com/vajra-wielder/nabu/internal/plan"
 	"github.com/vajra-wielder/nabu/internal/share"
 	"github.com/vajra-wielder/nabu/internal/sysutil"
+	"github.com/vajra-wielder/nabu/internal/timer"
 	"github.com/vajra-wielder/nabu/internal/update"
 	"github.com/vajra-wielder/nabu/internal/wikitext"
 )
@@ -112,6 +113,9 @@ func prepareFullText(d *drive.Layout, f *dump.Files, rebuild bool) error {
 		return err
 	}
 	defer rd.Close()
+	if est, ok := fulltext.Estimate(rd, 3*time.Second); ok {
+		fmt.Printf("%s: search inside articles will take about %s on this computer (timed on a sample of the dump)\n", f.Key(), timer.Elapsed(est))
+	}
 	tmp := d.Temp(f.Key() + "-fts")
 	pr := newProgress(f.Key() + ": search inside articles")
 	err = fulltext.Build(rd, out, tmp, fulltext.Options{MemBudget: library.BuildBudget(), Progress: pr.update})
