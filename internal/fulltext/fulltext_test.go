@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -375,5 +376,39 @@ func TestMeasureBuild(t *testing.T) {
 	}
 	if _, ok := MeasureBuild(fakeStreams(0), func(uint32) {}, 2, time.Millisecond); ok {
 		t.Fatal("estimate of nothing")
+	}
+}
+
+// Common words are kept when they name something; general ones are not.
+func TestKeepWord(t *testing.T) {
+	for _, c := range []struct {
+		word      string
+		df, title uint32
+		keep      bool
+	}{
+		{"desert", 1000, 40, true},    // a word of titles
+		{"official", 6814, 36, false}, // general
+		{"became", 25969, 1, false},
+		{"poisonous", 314, 0, true}, // a survival word
+		{"treatment", 2000, 2, true},
+		{"invented", 1627, 3, true}, // a word of questions
+		{"1990", 5000, 0, true},     // numbers stay
+		{"burns", 500, 0, true},     // the plural of a survival word
+	} {
+		if got := keepWord(c.word, "en", c.df, c.title); got != c.keep {
+			t.Errorf("keepWord(%q) = %v", c.word, got)
+		}
+	}
+	// Other languages have no survival list: only titles and numbers.
+	if keepWord("poisonous", "fr", 314, 0) {
+		t.Error("survival list applied to French")
+	}
+	s := phraseSet{phraseHash("first", "aid"), phraseHash("silk", "road")}
+	sort.Slice(s, func(i, j int) bool { return s[i] < s[j] })
+	if !s.has("first", "aid") || s.has("aid", "first") || s.has("first", "time") {
+		t.Fatal("phrase set")
+	}
+	if phraseKey("first", "aid") <= "zzzz" {
+		t.Fatal("pairs must sort after every word")
 	}
 }

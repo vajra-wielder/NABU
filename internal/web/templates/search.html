@@ -6,7 +6,8 @@
 {{with .Text}}
 <h2 class="section">In article text</h2>
 {{if eq .Status.State "ready"}}
-  {{if .Ignored}}<p class="small muted">Too common to search: {{range $i, $w := .Ignored}}{{if $i}}, {{end}}“{{$w}}”{{end}}. Abbreviations are searched when typed in capitals, like US or WHO.</p>{{end}}
+  {{if .Ignored}}<p class="small muted">Not searched, being in nearly every article or too general to narrow a search: {{range $i, $w := .Ignored}}{{if $i}}, {{end}}“{{$w}}”{{end}}. Abbreviations are searched when typed in capitals, like US or WHO.</p>{{end}}
+  {{if .Phrases}}<p class="small muted">Articles with {{range $i, $p := .Phrases}}{{if $i}}, {{end}}“{{$p}}”{{end}} together come first.</p>{{end}}
   {{if .Corrected}}<p>Showing results for <strong>{{.Suggest}}</strong>: nothing has the words as typed.</p>
   {{else if .Suggest}}<p>Did you mean <a href="{{.SuggestURL}}"><strong>{{.Suggest}}</strong></a>?</p>{{end}}
   {{if .Results}}

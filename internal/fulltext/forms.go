@@ -7,12 +7,13 @@ import "strings"
 // ending ("bird", "birds"; "city", "cities"; "box", "boxes"). Only forms
 // in the index are used, so a wrong guess costs nothing. Short words and
 // abbreviations are searched as typed.
-func (ix *Index) forms(t string) []string {
+func (ix *Index) forms(t string) []string { return formsOf(t, ix.Meta.Lang) }
+
+func formsOf(t, lang string) []string {
 	out := []string{t}
 	if len(t) < 4 || !isASCII(t) && !strings.ContainsAny(t, "abcdefghijklmnopqrstuvwxyz") {
 		return out
 	}
-	lang := ix.Meta.Lang
 	if i := strings.IndexAny(lang, "-_"); i > 0 {
 		lang = lang[:i]
 	}

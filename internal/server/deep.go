@@ -119,6 +119,7 @@ type textSearch struct {
 	// Suggest is the search spelled as words that are in articles.
 	Suggest, SuggestURL string
 	Corrected           bool
+	Phrases             []string // pairs of the words searched as one
 }
 
 // searchText runs a search inside articles, with snippets.
@@ -136,7 +137,7 @@ func (s *Server) searchText(b *library.Book, q string, page int) *textSearch {
 		return ts
 	}
 	ts.Total, ts.Ignored = res.Total, res.Ignored
-	ts.Partial, ts.Missing, ts.Corrected = res.Partial, res.Missing, res.Corrected
+	ts.Partial, ts.Missing, ts.Corrected, ts.Phrases = res.Partial, res.Missing, res.Corrected, res.Phrases
 	if res.Suggest != "" {
 		ts.Suggest, ts.SuggestURL = res.Suggest, "/"+b.ID+"/search?list=1&q="+urlQuery(res.Suggest)
 	}

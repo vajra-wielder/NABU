@@ -64,6 +64,8 @@ type Meta struct {
 	Stopwords []string      `json:"stopwords"` // the language's little words, and any word in over 40% of articles: not indexed
 	Capital   []string      `json:"capital"`   // little words still indexed when capitalised ("May")
 	Common    []string      `json:"common"`    // the words dropped for being in over 40% of articles
+	General   []string      `json:"general"`   // common words that name nothing, not indexed (vocab.go)
+	Phrases   int           `json:"phrases"`   // pairs of words indexed as one
 	Postings  int64         `json:"postings"`
 	AvgLen    float64       `json:"avg_len,omitempty"`  // words in an average article (format 3)
 	LensOff   int64         `json:"lens_off,omitempty"` // where the lengths are (format 3)
@@ -93,9 +95,14 @@ type docOut struct {
 }
 
 type termTF struct {
-	term string
-	tf   uint8
+	term  string
+	tf    uint8 // up to 127
+	title bool  // in the article's title
 }
+
+// In the runs, a posting's weight byte carries in its top bit whether
+// the term is in the article's title.
+const inTitle = 0x80
 
 type posting struct {
 	doc uint32
@@ -134,6 +141,7 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 	site := rd.Site()
 	lang := Lang(rd.Files.DB, site)
 	rules := NewRules(Stopwords(lang), CapitalNames(lang))
+	phrases := titlePhrases(rd.Index, rules)
 	total := rd.Index.StreamCount()
 	jobs := make(chan uint32, opt.Workers*2)
 	results := make(chan streamResult, opt.Workers*2)
@@ -143,7 +151,7 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 		go func() {
 			defer wg.Done()
 			for s := range jobs {
-				results <- scanStream(rd, site, s, rules, lang)
+				results <- scanStream(rd, site, s, rules, lang, phrases)
 			}
 		}()
 	}
@@ -200,6 +208,7 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 	if err := b.docs.Flush(); err != nil {
 		return err
 	}
+	b.lang = lang
 	meta := &Meta{Version: buildVersion, Lang: lang, Stopwords: Stopwords(lang), Capital: CapitalNames(lang), Docs: int(b.ndocs), Geo: len(b.geo), Sources: dump.SourcesOf(rd.Files), Built: time.Now().UTC()}
 	tmpOut := out + ".tmp"
 	if err := b.write(tmpOut, docsTmp, meta, start); err != nil {
@@ -223,7 +232,7 @@ func Lang(db string, site *dump.Siteinfo) string {
 	return strings.TrimSuffix(db, "wiki")
 }
 
-func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules, lang string) streamResult {
+func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules, lang string, phrases phraseSet) streamResult {
 	pages, err := rd.StreamPages(s)
 	if err != nil {
 		return streamResult{stream: s, err: err}
@@ -234,22 +243,38 @@ func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules, lan
 			continue
 		}
 		counts := map[string]int{}
+		titled := map[string]bool{}
 		add := func(w int) func(string, Case) {
+			prev := ""
 			return func(t string, c Case) {
-				if rules.Keep(t, c) && !junk(t) {
-					counts[t] += w
+				if !rules.Keep(t, c) {
+					return // little words do not part a pair: "bank of England"
 				}
+				if junk(t) {
+					prev = ""
+					return
+				}
+				counts[t] += w
+				if w > 1 {
+					titled[t] = true
+				}
+				if prev != "" && prev != t && phrases.has(prev, t) {
+					counts[phraseKey(prev, t)] += w
+				}
+				prev = t
 			}
 		}
 		TokenizeCase(p.Title, add(3)) // title words weigh more
 		TokenizeCase(wikitext.PlainText(withoutBoilerplate(p.Text, lang), site), add(1))
 		d := docOut{stream: s, pageID: p.ID, title: p.Title, terms: make([]termTF, 0, len(counts))}
 		for t, c := range counts {
-			d.length += uint32(c)
-			if c > 255 {
-				c = 255
+			if !strings.HasPrefix(t, phraseMark) {
+				d.length += uint32(c)
 			}
-			d.terms = append(d.terms, termTF{t, uint8(c)})
+			if c > 127 {
+				c = 127
+			}
+			d.terms = append(d.terms, termTF{t, uint8(c), titled[t]})
 		}
 		if c, ok := wikitext.PrimaryCoord(p.Text); ok {
 			d.coord = &c
@@ -280,6 +305,8 @@ type ftsBuilder struct {
 
 	lastStream uint32 // previous article in the block
 	lastID     uint64
+
+	lang string
 }
 
 func (b *ftsBuilder) addStream(docs []docOut) error {
@@ -312,7 +339,11 @@ func (b *ftsBuilder) addStream(docs []docOut) error {
 			if !ok {
 				b.mem += len(t.term) + 64
 			}
-			b.batch[t.term] = append(list, posting{doc, t.tf})
+			tf := t.tf
+			if t.title {
+				tf |= inTitle
+			}
+			b.batch[t.term] = append(list, posting{doc, tf})
 			b.mem += 8
 		}
 		if b.mem >= b.budget {
@@ -456,6 +487,8 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 	}
 	var dict []dictEntry
 	common := uint32(meta.Docs * 2 / 5)
+	many := minCommonDocs(meta.Docs)
+	wordDF := map[string]uint32{} // of the common words, for the pairs
 	var docs []posting
 	var list []byte
 	for h.Len() > 0 {
@@ -483,9 +516,34 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 				heap.Pop(&h)
 			}
 		}
-		if meta.Docs >= 1000 && uint32(len(docs)) > common {
-			meta.Common = append(meta.Common, term)
-			continue
+		df := uint32(len(docs))
+		titleDocs := uint32(0)
+		for i := range docs {
+			if docs[i].tf&inTitle != 0 {
+				titleDocs++
+				docs[i].tf &^= inTitle
+			}
+		}
+		if strings.HasPrefix(term, phraseMark) {
+			// A pair of common words, narrowing them down by half.
+			ab := strings.SplitN(term[len(phraseMark):], " ", 2)
+			da, db := wordDF[ab[0]], wordDF[ab[1]]
+			if len(ab) != 2 || df < minPhraseDocs || da == 0 || db == 0 || 2*df > da || 2*df > db {
+				continue
+			}
+			meta.Phrases++
+		} else {
+			if meta.Docs >= 1000 && df > common {
+				meta.Common = append(meta.Common, term)
+				continue
+			}
+			if df >= many {
+				wordDF[term] = df
+				if !keepWord(term, b.lang, df, titleDocs) {
+					meta.General = append(meta.General, term)
+					continue
+				}
+			}
 		}
 		off := pos
 		if buildVersion == 2 {
@@ -653,5 +711,5 @@ func Estimate(rd *dump.Reader, d time.Duration) (time.Duration, bool) {
 	site := rd.Site()
 	lang := Lang(rd.Files.DB, site)
 	rules := NewRules(Stopwords(lang), CapitalNames(lang))
-	return MeasureBuild(rd.Index, func(s uint32) { scanStream(rd, site, s, rules, lang) }, 0, d)
+	return MeasureBuild(rd.Index, func(s uint32) { scanStream(rd, site, s, rules, lang, nil) }, 0, d)
 }

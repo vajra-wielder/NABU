@@ -989,3 +989,134 @@ func max64(a, b int64) int64 {
 	}
 	return b
 }
+
+// TestStudyVocab shows, on an index as it is, what the rules of vocab.go
+// would do in a new build: the common words left out as general (and
+// the room they take), and the pairs of words that would be indexed
+// (counted on a sample of the articles).
+func TestStudyVocab(t *testing.T) {
+	for _, b := range studyBooks(t) {
+		r := &report{t: t, name: "vocabulary"}
+		ix := b.ix
+		lang := ix.Meta.Lang
+		inTitles := map[string]uint32{}
+		for d := 0; d < ix.Meta.Docs; d++ {
+			doc, err := ix.Doc(uint32(d))
+			if err != nil {
+				t.Fatal(err)
+			}
+			seen := map[string]bool{}
+			Tokenize(doc.Title, func(w string) {
+				if !seen[w] {
+					seen[w] = true
+					inTitles[w]++
+				}
+			})
+		}
+		many := minCommonDocs(ix.Meta.Docs)
+		var all, common, dropBytes int64
+		type gw struct {
+			w  string
+			df uint32
+		}
+		var dropped []gw
+		var keptSample []string
+		wordDF := map[string]uint32{}
+		allRows(t, ix, func(row dictRow) {
+			all += int64(row.size)
+			if row.df < many || strings.HasPrefix(row.term, phraseMark) {
+				return
+			}
+			common++
+			wordDF[row.term] = row.df
+			if keepWord(row.term, lang, row.df, inTitles[row.term]) {
+				if common%97 == 0 && len(keptSample) < 80 {
+					keptSample = append(keptSample, row.term)
+				}
+				return
+			}
+			dropped = append(dropped, gw{row.term, row.df})
+			dropBytes += int64(row.size)
+		})
+		sort.Slice(dropped, func(i, j int) bool { return dropped[i].df > dropped[j].df })
+		r.f("%s: %d words in %d+ articles; %d of them general (not indexed in a new build), %s of %s of lists (%.1f%%)",
+			b.files.Key(), common, many, len(dropped), mb(dropBytes), mb(all), 100*float64(dropBytes)/float64(all))
+		var line []string
+		for i, d := range dropped {
+			if i == 300 {
+				break
+			}
+			line = append(line, d.w)
+		}
+		r.f("  the commonest general words: %s", strings.Join(line, " "))
+		line = line[:0]
+		for i := len(dropped) - 1; i >= 0 && len(line) < 150; i -= 1 + len(dropped)/150 {
+			line = append(line, dropped[i].w)
+		}
+		r.f("  some rarer general words: %s", strings.Join(line, " "))
+		r.f("  some common words kept: %s", strings.Join(keptSample, " "))
+
+		// Pairs, on a sample.
+		phrases := titlePhrases(b.rd.Index, ix.rules)
+		total := b.rd.Index.StreamCount()
+		sample := 1500
+		if sample > total {
+			sample = total
+		}
+		pairDF := map[string]int{}
+		docs := 0
+		for i := 0; i < sample; i++ {
+			ps, err := b.rd.StreamPages(uint32(int64(i) * int64(total) / int64(sample)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, p := range ps {
+				if p.NS != dump.NSMain || p.Redirect != "" {
+					continue
+				}
+				docs++
+				seen := map[string]bool{}
+				prev := ""
+				TokenizeCase(wikitext.PlainText(withoutBoilerplate(p.Text, lang), b.rd.Site()), func(w string, c Case) {
+					if !ix.rules.Keep(w, c) {
+						return
+					}
+					if junk(w) {
+						prev = ""
+						return
+					}
+					if prev != "" && prev != w && phrases.has(prev, w) {
+						if k := prev + " " + w; !seen[k] {
+							seen[k] = true
+							pairDF[k]++
+						}
+					}
+					prev = w
+				})
+			}
+		}
+		scale := float64(ix.Meta.Docs) / float64(docs)
+		var kept []gw
+		var posts float64
+		for k, n := range pairDF {
+			ab := strings.SplitN(k, " ", 2)
+			est := float64(n) * scale
+			da, db := float64(wordDF[ab[0]]), float64(wordDF[ab[1]])
+			if est >= minPhraseDocs && da > 0 && db > 0 && 2*est <= da && 2*est <= db {
+				kept = append(kept, gw{k, uint32(est)})
+				posts += est
+			}
+		}
+		sort.Slice(kept, func(i, j int) bool { return kept[i].df > kept[j].df })
+		line = line[:0]
+		for i, k := range kept {
+			if i == 150 {
+				break
+			}
+			line = append(line, k.w)
+		}
+		r.f("  pairs of words from %d titles: about %d indexed, adding about %.0f postings (%.1f%% more)", len(phrases), len(kept), posts, 100*posts/float64(ix.Meta.Postings))
+		r.f("  the commonest: %s", strings.Join(line, ", "))
+		r.save(b.files.DB)
+	}
+}

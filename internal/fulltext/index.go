@@ -23,6 +23,7 @@ type Index struct {
 	Meta     Meta
 	rules    Rules
 	common   map[string]bool // in over 40% of articles: not indexed however written
+	general  map[string]bool // common words naming nothing: not indexed (vocab.go)
 	dictOff  []int64         // block offsets (+ end)
 	dictTerm []string
 	docsOff  int64
@@ -115,6 +116,10 @@ func (ix *Index) load() error {
 	ix.common = map[string]bool{}
 	for _, w := range ix.Meta.Common {
 		ix.common[w] = true
+	}
+	ix.general = map[string]bool{}
+	for _, w := range ix.Meta.General {
+		ix.general[w] = true
 	}
 	r := bufio.NewReader(io.NewSectionReader(ix.f, dirOff, docsOff-dirOff))
 	n, err := binary.ReadUvarint(r)

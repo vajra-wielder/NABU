@@ -237,6 +237,23 @@ func (ix *Index) scan(key string, fn func(Entry) bool) error {
 	return nil
 }
 
+// Each calls fn with every entry of the index, in order of their folded
+// titles, until fn returns false.
+func (ix *Index) Each(fn func(Entry) bool) error {
+	for i := 0; i < len(ix.dirTitle); i++ {
+		es, err := ix.block(i)
+		if err != nil {
+			return err
+		}
+		for _, e := range es {
+			if !fn(e) {
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
 // Find returns the entry for an exact, normalized title. When no title
 // matches exactly, a title equal apart from case and accents is returned
 // with exact=false, which is how "go to page" forgives typing.

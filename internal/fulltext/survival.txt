@@ -1,0 +1,80 @@
+# Words always indexed in English, however common or general they are:
+# what someone without help or a network may need to look up. Words of the
+# subjects themselves (water, fire, shelter...) are kept anyway, being the
+# titles of articles; these are mostly the describing words and verbs that
+# the rule for general words would otherwise drop ("broken", "edible",
+# "boiled"). One word or more per line; forms (plurals) follow by
+# themselves. Lines starting with # are notes.
+
+# injuries and first aid
+aid first injury injured injuries wound wounded wounds bleeding bleed bled blood broken break fracture fractured
+sprain sprained dislocated dislocation splint sling bandage bandaged dressing gauze tourniquet pressure
+burn burns burned burnt scald blister blisters cut cuts bruise bruised swelling swollen bite bitten sting stung
+cpr resuscitation unconscious conscious breathing breath breathe choking choke heimlich pulse heartbeat
+shock faint fainted seizure convulsion stroke concussion bleeding hemorrhage haemorrhage
+stitches suture sutures stitch sterile sterilize sterilise sterilized disinfect disinfected disinfectant antiseptic
+clean cleaning wash washing rinse soap alcohol iodine bleach chlorine peroxide
+
+# illness and medicine
+fever infection infected infectious contagious disease illness sick sickness symptom symptoms pain painful ache
+headache diarrhea diarrhoea vomiting vomit nausea dehydration dehydrated rehydration electrolyte salt sugar
+hypothermia hyperthermia frostbite heatstroke sunburn exhaustion starvation malnutrition scurvy rickets
+allergy allergic anaphylaxis asthma diabetes insulin epilepsy pregnancy pregnant childbirth labour labor delivery
+medicine medicines medication drug drugs dose dosage antibiotic antibiotics penicillin aspirin ibuprofen paracetamol
+acetaminophen morphine painkiller antihistamine vaccine vaccination immunity quarantine isolation epidemic pandemic
+cholera dysentery typhoid malaria tetanus rabies tuberculosis plague measles influenza flu cold cough pneumonia
+toxic poison poisonous poisoning venom venomous antidote overdose contaminated contamination radiation radioactive
+fallout iodide potassium
+
+# water
+water drinking drinkable potable purify purified purification filter filtered filtering filtration boil boiled boiling
+distill distilled distillation desalination condensation rain rainwater collect collecting collection well spring
+stream river lake pond reservoir tank barrel container bottle storage store stored storing
+
+# food
+food eat eating edible inedible raw cooked cook cooking roast roasted bake baked fried smoke smoked smoking dried dry drying
+salted salting cured curing pickled pickling fermented fermentation canned canning preserve preserved preserving
+preservation spoiled spoilage rotten mould mold fungus mushroom mushrooms berry berries nut nuts seed seeds root roots
+tuber tubers leaf leaves bark grass grain grains wheat rice corn maize bean beans potato potatoes flour bread
+forage foraging gather gathering hunt hunting hunted trap trapping snare fishing fish fished catch caught bait net
+milk cheese butter egg eggs meat fat protein vitamin vitamins calories calorie nutrition starving hungry
+plant planting sow sowing harvest harvesting crop crops garden gardening soil compost seedling grow growing
+
+# fire, heat and light
+fire firewood wood tinder kindling flint spark sparks match matches lighter ignite ignition flame flames smoke
+heat heating warm warmth cold insulation insulated candle lamp lantern torch flashlight oil fuel charcoal coal
+stove oven chimney
+
+# shelter and tools
+shelter tent tarp blanket sleeping cave hut cabin roof wall walls build building built
+knife axe hatchet saw hammer nail nails rope cord string knot knots tie tied shovel spade bucket needle thread sew sewing
+tool tools repair repaired fix fixing weld welding battery batteries charge charging solar generator wire wires
+radio signal signalling signaling whistle mirror flare flares smoke
+
+# finding the way
+compass map maps navigation navigate north south east west direction directions star stars sun shadow latitude longitude
+distance walk walking hike hiking trail path road bridge river crossing climb climbing
+
+# dangers
+danger dangerous hazard safe safety emergency rescue survival survive surviving survivor evacuation evacuate
+earthquake flood flooding tsunami hurricane cyclone typhoon tornado storm lightning wildfire avalanche landslide
+drought famine volcano eruption blizzard heatwave
+animal animals snake snakes spider spiders scorpion bear bears wolf wolves dog dogs rat rats mosquito tick ticks lice
+attack attacked defend defense defence weapon weapons bow arrow
+
+# the words of questions, which make a search precise ("invented the
+# telephone", "largest desert", "who discovered penicillin")
+invented invent inventor invention discovered discover discoverer discovery founded founder found
+created creator built designed designer wrote written author painted composed directed produced
+largest biggest smallest highest tallest lowest deepest longest shortest oldest youngest newest
+earliest latest fastest slowest hottest coldest heaviest lightest richest poorest most least
+first last born died death killed killer murdered elected won winner lost captured destroyed
+named invaded conquered ruled discovered sank crashed exploded collapsed erupted
+capital population language currency religion border cause caused causes effect effects
+
+# care and treatment
+treatment treatments treat treated treating cure cured remedy remedies therapy prevent prevention preventing
+diagnosis diagnose recovery recover heal healing healed care caring nurse nursing hospital clinic doctor
+emergency surgery operation amputation amputate sterilization keep keeping protect protection protective
+mask masks gloves goggles helmet boots clothing clothes layers wet dry warm cool cooling shade
+help helping signal rescue lost

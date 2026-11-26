@@ -631,6 +631,19 @@ unrendered.
   that only list sources and links elsewhere (References, External links, Further
   reading... in the main languages) are not indexed, nor the "See also" heading
   itself, nor machine codes ("7cb9e8") and picture sizes ("220px").
+- **Which words are indexed.** Rare words all are: they are the names and terms people
+  look for. A word in more than one article in a thousand is kept only if it names
+  something: it is in titles often enough (desert, cardiac, Paris), or it is a number,
+  or it is on the list of survival words and question words in
+  `internal/fulltext/survival.txt` (bleeding, edible, boiled, treatment, invented,
+  largest...; edit it to add your own). The others ("official", "became",
+  "including") are general: they hardly narrow a search and take room, so they are not
+  indexed, and a search says so. Pairs of words that are the title of an article
+  (first aid, heart attack, silk road, official language) are indexed as one where they
+  follow each other in an article, when both words are common and the pair narrows them
+  down; a search with the pair puts the articles that have it first. That costs about
+  7% of the room, where storing every word's position would double the index; leaving
+  out the general words saves about 20%. Simple English: 42.6 MB before, 39.7 MB now.
 - **How search inside articles ranks.** Every searched word must be in an article.
   Rare words count more than common ones, and a word counts more the more often it is
   in an article, but less in a long one (BM25), so lists and long overviews do not win

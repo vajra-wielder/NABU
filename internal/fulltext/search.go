@@ -22,6 +22,8 @@ type Result struct {
 	Terms   []string // words searched
 	Marks   []string // the words and the forms of them found, to mark in snippets
 	Ignored []string // too common to search
+	General []string // of those, the ones not indexed for naming nothing ("official")
+	Phrases []string // pairs of the words searched as one ("first aid")
 	// Partial: no article has every word, so these are the articles with
 	// the most of them (Missing: the words they lack).
 	Partial bool
@@ -73,18 +75,24 @@ func (ix *Index) search(q string, offset, limit int, first []Doc) (*Result, erro
 	res := &Result{}
 	// A little word is searched only as it is indexed: "US" in capitals,
 	// not "us".
-	var order []string
+	var order, seq []string // seq: the words as typed, little words aside, for the pairs
 	keep := map[string]bool{}
 	TokenizeCase(q, func(t string, c Case) {
 		if _, seen := keep[t]; !seen {
 			order = append(order, t)
 		}
-		keep[t] = keep[t] || (ix.rules.Keep(t, c) && !ix.common[t])
+		keep[t] = keep[t] || (ix.rules.Keep(t, c) && !ix.common[t] && !ix.general[t])
+		if ix.rules.Keep(t, c) && !junk(t) {
+			seq = append(seq, t)
+		}
 	})
 	var words []*qword
 	for _, t := range order {
 		if !keep[t] {
 			res.Ignored = append(res.Ignored, t)
+			if ix.general[t] {
+				res.General = append(res.General, t)
+			}
 			continue
 		}
 		w := &qword{term: t}
@@ -207,6 +215,40 @@ func (ix *Index) search(q string, offset, limit int, first []Doc) (*Result, erro
 	if len(cands) == 0 {
 		return res, nil
 	}
+	// Pairs of the words indexed as one: the articles that have them
+	// together come first.
+	for i := 0; i+1 < len(seq); i++ {
+		a := seq[i]
+		var rows []dictRow
+		var found string
+		for _, f := range ix.forms(seq[i+1]) {
+			if row, ok, err := ix.lookup(phraseKey(a, f)); err == nil && ok {
+				rows = append(rows, row)
+				if found == "" {
+					found = a + " " + f
+				}
+			}
+		}
+		if len(rows) == 0 {
+			continue
+		}
+		list, err := ix.union(rows)
+		if err != nil {
+			return nil, err
+		}
+		res.Phrases = append(res.Phrases, found)
+		res.Marks = append(res.Marks, a, seq[i+1])
+		wt := 2 * idf(len(list))
+		j := 0
+		for k := range cands {
+			for j < len(list) && list[j].doc < cands[k].doc {
+				j++
+			}
+			if j < len(list) && list[j].doc == cands[k].doc {
+				cands[k].score += wt * tfw(cands[k].doc, list[j].tf)
+			}
+		}
+	}
 	// cands are in article order: the ones asked to come first are found
 	// by number.
 	lead := map[uint32]bool{}
@@ -247,8 +289,11 @@ func (ix *Index) search(q string, offset, limit int, first []Doc) (*Result, erro
 		h := Hit{Doc: d, N: c.doc, Score: c.score}
 		if lead[c.doc] {
 			// already first
-		} else if dump.Fold(d.Title) == fq {
+		} else if ft := dump.Fold(d.Title); ft == fq {
 			h.Score += 100
+		} else if form[ft] {
+			// the article of one of the words: "Desert" for "largest desert"
+			h.Score += 2 * titleBoost
 		} else {
 			inTitle := 0
 			Tokenize(d.Title, func(t string) {
