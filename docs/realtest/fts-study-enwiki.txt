@@ -1,5 +1,5 @@
 == size ==
-(2026-11-26 20:02Z, windows/amd64, 8 CPUs)
+(2026-11-27 09:06Z, windows/amd64, 8 CPUs)
 enwiki-20261101: index 2538.0 MB for a dump of 24478.2 MB (10.4%), 7259919 articles, 11322519 words, 1407701782 postings
 parts: postings 2275.7 MB, dictionary 76.6 MB (+ directory 1.3 MB), articles 168.0 MB, places 1344313
 words by how many articles they are in:
@@ -31,84 +31,84 @@ dictionary: 11322519 words, 99.3 MB of letters (8.8 a word); with digits 747280 
   dropped as in over 40% of articles: external links references
 articles: 168.0 MB, of which titles 145.9 MB (20.1 bytes a title)
 == search ==
-(2026-11-26 20:03Z, windows/amd64, 8 CPUs)
+(2026-11-27 09:07Z, windows/amd64, 8 CPUs)
 enwiki-20261101: each query twice (the second with the file in the computer's memory); times in milliseconds
   query                             matches  lists   dict   lists   merge  titles  search snip1by1   snip||
-  theory of relativity (1st)           3575 152955    0.7     3.1     2.0    10.4    45.4    465.6     63.5
-  theory of relativity                 3575 152955    0.0     2.6     0.0    18.8    41.6    479.3     53.9
-  largest desert (1st)                11836 407210    3.0    13.9     8.3    13.3    41.7    540.6     52.3
-  largest desert                      11836 407210    0.0    10.9    10.4     5.9    38.3    496.7     51.5
-  invented the telephone (1st)         1877  86857    4.4     0.6     0.0    10.7    28.5    532.4     77.3
-  invented the telephone               1877  86857    0.0     0.0     0.0    20.5    14.3    538.1     59.7
-  capital of Mongolia (1st)            3120 308787    1.2     0.7     9.1     2.6    40.9    611.2     63.8
-  capital of Mongolia                  3120 308787    0.0     2.6     0.0    15.1    28.3    575.5     74.2
-  boiling point of water (1st)         2809 972561    3.0    22.9     5.2    10.5    83.9    607.5     59.2
-  boiling point of water               2809 972561    0.0    26.3     2.0     9.6    88.8    670.8     59.3
-  first moon landing (1st)             5390 2976058    0.0    69.0     7.1     3.2   121.7    784.8    126.0
-  first moon landing                   5390 2976058    0.0    52.9    12.7     6.7   123.9    703.9     94.3
-  chlorophyll (1st)                    1663   1603    0.0     5.6     0.0     9.3    15.0    326.5     37.4
-  chlorophyll                          1663   1603    0.0     0.0     8.1     7.8    14.1    314.4     58.1
-  migration of birds (1st)             6524 119194    5.6     0.8     4.8    10.3    23.4    534.9     62.2
-  migration of birds                   6524 119194    0.0     3.1     0.0    10.5    29.0    516.2     54.6
-  Silk Road trade (1st)                3086 782569    0.4     9.9     7.7    10.6    51.8    500.7     60.0
-  Silk Road trade                      3086 782569    0.0    17.2     3.7     1.7    59.6    499.5     60.4
-  volcanic eruption (1st)              5797  29954    0.9     1.2     0.0     1.6    23.5    468.1     65.7
-  volcanic eruption                    5797  29954    0.0     1.4     0.0    10.1    17.3    437.0     61.9
-  how to purify water (1st)            1299 434840    0.7    15.3     0.0     7.0    35.2    451.2     63.5
-  how to purify water                  1299 434840    0.0     9.3     0.0     8.1    42.4    441.4     47.9
-  first aid burns (1st)                5725 2965398    2.4    47.8     8.6     9.6   125.2   1036.8    136.1
-  first aid burns                      5725 2965398    0.0    41.7     8.0     7.6   104.5   1171.1    117.5
-  edible wild plants (1st)             1768 271298    2.0     7.6     2.0     5.6    43.6    700.6     86.6
-  edible wild plants                   1768 271298    0.0    14.2     0.0    10.1    39.4    675.1     84.8
-  broken bone splint (1st)               79 184687    6.8     3.3     0.0     0.0    13.4    854.9    142.2
-  broken bone splint                     79 184687    0.0    10.3     0.0     1.7    11.6    813.6    161.4
-  solar eclipse (1st)                  4292  63378    0.0     2.2     0.0     9.3    15.3    553.1     98.7
-  solar eclipse                        4292  63378    0.0     8.1     0.0     8.1    15.2    571.7    113.3
-  world war (1st)                    524032 2275846    6.7    35.4    48.8     9.3   220.3    660.6     84.1
-  world war                          524032 2275846    0.0    31.0    73.6     0.0   187.4    626.4     98.8
-  football club (1st)                251398 1213536    2.0    17.3    28.4     5.2   124.2    425.0     88.7
-  football club                      251398 1213536    0.0    12.1    35.2     6.9   126.5    442.9     49.0
-  united states army (1st)           154384 2929030    4.9    44.5    37.9     4.8   245.4    522.1    139.1
-  united states army                 154384 2929030    0.0    45.5    32.4     5.3   252.2    516.9    126.4
-  US army (1st)                       65593 841315    0.0    15.7    21.2     7.3    69.7   1050.5    109.6
-  US army                             65593 841315    0.0    16.6    16.3     4.8    63.3   1013.3     90.2
-  river (1st)                        559607 514877    1.2     8.6     0.0     7.2    89.2    211.8     60.6
-  river                              559607 514877    0.0     8.1     4.2     9.0    78.6    201.0     45.0
-  village in poland (1st)             67581 794262    0.0    21.3     8.0     9.4    61.2    587.9     66.8
-  village in poland                   67581 794262    0.0    20.7     7.7     7.1    58.0    574.2     75.5
-  american politician (1st)          160486 1912515    0.0    28.9    25.5     5.7   135.5    666.5     95.4
-  american politician                160486 1912515    0.0    37.5    24.4     7.2   117.1    645.6     79.5
-  population census (1st)            243505 879445    0.0    16.7    16.0    10.3    81.2    325.6     51.8
-  population census                  243505 879445    0.0    15.8     5.7    11.4    83.0    314.3     60.8
-  album released (1st)               334691 1230748    1.9    21.6    24.7     3.1   142.7    394.0     54.4
-  album released                     334691 1230748    0.0    15.5    21.2    18.0   139.4    345.9     53.2
-  photosynthesis light reaction (1st)      596 440252    6.8     9.7     0.0    11.3    38.6    472.6     55.3
-  photosynthesis light reaction         596 440252    0.0    10.6     0.8    10.4    49.7    466.3     55.3
-  Napoleon Bonaparte (1st)             6099  38573    2.0     0.7     0.0     6.3    18.8    328.1     43.2
-  Napoleon Bonaparte                   6099  38573    0.0     2.2     0.6    11.4    20.5    295.5     51.0
-  Mount Everest expedition (1st)       1367 223238    1.4     7.7     0.7    12.1    30.6    463.8     51.6
-  Mount Everest expedition             1367 223238    0.0     6.9     0.7     8.8    26.5    454.3     54.9
-  penicillin discovery (1st)            466 110434    4.5     3.2     0.5    10.8    20.8    807.3     82.0
-  penicillin discovery                  466 110434    0.0     2.4     0.0    16.8    20.8    788.3     87.7
-  earthquake tsunami (1st)             5765  47994    0.6     0.6     0.0     4.5    21.1    637.1     77.3
-  earthquake tsunami                   5765  47994    0.0     4.0     0.0     4.9    23.4    602.6     69.0
-  Einstein (1st)                      10792  10642    8.9     0.0     0.0     1.2    19.3    379.3     52.6
-  Einstein                            10792  10642    0.0     1.5     0.0     7.3    13.9    386.3     61.8
-  average (2nd runs)                                  0.0    14.4     8.9     9.1    64.3    552.6     73.7
-  the 20 snippets one by one (2nd runs, average): reading the articles 233.7 ms, wikitext to text 301.9 ms, finding the words 17.0 ms; 909 kB of wikitext
+  theory of relativity (1st)           3575 152955    0.0     4.6     0.0     2.6    10.6    290.6     21.4
+  theory of relativity                 3575 152955    0.0     3.6     0.0     6.5     1.1    174.5     35.5
+  largest desert (1st)                11836 407210    5.4     5.3     0.0     7.7    15.7    161.2     23.0
+  largest desert                      11836 407210    0.0    10.8     3.0     2.2    15.9    261.0     22.5
+  invented the telephone (1st)         1877  86857    0.0     1.5     0.6     0.0    11.1    247.5     17.8
+  invented the telephone               1877  86857    0.0     1.7     0.5     2.0     4.1    189.0     27.8
+  capital of Mongolia (1st)            3120 308787    2.1     1.9     0.6     1.9    11.7    368.5     31.4
+  capital of Mongolia                  3120 308787    0.0     2.5     1.6     0.0    20.9    264.1     25.0
+  boiling point of water (1st)         2809 972561    1.1     5.9     0.0     0.0    30.2    418.2     19.1
+  boiling point of water               2809 972561    0.0    13.7     1.0     2.7    32.9    293.2     31.9
+  first moon landing (1st)             5390 2976058    0.0    36.6     8.1     6.3    87.5    444.3     36.6
+  first moon landing                   5390 2976058    0.0    25.5     2.6     0.0    58.8    388.8     31.8
+  chlorophyll (1st)                    1663   1603    0.0     0.0     0.0     8.1     2.0    183.6     37.2
+  chlorophyll                          1663   1603    0.0     0.0     0.0     6.3     8.5    202.1     24.9
+  migration of birds (1st)             6524 119194    1.2     0.5     0.0     0.0    11.3    235.4     31.7
+  migration of birds                   6524 119194    0.0     1.3     1.5     3.9     9.3    258.2     27.6
+  Silk Road trade (1st)                3086 782569    0.0    12.0     1.3     2.9    15.5    270.0     23.7
+  Silk Road trade                      3086 782569    0.0     7.8     0.0     4.4    20.7    183.8     22.8
+  volcanic eruption (1st)              5797  29954    0.0     2.0     0.5     3.4     7.6    198.3     29.0
+  volcanic eruption                    5797  29954    2.2     0.0     0.7     2.5     6.3    276.7     32.2
+  how to purify water (1st)            1299 434840    0.0     7.6     0.6     6.2    28.9    320.1     23.1
+  how to purify water                  1299 434840    0.0     9.2     0.5     4.1    10.3    196.3     20.1
+  first aid burns (1st)                5725 2965398    0.0    24.4     3.5    10.1    94.2    659.6     39.0
+  first aid burns                      5725 2965398    0.0    22.8     4.8     3.4    41.4    626.1     50.3
+  edible wild plants (1st)             1768 271298    2.4     2.1     0.0     2.8    13.7    415.1     32.1
+  edible wild plants                   1768 271298    0.0     0.0     0.0    11.3    20.2    334.9     36.6
+  broken bone splint (1st)               79 184687    5.5     3.1     0.0     1.3     7.3    420.7     54.2
+  broken bone splint                     79 184687    0.0     4.4     0.0     0.0     7.7    423.8     89.4
+  solar eclipse (1st)                  4292  63378    0.0     5.8     0.0     4.6    16.2    354.5     66.8
+  solar eclipse                        4292  63378    0.0     0.8     0.0     6.5    14.3    390.2     46.8
+  world war (1st)                    524032 2275846    0.0    11.7    16.1     0.0    78.9    368.9     49.2
+  world war                          524032 2275846    0.0    22.5    35.8     0.0   136.2    346.9     41.7
+  football club (1st)                251398 1213536    1.3     8.1     8.4     3.0    42.1    269.5     15.1
+  football club                      251398 1213536    0.0    12.6    13.3     7.3    63.2    256.6     30.0
+  united states army (1st)           154384 2929030    4.4    17.0    21.6     4.7   106.1    290.7     72.1
+  united states army                 154384 2929030    0.0    33.4    25.3     5.6   122.6    227.8     59.8
+  US army (1st)                       65593 841315    0.0     8.3     9.6     0.0    36.3    680.0     32.3
+  US army                             65593 841315    0.0    16.1     3.4     9.2    25.0    532.2     41.7
+  river (1st)                        559607 514877    0.0     3.5     0.0     0.0    43.5    134.1     27.5
+  river                              559607 514877    0.0    11.9     2.3     6.1    69.0     98.4     24.1
+  village in poland (1st)             67581 794262    0.0    15.7     2.7     0.0    58.0    396.1     25.6
+  village in poland                   67581 794262    0.0     6.0     0.0     9.5    29.0    365.4     30.9
+  american politician (1st)          160486 1912515    0.0    12.8     9.7     3.1    52.8    370.0     46.9
+  american politician                160486 1912515    0.0    11.0    13.2     2.0    95.2    496.5     35.7
+  population census (1st)            243505 879445    0.0    11.1     2.2     0.0    44.2    121.9     11.7
+  population census                  243505 879445    0.0     6.5     4.8     2.5    24.7    143.9     21.8
+  album released (1st)               334691 1230748    3.8     7.1     8.6     2.1    39.4    236.5     28.1
+  album released                     334691 1230748    0.0     6.1    11.8     0.0    96.0    160.0     16.6
+  photosynthesis light reaction (1st)      596 440252    2.2     3.1     0.0     5.0    11.9    291.8     22.6
+  photosynthesis light reaction         596 440252    0.0     6.6     2.0     6.3    16.2    216.8     20.1
+  Napoleon Bonaparte (1st)             6099  38573    1.7     0.0     0.5     0.5     9.6    196.4     48.8
+  Napoleon Bonaparte                   6099  38573    0.0     1.0     0.6     3.0     8.0    217.8     26.1
+  Mount Everest expedition (1st)       1367 223238    1.4     0.6     0.0     5.1    18.6    367.3     22.9
+  Mount Everest expedition             1367 223238    0.0     5.4     0.0     7.1    11.4    238.8     18.9
+  penicillin discovery (1st)            466 110434    3.4     1.1     0.0     0.0     7.4    430.2     31.9
+  penicillin discovery                  466 110434    0.0     1.0     0.0     4.6    10.5    451.9     40.4
+  earthquake tsunami (1st)             5765  47994    0.9     1.3     0.0     4.7    10.9    369.2     56.2
+  earthquake tsunami                   5765  47994    0.0     1.3     0.0     7.3    13.8    298.5     30.6
+  Einstein (1st)                      10792  10642    0.0     0.0     0.0     8.2     8.3    159.8     17.8
+  Einstein                            10792  10642    0.0     4.5     0.0     2.1     7.6    153.1     20.8
+  average (2nd runs)                                  0.1     8.3     4.3     4.3    33.4    288.9     32.8
+  the 20 snippets one by one (2nd runs, average): reading the articles 118.4 ms, wikitext to text 162.4 ms, finding the words 8.1 ms; 909 kB of wikitext
   (lists: postings read; dict/lists/merge/titles: the stages of a search; search: all of it;
    snip1by1: the 20 snippets one after another from whole articles, as NABU did;
    snip||: side by side from the paragraphs with the words, as it does now)
 == build ==
-(2026-11-26 20:04Z, windows/amd64, 8 CPUs)
+(2026-11-27 09:07Z, windows/amd64, 8 CPUs)
 enwiki-20261101: 2000 of 883890 bundles, 16446 articles, 158.8 MB of wikitext, on one CPU:
-  reading (decompress, XML)   29.5 s  34.3%
-  wikitext to plain text     39.9 s  46.3%
-  words and counting         16.7 s  19.4%
-  so the whole dump: about 634 min on one CPU, 91 min on 7 (the rest of a build is sorting and writing)
+  reading (decompress, XML)   15.5 s  35.6%
+  wikitext to plain text     19.9 s  45.6%
+  words and counting          8.2 s  18.8%
+  so the whole dump: about 321 min on one CPU, 46 min on 7 (the rest of a build is sorting and writing)
 == snippets ==
-(2026-11-26 20:05Z, windows/amd64, 8 CPUs)
-enwiki-20261101: 600 snippets; from the whole article 15.5 ms each, from the paragraph 2.0 ms each (8× faster)
+(2026-11-27 09:08Z, windows/amd64, 8 CPUs)
+enwiki-20261101: 600 snippets; from the whole article 6.9 ms each, from the paragraph 0.9 ms each (8× faster)
   the same snippet 587 times (98%); words marked in both 600
   some that differ:
   "capital of Mongolia" in List of World Heritage Sites in Mongolia:
@@ -136,7 +136,7 @@ enwiki-20261101: 600 snippets; from the whole article 15.5 ms each, from the par
     whole: <mark>Poland</mark> is a <mark>village</mark> in Herkimer County, New York, United States, with a population of 464, as of 2020. <mark>Poland</mark> is on the border shared by the towns of Newport and Russia. The <mark>village</mark> is north of the county seat in Herkimer …
     paragraph: <mark>Poland</mark> is a <mark>village</mark> in Herkimer County, New York, United States, with a population of 464, as of 2020.
 == ranking ==
-(2026-11-26 20:05Z, windows/amd64, 8 CPUs)
+(2026-11-27 09:08Z, windows/amd64, 8 CPUs)
 enwiki-20261101, 2 weights (once / more often): 124 of 300 top-10 results stay in the top 10 (41%)
     "theory of relativity": now Theory of relativity; Emission theory (relativity); The Theory of Relativity (musical); Criticism of the theory of relativity; Test theories of special relativity; Relativity: The Special and the General Theory; The Einstein Theory of Relativity; Physical theories modified by general relativity; Relativity; Relativity priority dispute | would be Theory of relativity; Relativity; The Theory of Relativity (musical); Molly's Theory of Relativity; Relativity of simultaneity; Poincaré gauge theory; Relativity (play); General relativity; Scalar–tensor theory; Synergetic theory
     "largest desert": now Desert; List of deserts of Pakistan; List of deserts; Red Desert (Wyoming); Huntington Desert Garden; Black Rock Desert Wilderness; Mount Desert Island; Simpson Desert; Anza-Borrego Desert State Park; List of lakes of the Colorado Desert | would be Desert of Ocute; Desert Center, California; List of lakes of the Colorado Desert; Munga-Thirri–Simpson Desert National Park; Lut Desert; High Desert State Prison (Nevada); Deserts of Australia; List of birds of Yemen; Mountain states; Australian Geographic
@@ -152,7 +152,7 @@ enwiki-20261101, no weights: 49 of 300 top-10 results stay in the top 10 (16%)
     "boiling point of water": now Boiling water reactor safety systems; Water; Boiling point; Boiling; Boiling water reactor; Boiling-point elevation; Advanced boiling water reactor; Boiling Point (2021 film); Boiling liquid expanding vapor explosion; Properties of water | would be Boiling point; Water; Boiling; Heavy water; Melting point; Water vapor; Alkane; Bitumen; Alkali metal; Astatine
     "first moon landing": now Moon landing; Moon; Moon landing conspiracy theories; Third-party evidence for Apollo Moon landings; Moon Landing (album); Moon landing conspiracy theories in popular culture; Moon Landing (music drama); Moon Landing (Modern Family); First Men in the Moon (1964 film); First on the Moon | would be Moon; Europa (moon); Amalthea (moon); Titan (moon); Phobos (moon); The Man Who Sold the Moon; Deimos (moon); Apollo; Apollo 11; Apollo 8
 == words ==
-(2026-11-26 20:05Z, windows/amd64, 8 CPUs)
+(2026-11-27 09:08Z, windows/amd64, 8 CPUs)
 enwiki-20261101: 11322519 words in the index
   kind                                    words    in one     postings         room
   years and numbers (1-4 digits)          11100        0%    123608163     165.8 MB
@@ -166,3 +166,11 @@ enwiki-20261101: 11322519 words in the index
   over 15 letters, for example: abbegeasterketting(1) annaherungsdebatte(1) anthropophagists(1) archivorosenmann(1) athirshtalaskhmi(1) benutzungsordnung(1) bestshorttermplan(1) bharamannanayaka(1) bissedutorrentneufbridge(1) candoscrupocellaria(1) centrosemiflorum(4) chronophotographique(1) dibutanoylmorphine(2) disarticolazione(1) foretagsekonomiska(2) gehospitaliseerde(1) glaciomorphological(1) hamamatsudaigakumae(1) infratechnologies(1) josecuatrecasasii(1) krishnadwadasamanjari(1) macillebheathain(1) meanderingridgeswide(1) mexicoamericanos(1) nalayirattumoppatu(1) neurophilosopher(10) oxonitridosilicates(1) parlamentariergruppen(1) purushottamanandaji(1) qualifikationsrahmen(3)
   words, for example: aagesson(3) aaravam(26) abdulmaati(1) abhel(1) abolew(1) absoluo(2) acable(1) accolt(1) achas(21) ackerer(1) acroptilidis(2) acyloxylated(1) adcorp(5) aderson(18) adiwayu(1) adyashakti(6) aensien(1) aetheoptera(4) afghanodesmatid(1) afryka(17) agasson(6) aghadromsillagh(1) agochoric(2) aguallane(1) ahirkapi(17) aibekov(1) aincha(1) aissailly(4) ajisun(1) akasuki(1)
   commonest section headings (in % of 12544 sampled articles): references 89%, external links 44%, see also 24%, history 13%, notes 6%, career 6%, further reading 4%, personal life 4%, biography 4%, bibliography 3%, early life 3%, reception 3%, description 3%, geography 3%, background 3%, cast 3%, plot 3%, sources 2%, track listing 2%, demographics 2%, early life and education 2%, education 2%, awards 2%, personnel 2%, results 2%, production 2%, honours 2%, discography 1%, charts 1%, gallery 1%, filmography 1%, career statistics 1%, distribution 1%, life 1%, club career 1%, death 1%, population 1%, international career 1%, legacy 1%, critical reception 1%
+== vocabulary ==
+(2026-11-27 09:11Z, windows/amd64, 8 CPUs)
+enwiki-20261101: 19925 words in 7259+ articles; 8693 of them general (not indexed in a new build), 801.2 MB of 2275.7 MB of lists (35.2%)
+  the commonest general words: one two see time year later three known years part second including early made life following became family career may march four september june october january july august several many april used former november december work based member however called february place end began held now due left located played home five received took around served notes third back along released like included main major include official local use age times total small six top moved led according set members late title still large single order published near century position established described various original children son president co joined side head director worked player started way father professional works make next went result role married personal record become much came present non form short different period together full said returned website announced often take making production species post even using originally right days date continued site support level half others political considered working seven re across style notable addition run refer round event wife similar lead debut current every formed appointed previously despite eight throughout recorded leading opened million never events modern includes developed followed release away playing popular completed background performance fourth remained important appeared months reading eventually taken return mother previous signed instead sources press selected term common control currently ten chief gave areas close competition daughter version features initially involved attended design information awarded less private win construction living mid prior biography brother beginning body location case related represented added degree outside featured available sold cast additional start seen placed replaced reported active study books change future provided lived get winning almost low front rather today finished taking subsequently significant behind regular reception able historical parts primary decided soon example training edition performed studio nine stated owned female becoming limited ended sent thus brought leader reached put
+  some rarer general words: labeling disciplined peacetime indexing breuning sculptural retitled tn intriguing perceive spaniards accompanies overshadowed canons accumulate schoolteacher gastropoda draught signifies necessitated internship jurisprudence portico assassinate bodied rescheduled belts exacerbated stemming fragmented crushing timely superb coated flaws homosexual trophies nonfiction donate exploits earnest vulnerability rests ensures southernmost chancel overhaul holotype hostility mgm hearings pertaining tissues accountant emotionally batsman parallels fulfilled obliged mentally interval risen campuses surprising instantly solved disappointing chemicals default genes vegetables aide instituted troubled commercials lobby marriages shoots arise accompany turnout reminiscent insight agenda purchasing suspect cultivation ambitious spelling resign complications welcomed gameplay develops predicted instructions lit enabling export followers delegation denotes proceeded sight reads exterior dies intervention nationality vocalist generations prepare renewed inherited elevated depression preliminary specialized revised bold add equipped starred sole items accounts signing classified admitted concerns weight decade contained parties officials broke contributed estimated buried 1960s 1990s covered access administration complete example design debut works home
+  some common words kept: 087 1547 1658 1744 1829 1908 1989 238 313 394 470 549 627 707 787 871 957 acid admiralty african albany alphabet amsterdam argent athens ba bankers bath bertrand bitch bog brendan bs caribbean clothing colleen commerce counties crete culinary designer diagnosis direction dose ellington ernest evacuation flour fork francois gang gentlemen gottlieb greenhouse guinness handball hinduism hong ida ind infrared jacob jiangsu judoka kazakh kingdom labor latest lee locke maldives marche mas mcbride melbourne methyl milwaukee monsieur mounds nestor
+  pairs of words from 6689880 titles: about 172254 indexed, adding about 273825810 postings (19.5% more)
+  the commonest: early life, world war, high school, first time, war ii, two years, york city, years later, notable people, north america, three years, de la, well known, year old, years old, studio album, football league, television series, head coach, south africa, state university, regular season, civil war, vice president, national team, one two, first round, african american, one year, general election, world cup, four years, five years, professional footballer, football team, days later, 10 000, present day, second world, film festival, rural district, railway station, administrative district, air force, roman catholic, first team, football player, first season, music video, early years, full time, 10 11, 100 000, north east, rock band, south wales, many years, one day, critical reception, first world, gold medal, later year, new south, take place, st louis, long term, north west, second round, north american, two days, south east, next day, around world, catholic church, 11 12, post office, video game, native american, professional football, premier league, great britain, one three, tv series, semi finals, south african, long time, school district, number one, world championships, three times, south west, football club, 2017 18, two weeks, major league, 12 13, legislative assembly, age 18, united nations, democratic party, sea level, co founder, bronze medal, national park, college football, north south, second half, two children, local government, first class, months later, master degree, title role, member parliament, 2020 census, two months, third place, new mexico, first year, armed forces, city council, drama film, 16th century, 10 12, younger brother, seven years, 31 december, 2023 24, ten years, secondary school, st john, american politician, housing units, silver medal, 2020 21, south america, three days, 2019 20, six years, year end, american football, world championship, one best, 50 000, short film, men women, social media, two three, 13 14, children age
