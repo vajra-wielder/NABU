@@ -16,12 +16,18 @@ const maxTermBytes = 48
 // as overlapping pairs of characters, the usual approach for Chinese and
 // Japanese search.
 func isCJK(r rune) bool {
+	if r < 0x0E00 { // Latin, Greek, Cyrillic, Arabic, Indic...: no (and quickly)
+		return false
+	}
 	return unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hiragana, r) ||
 		unicode.Is(unicode.Katakana, r) || unicode.Is(unicode.Hangul, r) ||
 		unicode.Is(unicode.Thai, r) || unicode.Is(unicode.Lao, r) || unicode.Is(unicode.Khmer, r) || unicode.Is(unicode.Myanmar, r)
 }
 
 func isWord(r rune) bool {
+	if r < 0x80 {
+		return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9'
+	}
 	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.Is(unicode.Mn, r)
 }
 
@@ -70,15 +76,27 @@ func Tokenize(s string, emit func(term string)) {
 // TokenizeCase is Tokenize, also telling how each word was written.
 func TokenizeCase(s string, emit func(term string, c Case)) {
 	word := make([]rune, 0, 32)
+	ascii := true // the word so far is in ASCII: folding is lower-casing
+	var buf [maxTermBytes]byte
 	var cjk []rune
 	flushWord := func() {
 		if len(word) >= 2 {
-			t := dump.Fold(string(word))
-			if len(t) <= maxTermBytes {
+			if ascii {
+				if len(word) <= maxTermBytes {
+					for i, r := range word {
+						if r >= 'A' && r <= 'Z' {
+							r += 'a' - 'A'
+						}
+						buf[i] = byte(r)
+					}
+					emit(string(buf[:len(word)]), caseOf(word))
+				}
+			} else if t := dump.Fold(string(word)); len(t) <= maxTermBytes {
 				emit(t, caseOf(word))
 			}
 		}
 		word = word[:0]
+		ascii = true
 	}
 	flushCJK := func() {
 		switch {
@@ -92,7 +110,11 @@ func TokenizeCase(s string, emit func(term string, c Case)) {
 		cjk = cjk[:0]
 	}
 	for len(s) > 0 {
-		r, n := utf8.DecodeRuneInString(s)
+		r, n := rune(s[0]), 1
+		if r >= 0x80 {
+			r, n = utf8.DecodeRuneInString(s)
+			ascii = false
+		}
 		s = s[n:]
 		switch {
 		case isCJK(r):

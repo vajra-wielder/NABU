@@ -260,7 +260,6 @@ func (ix *Index) search(q string, offset, limit int, first []Doc) (*Result, erro
 			}
 		}
 	}
-	sort.Slice(cands, func(i, j int) bool { return cands[i].score > cands[j].score })
 	// Re-rank the best with their titles: a title containing the words,
 	// or equal to the search, comes first.
 	top := offset + limit + rerank
@@ -273,6 +272,9 @@ func (ix *Index) search(q string, offset, limit int, first []Doc) (*Result, erro
 			top = lim
 		}
 	}
+	// Only the best top are wanted: picked out, not all sorted ("world
+	// war" has half a million articles in English).
+	cands = best(cands, top)
 	fq := dump.Fold(q)
 	form := map[string]bool{}
 	for _, w := range used {
@@ -412,4 +414,46 @@ func (ix *Index) union(rows []dictRow) ([]posting, error) {
 		out = merged
 	}
 	return out, nil
+}
+
+// best returns the k highest-scoring candidates, highest first, keeping a
+// heap of k instead of sorting them all.
+func best(cs []cand, k int) []cand {
+	if k >= len(cs) {
+		sort.Slice(cs, func(i, j int) bool { return cs[i].score > cs[j].score })
+		return cs
+	}
+	if k <= 0 {
+		return nil
+	}
+	h := make([]cand, k) // min-heap on score
+	copy(h, cs[:k])
+	down := func(i int) {
+		for {
+			l := 2*i + 1
+			if l >= k {
+				return
+			}
+			m := l
+			if r := l + 1; r < k && h[r].score < h[l].score {
+				m = r
+			}
+			if h[i].score <= h[m].score {
+				return
+			}
+			h[i], h[m] = h[m], h[i]
+			i = m
+		}
+	}
+	for i := k/2 - 1; i >= 0; i-- {
+		down(i)
+	}
+	for _, c := range cs[k:] {
+		if c.score > h[0].score {
+			h[0] = c
+			down(0)
+		}
+	}
+	sort.Slice(h, func(i, j int) bool { return h[i].score > h[j].score })
+	return h
 }

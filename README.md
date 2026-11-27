@@ -642,8 +642,20 @@ unrendered.
   (first aid, heart attack, silk road, official language) are indexed as one where they
   follow each other in an article, when both words are common and the pair narrows them
   down; a search with the pair puts the articles that have it first. That costs about
-  7% of the room, where storing every word's position would double the index; leaving
-  out the general words saves about 20%. Simple English: 42.6 MB before, 39.7 MB now.
+  5% of the room, where storing every word's position would double the index; leaving
+  out the general words saves about 15%. Plurals follow their singular ("vegetables"
+  is kept with "vegetable"), a word that is the title of an article of its own is kept
+  if titles use it now and then ("platinum", "stomach"), common numbers other than years
+  are left out (they are found in pairs: "apollo 11", "windows 10"), and so are rare
+  words in other scripts in wikis written in Latin letters and rare letter-and-digit
+  codes. Titles are kept compressed (half the room). Simple English: 48.9 MB before
+  these changes, 37.6 MB now.
+- **Building it** reads every article once: decompressing (about a third of the time),
+  turning wikitext into text and splitting it into words. Simple English takes 24 s on
+  4 cores (56 s before the regular expressions were replaced by scanners, the XML
+  reader by one for dump pages, and the memory limit set high enough for the collector
+  to rest); English about 30–45 minutes on a laptop. Before it starts, NABU times a
+  few seconds of the work and says how long it will take.
 - **How search inside articles ranks.** Every searched word must be in an article.
   Rare words count more than common ones, and a word counts more the more often it is
   in an article, but less in a long one (BM25), so lists and long overviews do not win

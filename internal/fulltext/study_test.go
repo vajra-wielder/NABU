@@ -298,7 +298,7 @@ func TestStudySize(t *testing.T) {
 		sec := ix.Sections()
 		dirBytes := ix.docsOff - ix.dictOff[len(ix.dictOff)-1]
 		r.f("parts: postings %s, dictionary %s (+ directory %s), articles %s, places %d",
-			mb(sec["postings"]), mb(sec["dictionary"]), mb(dirBytes), mb(sec["docs"]), len(ix.geo))
+			mb(sec["postings"]), mb(sec["dictionary"]), mb(dirBytes), mb(sec["docs"]), ix.Meta.Geo)
 
 		// Postings by how many articles a word is in.
 		type band struct {
@@ -1020,16 +1020,30 @@ func TestStudyVocab(t *testing.T) {
 			df uint32
 		}
 		var dropped []gw
-		var keptSample []string
-		wordDF := map[string]uint32{}
+		var keptSample, rescued []string
+		// one-word titles of articles (the study cannot tell disambiguation
+		// pages without reading them: it counts them too)
+		one := map[string]bool{}
+		for d := 0; d < ix.Meta.Docs; d++ {
+			doc, _ := ix.Doc(uint32(d))
+			var tw []string
+			Tokenize(doc.Title, func(w string) { tw = append(tw, w) })
+			if len(tw) == 1 {
+				one[tw[0]] = true
+			}
+		}
+		v := newVocab(lang, one)
 		allRows(t, ix, func(row dictRow) {
 			all += int64(row.size)
 			if row.df < many || strings.HasPrefix(row.term, phraseMark) {
 				return
 			}
 			common++
-			wordDF[row.term] = row.df
-			if keepWord(row.term, lang, row.df, inTitles[row.term]) {
+			c := v.word(row.term, row.df, inTitles[row.term])
+			if c == kept && classify(row.term, lang, row.df, inTitles[row.term]) == general && len(rescued) < 150 {
+				rescued = append(rescued, row.term)
+			}
+			if c != general {
 				if common%97 == 0 && len(keptSample) < 80 {
 					keptSample = append(keptSample, row.term)
 				}
@@ -1055,6 +1069,7 @@ func TestStudyVocab(t *testing.T) {
 		}
 		r.f("  some rarer general words: %s", strings.Join(line, " "))
 		r.f("  some common words kept: %s", strings.Join(keptSample, " "))
+		r.f("  kept as forms of kept words: %s", strings.Join(rescued, " "))
 
 		// Pairs, on a sample.
 		phrases := titlePhrases(b.rd.Index, ix.rules)
@@ -1101,8 +1116,7 @@ func TestStudyVocab(t *testing.T) {
 		for k, n := range pairDF {
 			ab := strings.SplitN(k, " ", 2)
 			est := float64(n) * scale
-			da, db := float64(wordDF[ab[0]]), float64(wordDF[ab[1]])
-			if est >= minPhraseDocs && da > 0 && db > 0 && 2*est <= da && 2*est <= db {
+			if v.pair(ab[0], ab[1], uint32(est)) {
 				kept = append(kept, gw{k, uint32(est)})
 				posts += est
 			}
@@ -1115,8 +1129,59 @@ func TestStudyVocab(t *testing.T) {
 			}
 			line = append(line, k.w)
 		}
-		r.f("  pairs of words from %d titles: about %d indexed, adding about %.0f postings (%.1f%% more)", len(phrases), len(kept), posts, 100*posts/float64(ix.Meta.Postings))
+		r.f("  pairs of words from %d titles: about %d indexed, adding about %.0f postings (%.1f%% more)", len(phrases.h), len(kept), posts, 100*posts/float64(ix.Meta.Postings))
 		r.f("  the commonest: %s", strings.Join(line, ", "))
+		r.save(b.files.DB)
+	}
+}
+
+// TestStudyTitles measures the article table written as format 4 does
+// (titles compressed by blocks with a dictionary of title words) on the
+// index's own titles, and how long a block takes to read back.
+func TestStudyTitles(t *testing.T) {
+	for _, b := range studyBooks(t) {
+		r := &report{t: t, name: "titles"}
+		ix := b.ix
+		tw := titleWords{}
+		var all []Doc
+		var raw int64
+		for d := 0; d < ix.Meta.Docs; d++ {
+			doc, err := ix.Doc(uint32(d))
+			if err != nil {
+				t.Fatal(err)
+			}
+			tw.add(uint32(d), doc.Title)
+			all = append(all, doc)
+			raw += int64(len(doc.Title))
+		}
+		dict := tw.dict()
+		var size int64
+		var blk []byte
+		var sample [][]byte
+		for i := 0; i < len(all); i += docBlock {
+			j := i + docBlock
+			if j > len(all) {
+				j = len(all)
+			}
+			var err error
+			if blk, err = encodeDocBlock(blk[:0], all[i:j], dict); err != nil {
+				t.Fatal(err)
+			}
+			size += int64(len(blk))
+			if (i/docBlock)%97 == 0 && len(sample) < 200 {
+				sample = append(sample, append([]byte(nil), blk...))
+			}
+		}
+		start := time.Now()
+		for _, s := range sample {
+			if _, ok := decodeDocBlock(s, docBlock, true, dict); !ok {
+				t.Fatal("a block does not read back")
+			}
+		}
+		per := time.Since(start) / time.Duration(len(sample))
+		was := ix.Sections()["docs"]
+		r.f("%s: article table %s (titles %s); written as format 4: %s (%+.0f%%), a block of %d read in %s",
+			b.files.Key(), mb(was), mb(raw), mb(size), 100*float64(size-was)/float64(was), docBlock, per.Round(time.Microsecond))
 		r.save(b.files.DB)
 	}
 }

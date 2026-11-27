@@ -36,7 +36,7 @@ end (also kept in `.work/setup-log.txt` on the drive):
 | 1. Check the connection | seconds | seconds |
 | 2. Download to the computer, write to the drive without the pages NABU never shows | download: ~1 h at 50 Mbit/s, ~6 h at 10 Mbit/s; writing: ~2 h | download depends on the line; writing 1 min |
 | 3. Title index | ~15 min | 1 s |
-| 4. Search inside articles | 2 h 24 min (measured, Windows laptop) | 56 s |
+| 4. Search inside articles | 2 h 24 min before the build was made faster; now about 30–45 min (timed before it starts) | 24 s |
 | 5. Essentials with pictures | ~5–15 min (about 2,000 pictures, fetched in batches) | finding the pictures 3 s; saving the articles 5 s |
 | 6. Main pictures | started; ~1 week of NABU running online, longest articles first | — |
 

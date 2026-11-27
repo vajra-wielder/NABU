@@ -84,8 +84,8 @@ func Extract(title, src string, site *dump.Siteinfo) *PageData {
 	d := &PageData{Title: title, Links: []string{}, Categories: []string{}, Templates: []string{},
 		Coordinates: []Coord{}, Infoboxes: []Infobox{}, Tables: []string{}, Media: []string{}, Glossary: []GlossaryTerm{}}
 	x := &extractor{site: site, d: d, seen: map[string]map[string]bool{}}
-	src = commentRe.ReplaceAllString(src, "")
-	src = refBlockRe.ReplaceAllString(src, " ")
+	src = dropComments(src)
+	src = dropRefs(src)
 	x.templates(src, 0)
 	x.links(src)
 	x.tables(src)
@@ -254,8 +254,7 @@ func plain(s string) string {
 // markup, references or tags: what full-text search indexes. site may
 // be nil for fragments.
 func PlainText(src string, site *dump.Siteinfo) string {
-	s := commentRe.ReplaceAllString(src, "")
-	s = refBlockRe.ReplaceAllString(s, " ")
+	s := dropRefs(dropComments(src))
 	// Templates go entirely (infoboxes, navigation, citations).
 	var b strings.Builder
 	for {
@@ -304,11 +303,11 @@ func PlainText(src string, site *dump.Siteinfo) string {
 	}
 	s = b.String()
 	s = extLabelRe.ReplaceAllString(s, "$1")
-	s = bareURLText.ReplaceAllString(s, " ")
-	s = tableMarkRe.ReplaceAllString(s, " ")
-	s = cellAttrRe.ReplaceAllString(s, "$1 ")
+	s = dropBareURLs(s)
+	s = dropTableMarks(s)
+	s = dropCellAttrs(s)
 	s = tagStripRe.ReplaceAllString(s, " ")
-	s = headEqRe.ReplaceAllString(s, " ")
+	s = dropHeadingMarks(s)
 	s = quoteRunRe.ReplaceAllString(s, "")
 	s = magicWordRe.ReplaceAllString(s, " ")
 	return html.UnescapeString(s)

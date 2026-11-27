@@ -144,7 +144,7 @@ var (
 // tags, references and templates.
 func (r *renderer) prepare(src string) string {
 	src = strings.ReplaceAll(src, "\r\n", "\n")
-	src = commentRe.ReplaceAllString(src, "")
+	src = dropComments(src)
 	if strings.Contains(src, "__NOTOC__") {
 		r.noTOC = true
 	}

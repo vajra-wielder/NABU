@@ -47,7 +47,7 @@ const (
 	dictBlock     = 128
 	docBlock      = 128
 	ftsTrailer    = 7*8 + 8
-	FormatVersion = 3
+	FormatVersion = 4
 )
 
 // buildVersion is the format Build writes: FormatVersion, or 2 in tests
@@ -61,11 +61,13 @@ type Meta struct {
 	Terms     int           `json:"terms"`
 	Geo       int           `json:"geo"`
 	Lang      string        `json:"lang"`
-	Stopwords []string      `json:"stopwords"` // the language's little words, and any word in over 40% of articles: not indexed
-	Capital   []string      `json:"capital"`   // little words still indexed when capitalised ("May")
-	Common    []string      `json:"common"`    // the words dropped for being in over 40% of articles
-	General   []string      `json:"general"`   // common words that name nothing, not indexed (vocab.go)
-	Phrases   int           `json:"phrases"`   // pairs of words indexed as one
+	Stopwords []string      `json:"stopwords"`            // the language's little words, and any word in over 40% of articles: not indexed
+	Capital   []string      `json:"capital"`              // little words still indexed when capitalised ("May")
+	Common    []string      `json:"common"`               // the words dropped for being in over 40% of articles
+	General   []string      `json:"general"`              // common words that name nothing, not indexed (vocab.go)
+	Phrases   int           `json:"phrases"`              // pairs of words indexed as one
+	Noise     int           `json:"noise"`                // rare words of no use to search, not indexed (vocab.go)
+	TitleDict []byte        `json:"title_dict,omitempty"` // format 4: the dictionary of the compressed titles
 	Postings  int64         `json:"postings"`
 	AvgLen    float64       `json:"avg_len,omitempty"`  // words in an average article (format 3)
 	LensOff   int64         `json:"lens_off,omitempty"` // where the lengths are (format 3)
@@ -86,12 +88,13 @@ type Options struct {
 }
 
 type docOut struct {
-	stream uint32
-	pageID uint64
-	title  string
-	length uint32 // words indexed, title words counted thrice
-	terms  []termTF
-	coord  *wikitext.Coord
+	stream  uint32
+	pageID  uint64
+	title   string
+	length  uint32 // words indexed, title words counted thrice
+	oneWord string // the title, when it is one word and not a disambiguation page
+	terms   []termTF
+	coord   *wikitext.Coord
 }
 
 type termTF struct {
@@ -124,12 +127,17 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 	if opt.MemBudget <= 0 {
 		opt.MemBudget = 128 << 20
 	}
-	prev := debug.SetMemoryLimit(int64(opt.MemBudget)*2 + 96<<20)
+	// The postings held before a spill take about twice their budget in
+	// Go's memory (maps, slices growing), and the workers' articles more:
+	// a limit below that keeps the collector running all the time (that
+	// was half of a build's time on English, 2 h 24 min instead of about
+	// 1 h). The limit is a ceiling for the rare peaks, not a target.
+	prev := debug.SetMemoryLimit(int64(opt.MemBudget)*5 + 512<<20)
 	defer debug.SetMemoryLimit(prev)
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
 		return err
 	}
-	b := &ftsBuilder{tmp: tmpDir, budget: opt.MemBudget, batch: map[string][]posting{}}
+	b := &ftsBuilder{tmp: tmpDir, budget: opt.MemBudget, batch: map[string][]posting{}, oneWord: map[string]bool{}, tw: titleWords{}}
 	defer b.cleanup()
 	docsTmp, err := os.Create(filepath.Join(tmpDir, "docs"))
 	if err != nil {
@@ -267,6 +275,11 @@ func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules, lan
 		TokenizeCase(p.Title, add(3)) // title words weigh more
 		TokenizeCase(wikitext.PlainText(withoutBoilerplate(p.Text, lang), site), add(1))
 		d := docOut{stream: s, pageID: p.ID, title: p.Title, terms: make([]termTF, 0, len(counts))}
+		var tw []string
+		Tokenize(p.Title, func(w string) { tw = append(tw, w) })
+		if len(tw) == 1 && !isDisambiguation(p.Text) {
+			d.oneWord = tw[0]
+		}
 		for t, c := range counts {
 			if !strings.HasPrefix(t, phraseMark) {
 				d.length += uint32(c)
@@ -302,11 +315,16 @@ type ftsBuilder struct {
 	geo     []geoRec
 	lens    []byte
 	words   int64
+	tw      titleWords // title words, for the dictionary of the titles
 
 	lastStream uint32 // previous article in the block
 	lastID     uint64
 
 	lang string
+
+	flushing chan error // the run being written, if any
+
+	oneWord map[string]bool // one-word titles of articles that are not disambiguation pages
 }
 
 func (b *ftsBuilder) addStream(docs []docOut) error {
@@ -329,6 +347,10 @@ func (b *ftsBuilder) addStream(docs []docOut) error {
 		b.docs.Write(tmp[:n])
 		b.docs.WriteString(d.title)
 		b.docPos += uint64(n + len(d.title))
+		if d.oneWord != "" {
+			b.oneWord[d.oneWord] = true
+		}
+		b.tw.add(doc, d.title)
 		b.lens = append(b.lens, lenByte(d.length))
 		b.words += int64(d.length)
 		if d.coord != nil {
@@ -355,17 +377,43 @@ func (b *ftsBuilder) addStream(docs []docOut) error {
 	return nil
 }
 
-// flush writes the batch, sorted by term, as a run file.
+// flush hands the batch to be sorted and written as a run file, in the
+// background: the workers go on reading meanwhile (they used to wait, 90
+// times in a build of English). One run is written at a time.
 func (b *ftsBuilder) flush() error {
+	if err := b.waitFlush(); err != nil {
+		return err
+	}
 	if len(b.batch) == 0 {
 		return nil
 	}
-	terms := make([]string, 0, len(b.batch))
-	for t := range b.batch {
+	batch := b.batch
+	name := filepath.Join(b.tmp, fmt.Sprintf("run-%04d", len(b.runs)))
+	b.runs = append(b.runs, name)
+	b.batch = map[string][]posting{}
+	b.mem = 0
+	done := make(chan error, 1)
+	b.flushing = done
+	go func() { done <- writeRun(name, batch) }()
+	return nil
+}
+
+// waitFlush waits for the run being written, if any.
+func (b *ftsBuilder) waitFlush() error {
+	if b.flushing == nil {
+		return nil
+	}
+	err := <-b.flushing
+	b.flushing = nil
+	return err
+}
+
+func writeRun(name string, batch map[string][]posting) error {
+	terms := make([]string, 0, len(batch))
+	for t := range batch {
 		terms = append(terms, t)
 	}
 	sort.Strings(terms)
-	name := filepath.Join(b.tmp, fmt.Sprintf("run-%04d", len(b.runs)))
 	f, err := os.Create(name)
 	if err != nil {
 		return err
@@ -373,7 +421,7 @@ func (b *ftsBuilder) flush() error {
 	w := bufio.NewWriterSize(f, 1<<20)
 	var tmp [binary.MaxVarintLen64]byte
 	for _, t := range terms {
-		list := b.batch[t]
+		list := batch[t]
 		w.Write(tmp[:binary.PutUvarint(tmp[:], uint64(len(t)))])
 		w.WriteString(t)
 		w.Write(tmp[:binary.PutUvarint(tmp[:], uint64(len(list)))])
@@ -386,16 +434,11 @@ func (b *ftsBuilder) flush() error {
 		f.Close()
 		return friendly(err)
 	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	b.runs = append(b.runs, name)
-	b.batch = map[string][]posting{}
-	b.mem = 0
-	return nil
+	return f.Close()
 }
 
 func (b *ftsBuilder) cleanup() {
+	b.waitFlush()
 	for _, r := range b.runs {
 		os.Remove(r)
 	}
@@ -451,6 +494,9 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 	if err := b.flush(); err != nil {
 		return err
 	}
+	if err := b.waitFlush(); err != nil {
+		return err
+	}
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -488,7 +534,7 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 	var dict []dictEntry
 	common := uint32(meta.Docs * 2 / 5)
 	many := minCommonDocs(meta.Docs)
-	wordDF := map[string]uint32{} // of the common words, for the pairs
+	words := newVocab(b.lang, b.oneWord) // the common words, for the pairs
 	var docs []posting
 	var list []byte
 	for h.Len() > 0 {
@@ -524,11 +570,14 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 				docs[i].tf &^= inTitle
 			}
 		}
+		if rareNoise(term, b.lang, df) {
+			meta.Noise++
+			continue
+		}
 		if strings.HasPrefix(term, phraseMark) {
 			// A pair of common words, narrowing them down by half.
 			ab := strings.SplitN(term[len(phraseMark):], " ", 2)
-			da, db := wordDF[ab[0]], wordDF[ab[1]]
-			if len(ab) != 2 || df < minPhraseDocs || da == 0 || db == 0 || 2*df > da || 2*df > db {
+			if len(ab) != 2 || !words.pair(ab[0], ab[1], df) {
 				continue
 			}
 			meta.Phrases++
@@ -538,8 +587,7 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 				continue
 			}
 			if df >= many {
-				wordDF[term] = df
-				if !keepWord(term, b.lang, df, titleDocs) {
+				if words.word(term, df, titleDocs) == general {
 					meta.General = append(meta.General, term)
 					continue
 				}
@@ -589,22 +637,61 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 		write([]byte(blockFirst[i]))
 	}
 
-	// Documents: copy the temporary table and its block offsets.
+	// Documents: the temporary table and its block offsets, as it is
+	// (formats 2 and 3) or with the titles compressed (format 4).
 	docsOff := pos
 	if _, err := docsTmp.Seek(0, io.SeekStart); err != nil {
 		return err
 	}
-	if err := w.Flush(); err != nil {
-		return friendly(err)
+	offs := b.docOffs
+	if buildVersion >= 4 {
+		meta.TitleDict = b.tw.dict()
+		offs = offs[:0:0]
+		r := bufio.NewReaderSize(docsTmp, 1<<20)
+		var blk []byte
+		docs := make([]Doc, 0, docBlock)
+		for n := 0; n < meta.Docs; n += docBlock {
+			k := meta.Docs - n
+			if k > docBlock {
+				k = docBlock
+			}
+			docs = docs[:0]
+			var stream, id uint64
+			for i := 0; i < k; i++ {
+				ds, e1 := binary.ReadUvarint(r)
+				did, e2 := binary.ReadVarint(r)
+				l, e3 := binary.ReadUvarint(r)
+				if e1 != nil || e2 != nil || e3 != nil {
+					return errors.New("fulltext: article table cut short")
+				}
+				t := make([]byte, l)
+				if _, err := io.ReadFull(r, t); err != nil {
+					return err
+				}
+				stream += ds
+				id = uint64(int64(id) + did)
+				docs = append(docs, Doc{Stream: uint32(stream), PageID: id, Title: string(t)})
+			}
+			var err error
+			if blk, err = encodeDocBlock(blk[:0], docs, meta.TitleDict); err != nil {
+				return err
+			}
+			offs = append(offs, uint64(pos-docsOff))
+			write(blk)
+		}
+	} else {
+		if err := w.Flush(); err != nil {
+			return friendly(err)
+		}
+		n, err := io.Copy(f, docsTmp)
+		if err != nil {
+			return friendly(err)
+		}
+		pos += n
 	}
-	n, err := io.Copy(f, docsTmp)
-	if err != nil {
-		return friendly(err)
-	}
-	pos += n
 	docDirOff := pos
-	uv(uint64(len(b.docOffs)))
-	for _, o := range b.docOffs {
+	uv(uint64(len(offs)))
+	for _, o := range offs {
 		uv(o)
 	}
 
@@ -711,5 +798,5 @@ func Estimate(rd *dump.Reader, d time.Duration) (time.Duration, bool) {
 	site := rd.Site()
 	lang := Lang(rd.Files.DB, site)
 	rules := NewRules(Stopwords(lang), CapitalNames(lang))
-	return MeasureBuild(rd.Index, func(s uint32) { scanStream(rd, site, s, rules, lang, nil) }, 0, d)
+	return MeasureBuild(rd.Index, func(s uint32) { scanStream(rd, site, s, rules, lang, phraseSet{}) }, 0, d)
 }

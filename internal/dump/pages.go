@@ -132,12 +132,14 @@ func findPage(data []byte, id uint64) (*Page, error) {
 		if b < 0 || !bytes.Equal(chunk[a+len(idOpen):a+b], want) {
 			continue
 		}
-		var xp xmlPage
-		if err := xml.Unmarshal(chunk, &xp); err != nil {
+		if p, ok := fastPage(chunk); ok {
+			return p, nil
+		}
+		p, err := xmlPageOf(chunk)
+		if err != nil {
 			return nil, fmt.Errorf("dump: page %d: %w", id, err)
 		}
-		return &Page{Title: xp.Title, NS: xp.NS, ID: xp.ID, Redirect: xp.Redirect.Title,
-			Text: xp.Revision.Text, Timestamp: xp.Revision.Timestamp}, nil
+		return p, nil
 	}
 	return nil, errors.New("dump: page missing from its stream (index and dump do not match)")
 }
@@ -262,6 +264,16 @@ func (r *Reader) stream(pair int, start, end int64) ([]byte, error) {
 	return data, nil
 }
 
+// xmlPageOf reads a page with encoding/xml.
+func xmlPageOf(chunk []byte) (*Page, error) {
+	var xp xmlPage
+	if err := xml.Unmarshal(chunk, &xp); err != nil {
+		return nil, err
+	}
+	return &Page{Title: xp.Title, NS: xp.NS, ID: xp.ID, Redirect: xp.Redirect.Title,
+		Text: xp.Revision.Text, Timestamp: xp.Revision.Timestamp}, nil
+}
+
 // ParsePages decodes the <page> elements of decompressed dump XML; an
 // incomplete last page is left out.
 func ParsePages(data []byte) []*Page {
@@ -276,10 +288,10 @@ func ParsePages(data []byte) []*Page {
 		if j < 0 {
 			break
 		}
-		var xp xmlPage
-		if err := xml.Unmarshal(data[:j+len(pageClose)], &xp); err == nil {
-			pages = append(pages, &Page{Title: xp.Title, NS: xp.NS, ID: xp.ID, Redirect: xp.Redirect.Title,
-				Text: xp.Revision.Text, Timestamp: xp.Revision.Timestamp})
+		if p, ok := fastPage(data[:j+len(pageClose)]); ok {
+			pages = append(pages, p)
+		} else if p, err := xmlPageOf(data[:j+len(pageClose)]); err == nil {
+			pages = append(pages, p)
 		}
 		data = data[j+len(pageClose):]
 	}

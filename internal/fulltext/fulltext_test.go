@@ -98,7 +98,7 @@ func TestStopwordsAndJunk(t *testing.T) {
 // Both formats: the current one, and format 2, which NABU still reads
 // (indexes of English take hours to build).
 func TestBuildSearchNearby(t *testing.T) {
-	for _, v := range []int{FormatVersion, 2} {
+	for _, v := range []int{FormatVersion, 3, 2} {
 		t.Run(fmt.Sprintf("format %d", v), func(t *testing.T) {
 			buildVersion = v
 			defer func() { buildVersion = FormatVersion }()
@@ -119,7 +119,7 @@ func checkBuildSearch(t *testing.T, version int) {
 		t.Fatal(err)
 	}
 	defer ix.Close()
-	if ix.Meta.Version != version || (version >= 3) != (ix.lens != nil) {
+	if ix.Meta.Version != version || (version >= 3) != (ix.lens != nil) || (version >= 4) != (len(ix.Meta.TitleDict) > 0) {
 		t.Fatalf("format %d, lengths %v", ix.Meta.Version, ix.lens != nil)
 	}
 	if ix.Meta.Docs < 240 || ix.Meta.Geo != 2 {
@@ -403,12 +403,47 @@ func TestKeepWord(t *testing.T) {
 	if keepWord("poisonous", "fr", 314, 0) {
 		t.Error("survival list applied to French")
 	}
-	s := phraseSet{phraseHash("first", "aid"), phraseHash("silk", "road")}
-	sort.Slice(s, func(i, j int) bool { return s[i] < s[j] })
+	s := newPhraseSet([]uint64{phraseHash("first", "aid"), phraseHash("silk", "road"), phraseHash("first", "aid")})
 	if !s.has("first", "aid") || s.has("aid", "first") || s.has("first", "time") {
 		t.Fatal("phrase set")
 	}
 	if phraseKey("first", "aid") <= "zzzz" {
 		t.Fatal("pairs must sort after every word")
+	}
+}
+
+// The best few are picked as a full sort would.
+func TestBest(t *testing.T) {
+	var cs []cand
+	for i := 0; i < 1000; i++ {
+		cs = append(cs, cand{uint32(i), float64((i * 7919) % 1009)})
+	}
+	all := append([]cand(nil), cs...)
+	sort.Slice(all, func(i, j int) bool { return all[i].score > all[j].score })
+	got := best(append([]cand(nil), cs...), 25)
+	for i := range got {
+		if got[i].score != all[i].score {
+			t.Fatalf("#%d: %v, want %v", i, got[i], all[i])
+		}
+	}
+	if len(best(cs[:3], 25)) != 3 || len(best(cs, 0)) != 0 {
+		t.Fatal("sizes")
+	}
+}
+
+func TestRareNoise(t *testing.T) {
+	for _, c := range []struct {
+		w    string
+		lang string
+		df   uint32
+		want bool
+	}{
+		{"02ee", "en", 1, true}, {"1656a", "en", 2, true}, {"a1200", "en", 3, false},
+		{"москва", "en", 1, true}, {"москва", "ru", 1, false}, {"москва", "en", 5, false},
+		{"zürich", "en", 1, false}, {"bevistock", "en", 1, false}, {"1876", "en", 1, false},
+	} {
+		if got := rareNoise(c.w, c.lang, c.df); got != c.want {
+			t.Errorf("rareNoise(%q, %s, %d) = %v", c.w, c.lang, c.df, got)
+		}
 	}
 }

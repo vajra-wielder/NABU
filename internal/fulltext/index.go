@@ -29,11 +29,15 @@ type Index struct {
 	docsOff  int64
 	docOffs  []uint64
 	docsEnd  int64
-	geo      []geoRec
+	geo      []geoRec // places (read when first asked for)
+	geoOnce  sync.Once
+	geoOff   int64
+	geoEnd   int64
 	lens     []byte // format 3: each article's length (lenByte)
 
-	mu    sync.Mutex
-	cache map[int][]dictRow
+	mu       sync.Mutex
+	cache    map[int][]dictRow
+	docCache map[int][]Doc
 }
 
 type dictRow struct {
@@ -51,7 +55,7 @@ func Open(path string, f *dump.Files) (*Index, error) {
 	if err != nil {
 		return nil, err
 	}
-	ix := &Index{f: file, cache: map[int][]dictRow{}}
+	ix := &Index{f: file, cache: map[int][]dictRow{}, docCache: map[int][]Doc{}}
 	if err := ix.load(); err != nil {
 		file.Close()
 		return nil, err
@@ -93,7 +97,7 @@ func (ix *Index) load() error {
 		o[i] = int64(binary.LittleEndian.Uint64(tr[i*8:]))
 	}
 	dictOff, dirOff, docsOff, docDirOff, geoOff, metaOff := o[0], o[1], o[2], o[3], o[4], o[5]
-	if (o[6] != FormatVersion && o[6] != 2) || !(dictOff <= dirOff && dirOff <= docsOff && docsOff <= docDirOff && docDirOff <= geoOff && geoOff <= metaOff && metaOff <= size-ftsTrailer) {
+	if (o[6] > FormatVersion || o[6] < 2) || !(dictOff <= dirOff && dirOff <= docsOff && docsOff <= docDirOff && docDirOff <= geoOff && geoOff <= metaOff && metaOff <= size-ftsTrailer) {
 		return ErrStale
 	}
 	mb := make([]byte, size-ftsTrailer-metaOff)
@@ -150,25 +154,36 @@ func (ix *Index) load() error {
 	for i := uint64(0); i < n; i++ {
 		v, err := binary.ReadUvarint(r)
 		if err != nil {
-			return ErrStale
+			return stale(err)
 		}
 		ix.docOffs = append(ix.docOffs, v)
 	}
-	r = bufio.NewReader(io.NewSectionReader(ix.f, geoOff, metaOff-geoOff))
-	n, err = binary.ReadUvarint(r)
-	if err != nil {
-		return stale(err)
-	}
-	ix.geo = make([]geoRec, 0, n)
-	var g [12]byte
-	for i := uint64(0); i < n; i++ {
-		if _, err := io.ReadFull(r, g[:]); err != nil {
-			return stale(err)
-		}
-		ix.geo = append(ix.geo, geoRec{binary.LittleEndian.Uint32(g[0:]),
-			math.Float32frombits(binary.LittleEndian.Uint32(g[4:])), math.Float32frombits(binary.LittleEndian.Uint32(g[8:]))})
-	}
+	// The places are read when first asked for (English has 1.3 million,
+	// 16 MB to read from the drive at every start otherwise).
+	ix.geoOff, ix.geoEnd = geoOff, metaOff
 	return nil
+}
+
+// places reads the articles' locations, once.
+func (ix *Index) places() []geoRec {
+	ix.geoOnce.Do(func() {
+		r := bufio.NewReader(io.NewSectionReader(ix.f, ix.geoOff, ix.geoEnd-ix.geoOff))
+		n, err := binary.ReadUvarint(r)
+		if err != nil {
+			return
+		}
+		geo := make([]geoRec, 0, n)
+		var g [12]byte
+		for i := uint64(0); i < n; i++ {
+			if _, err := io.ReadFull(r, g[:]); err != nil {
+				return
+			}
+			geo = append(geo, geoRec{binary.LittleEndian.Uint32(g[0:]),
+				math.Float32frombits(binary.LittleEndian.Uint32(g[4:])), math.Float32frombits(binary.LittleEndian.Uint32(g[8:]))})
+		}
+		ix.geo = geo
+	})
+	return ix.geo
 }
 
 // stale tells an index that is cut short or garbled (ErrStale: it goes)
@@ -295,42 +310,42 @@ type Doc struct {
 
 // Doc reads article n.
 func (ix *Index) Doc(n uint32) (Doc, error) {
-	blk := int(n / docBlock)
-	if blk >= len(ix.docOffs) {
-		return Doc{}, errors.New("fulltext: no such document")
-	}
-	end := ix.docsEnd
-	if blk+1 < len(ix.docOffs) {
-		end = ix.docsOff + int64(ix.docOffs[blk+1])
-	}
-	start := ix.docsOff + int64(ix.docOffs[blk])
-	buf := make([]byte, end-start)
-	if _, err := ix.f.ReadAt(buf, start); err != nil {
+	docs, err := ix.docsOf(int(n / docBlock))
+	if err != nil {
 		return Doc{}, err
 	}
-	r := bytes.NewReader(buf)
-	var stream, id uint64
-	for i := uint32(0); ; i++ {
-		ds, e1 := binary.ReadUvarint(r)
-		did, e2 := binary.ReadVarint(r)
-		l, e3 := binary.ReadUvarint(r)
-		if e1 != nil || e2 != nil || e3 != nil || int(l) > r.Len() {
-			return Doc{}, ErrStale
-		}
-		stream += ds
-		id = uint64(int64(id) + did)
-		if uint32(blk)*docBlock+i == n {
-			t := make([]byte, l)
-			r.Read(t)
-			return Doc{Stream: uint32(stream), PageID: id, Title: string(t)}, nil
-		}
-		r.Seek(int64(l), io.SeekCurrent)
+	if i := int(n % docBlock); i < len(docs) {
+		return docs[i], nil
 	}
+	return Doc{}, errors.New("fulltext: no such document")
 }
 
-// docBlock reads block blk of the article table: its first article's
-// number, and each article's stream, page and title.
+// docBlock calls fn with each article of block blk of the article table
+// (its number, stream, page and title) until fn returns false.
 func (ix *Index) docBlock(blk int, fn func(n uint32, stream uint32, id uint64, title []byte) bool) error {
+	docs, err := ix.docsOf(blk)
+	if err != nil {
+		return err
+	}
+	for i, d := range docs {
+		if !fn(uint32(blk*docBlock+i), d.Stream, d.PageID, []byte(d.Title)) {
+			return nil
+		}
+	}
+	return nil
+}
+
+// docsOf reads block blk of the article table, kept for the next time.
+func (ix *Index) docsOf(blk int) ([]Doc, error) {
+	if blk < 0 || blk >= len(ix.docOffs) {
+		return nil, errors.New("fulltext: no such document")
+	}
+	ix.mu.Lock()
+	if d, ok := ix.docCache[blk]; ok {
+		ix.mu.Unlock()
+		return d, nil
+	}
+	ix.mu.Unlock()
 	end := ix.docsEnd
 	if blk+1 < len(ix.docOffs) {
 		end = ix.docsOff + int64(ix.docOffs[blk+1])
@@ -338,31 +353,23 @@ func (ix *Index) docBlock(blk int, fn func(n uint32, stream uint32, id uint64, t
 	start := ix.docsOff + int64(ix.docOffs[blk])
 	buf := make([]byte, end-start)
 	if _, err := ix.f.ReadAt(buf, start); err != nil {
-		return err
+		return nil, err
 	}
-	var stream, id uint64
-	for i, n := 0, uint32(blk)*docBlock; i < len(buf); n++ {
-		ds, k1 := binary.Uvarint(buf[i:])
-		if k1 <= 0 {
-			return ErrStale
-		}
-		did, k2 := binary.Varint(buf[i+k1:])
-		if k2 <= 0 {
-			return ErrStale
-		}
-		l, k3 := binary.Uvarint(buf[i+k1+k2:])
-		i += k1 + k2 + k3
-		if k3 <= 0 || i+int(l) > len(buf) {
-			return ErrStale
-		}
-		stream += ds
-		id = uint64(int64(id) + did)
-		if !fn(n, uint32(stream), id, buf[i:i+int(l)]) {
-			return nil
-		}
-		i += int(l)
+	n := ix.Meta.Docs - blk*docBlock
+	if n > docBlock {
+		n = docBlock
 	}
-	return nil
+	docs, ok := decodeDocBlock(buf, n, ix.Meta.Version >= 4, ix.Meta.TitleDict)
+	if !ok {
+		return nil, ErrStale
+	}
+	ix.mu.Lock()
+	if len(ix.docCache) >= 4096 {
+		ix.docCache = map[int][]Doc{}
+	}
+	ix.docCache[blk] = docs
+	ix.mu.Unlock()
+	return docs, nil
 }
 
 // DocOf finds the number of the article at page id in stream. Articles
@@ -418,7 +425,8 @@ func (ix *Index) Nearby(lat, lon float64, limit int, skipTitle string) ([]Place,
 		km float64
 	}
 	var best []cand
-	for i, g := range ix.geo {
+	geo := ix.places()
+	for i, g := range geo {
 		km := haversine(lat, lon, float64(g.lat), float64(g.lon))
 		if len(best) < limit+1 || km < best[len(best)-1].km {
 			best = append(best, cand{i, km})
@@ -430,7 +438,7 @@ func (ix *Index) Nearby(lat, lon float64, limit int, skipTitle string) ([]Place,
 	}
 	var out []Place
 	for _, c := range best {
-		g := ix.geo[c.i]
+		g := geo[c.i]
 		d, err := ix.Doc(g.doc)
 		if err != nil {
 			return nil, err

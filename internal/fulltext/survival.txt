@@ -78,3 +78,9 @@ diagnosis diagnose recovery recover heal healing healed care caring nurse nursin
 emergency surgery operation amputation amputate sterilization keep keeping protect protection protective
 mask masks gloves goggles helmet boots clothing clothes layers wet dry warm cool cooling shade
 help helping signal rescue lost
+
+# the body
+body head face eye eyes ear ears nose mouth teeth tooth tongue throat neck chest breast lung lungs
+heart stomach belly abdomen liver kidney kidneys bladder bowel intestine skin hair nail bone bones skull
+spine back shoulder arm arms elbow wrist hand hands finger fingers thumb hip leg legs knee ankle foot feet toe
+toes muscle muscles joint joints tendon ligament nerve nerves vein artery brain blood
