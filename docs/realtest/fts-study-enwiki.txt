@@ -1,0 +1,168 @@
+== size ==
+(2026-11-26 20:02Z, windows/amd64, 8 CPUs)
+enwiki-20261101: index 2538.0 MB for a dump of 24478.2 MB (10.4%), 7259919 articles, 11322519 words, 1407701782 postings
+parts: postings 2275.7 MB, dictionary 76.6 MB (+ directory 1.3 MB), articles 168.0 MB, places 1344313
+words by how many articles they are in:
+  articles            words     postings        bytes  B/post
+  1-1               6071084      6071084      23.5 MB    3.86
+  2-2               1555721      3111442      11.6 MB    3.73
+  3-4               1205725      4072546      14.6 MB    3.60
+  5-16              1434024     12132107      40.2 MB    3.32
+  17-256             894181     52063433     147.7 MB    2.84
+  257-4096           133458    123481213     289.6 MB    2.35
+  4097-65536          24490    378853933     692.0 MB    1.83
+  65537-more           3836    827916024    1056.4 MB    1.28
+weights (once/twice/3-5/more): 70.5% 14.8% 10.1% 4.6%, 1.30 bits of information each (2 kept)
+the postings written other ways:
+  now: varint of delta<<2|tf                                        2275.7 MB    +0.0%
+  varint deltas, tf 2 bits packed apart                             2296.2 MB    +0.9%
+  blocks of 128 packed to the widest (FOR), tf 2 bits               2133.6 MB    -6.2%
+  blocks of 128, width chosen with exceptions (PFOR), tf 2 bits     2026.3 MB   -11.0%
+  Elias-Fano, tf 2 bits                                             1962.5 MB   -13.8%
+  best of varint/PFOR/EF per list, tf 2 bits                        1955.6 MB   -14.1%
+  best per list, tf 1 bit (once / more often)                       1781.3 MB   -21.7%
+  best per list, tf in 1-3 bits (once: 1 bit)                       1858.7 MB   -18.3%
+  varint or Elias-Fano per list, tf in 1-3 bits                     1860.4 MB   -18.2%
+  as now under 16 articles, else varint/Elias-Fano + tf 1-3 bits    1848.1 MB   -18.8%
+  best per list, no tf at all                                       1597.1 MB   -29.8%
+dictionary: 11322519 words, 99.3 MB of letters (8.8 a word); with digits 747280 (494952 in one article only); over 15 letters 294717; not Latin letters 1128586
+  some words in one article only: 00kw 03º10 060dp01 0726e4 07ml 091621a 0x004 0x530 0xf89 100jahr 107й 10dbv 10t2g 1116x 118ah 11h38 12t044 133were 137vb 14247t 14flr40 150ev 154gwh 159dr 1631s 168b1 16no 1720mm 17were 183b34 1886ve2u 18qe 1920p91 1956q 1ccc3c2 1d634 1e2u3im 1f4a3 1fssr 1lbms 1x7a0645 2008t34 2014bu 20x32pdr 21c163 227vc 22v3 2465dms 24r364 2533beon 26bd 2871gen 29uj 2fi13243 2nolu 2sad 2x11a 2мех 303gb 31ˀ
+  the commonest words still indexed (in % of articles, bytes): first 38.5% 2.8 MB, one 34.8% 2.5 MB, two 31.8% 2.3 MB, new 30.2% 2.2 MB, see 27.4% 2.0 MB, born 26.9% 2.0 MB, time 26.1% 1.9 MB, year 25.0% 1.8 MB, history 22.8% 1.7 MB, later 22.2% 1.6 MB, three 22.1% 1.6 MB, known 22.0% 1.6 MB, years 21.8% 1.6 MB, national 21.4% 1.6 MB, part 21.0% 1.5 MB, 10 20.7% 1.5 MB, american 20.5% 1.5 MB, second 19.8% 1.4 MB, including 19.7% 1.4 MB, early 19.6% 1.4 MB, made 19.6% 1.4 MB, world 19.5% 1.4 MB, life 19.1% 1.4 MB, united 18.5% 1.4 MB, following 18.3% 1.3 MB, became 18.3% 1.3 MB, family 17.8% 1.3 MB, 12 17.7% 1.3 MB, name 17.6% 1.3 MB, well 17.5% 1.3 MB, career 17.0% 1.2 MB, city 16.9% 1.2 MB, 20 16.7% 1.2 MB, 15 16.7% 1.2 MB, may 16.5% 1.2 MB, south 16.4% 1.2 MB, state 16.3% 1.2 MB, 11 16.3% 1.2 MB, states 16.2% 1.2 MB, march 16.1% 1.2 MB, university 16.0% 1.2 MB, four 16.0% 1.2 MB, list 15.8% 1.2 MB, september 15.8% 1.2 MB, june 15.8% 1.2 MB, people 15.7% 1.2 MB, october 15.7% 1.2 MB, january 15.7% 1.2 MB, july 15.5% 1.1 MB, august 15.3% 1.1 MB, several 15.3% 1.1 MB, many 15.3% 1.1 MB, april 15.2% 1.1 MB, school 15.2% 1.1 MB, 14 15.1% 1.1 MB, used 15.1% 1.1 MB, 16 15.0% 1.1 MB, former 15.0% 1.1 MB, 13 15.0% 1.1 MB, high 15.0% 1.1 MB
+  dropped as in over 40% of articles: external links references
+articles: 168.0 MB, of which titles 145.9 MB (20.1 bytes a title)
+== search ==
+(2026-11-26 20:03Z, windows/amd64, 8 CPUs)
+enwiki-20261101: each query twice (the second with the file in the computer's memory); times in milliseconds
+  query                             matches  lists   dict   lists   merge  titles  search snip1by1   snip||
+  theory of relativity (1st)           3575 152955    0.7     3.1     2.0    10.4    45.4    465.6     63.5
+  theory of relativity                 3575 152955    0.0     2.6     0.0    18.8    41.6    479.3     53.9
+  largest desert (1st)                11836 407210    3.0    13.9     8.3    13.3    41.7    540.6     52.3
+  largest desert                      11836 407210    0.0    10.9    10.4     5.9    38.3    496.7     51.5
+  invented the telephone (1st)         1877  86857    4.4     0.6     0.0    10.7    28.5    532.4     77.3
+  invented the telephone               1877  86857    0.0     0.0     0.0    20.5    14.3    538.1     59.7
+  capital of Mongolia (1st)            3120 308787    1.2     0.7     9.1     2.6    40.9    611.2     63.8
+  capital of Mongolia                  3120 308787    0.0     2.6     0.0    15.1    28.3    575.5     74.2
+  boiling point of water (1st)         2809 972561    3.0    22.9     5.2    10.5    83.9    607.5     59.2
+  boiling point of water               2809 972561    0.0    26.3     2.0     9.6    88.8    670.8     59.3
+  first moon landing (1st)             5390 2976058    0.0    69.0     7.1     3.2   121.7    784.8    126.0
+  first moon landing                   5390 2976058    0.0    52.9    12.7     6.7   123.9    703.9     94.3
+  chlorophyll (1st)                    1663   1603    0.0     5.6     0.0     9.3    15.0    326.5     37.4
+  chlorophyll                          1663   1603    0.0     0.0     8.1     7.8    14.1    314.4     58.1
+  migration of birds (1st)             6524 119194    5.6     0.8     4.8    10.3    23.4    534.9     62.2
+  migration of birds                   6524 119194    0.0     3.1     0.0    10.5    29.0    516.2     54.6
+  Silk Road trade (1st)                3086 782569    0.4     9.9     7.7    10.6    51.8    500.7     60.0
+  Silk Road trade                      3086 782569    0.0    17.2     3.7     1.7    59.6    499.5     60.4
+  volcanic eruption (1st)              5797  29954    0.9     1.2     0.0     1.6    23.5    468.1     65.7
+  volcanic eruption                    5797  29954    0.0     1.4     0.0    10.1    17.3    437.0     61.9
+  how to purify water (1st)            1299 434840    0.7    15.3     0.0     7.0    35.2    451.2     63.5
+  how to purify water                  1299 434840    0.0     9.3     0.0     8.1    42.4    441.4     47.9
+  first aid burns (1st)                5725 2965398    2.4    47.8     8.6     9.6   125.2   1036.8    136.1
+  first aid burns                      5725 2965398    0.0    41.7     8.0     7.6   104.5   1171.1    117.5
+  edible wild plants (1st)             1768 271298    2.0     7.6     2.0     5.6    43.6    700.6     86.6
+  edible wild plants                   1768 271298    0.0    14.2     0.0    10.1    39.4    675.1     84.8
+  broken bone splint (1st)               79 184687    6.8     3.3     0.0     0.0    13.4    854.9    142.2
+  broken bone splint                     79 184687    0.0    10.3     0.0     1.7    11.6    813.6    161.4
+  solar eclipse (1st)                  4292  63378    0.0     2.2     0.0     9.3    15.3    553.1     98.7
+  solar eclipse                        4292  63378    0.0     8.1     0.0     8.1    15.2    571.7    113.3
+  world war (1st)                    524032 2275846    6.7    35.4    48.8     9.3   220.3    660.6     84.1
+  world war                          524032 2275846    0.0    31.0    73.6     0.0   187.4    626.4     98.8
+  football club (1st)                251398 1213536    2.0    17.3    28.4     5.2   124.2    425.0     88.7
+  football club                      251398 1213536    0.0    12.1    35.2     6.9   126.5    442.9     49.0
+  united states army (1st)           154384 2929030    4.9    44.5    37.9     4.8   245.4    522.1    139.1
+  united states army                 154384 2929030    0.0    45.5    32.4     5.3   252.2    516.9    126.4
+  US army (1st)                       65593 841315    0.0    15.7    21.2     7.3    69.7   1050.5    109.6
+  US army                             65593 841315    0.0    16.6    16.3     4.8    63.3   1013.3     90.2
+  river (1st)                        559607 514877    1.2     8.6     0.0     7.2    89.2    211.8     60.6
+  river                              559607 514877    0.0     8.1     4.2     9.0    78.6    201.0     45.0
+  village in poland (1st)             67581 794262    0.0    21.3     8.0     9.4    61.2    587.9     66.8
+  village in poland                   67581 794262    0.0    20.7     7.7     7.1    58.0    574.2     75.5
+  american politician (1st)          160486 1912515    0.0    28.9    25.5     5.7   135.5    666.5     95.4
+  american politician                160486 1912515    0.0    37.5    24.4     7.2   117.1    645.6     79.5
+  population census (1st)            243505 879445    0.0    16.7    16.0    10.3    81.2    325.6     51.8
+  population census                  243505 879445    0.0    15.8     5.7    11.4    83.0    314.3     60.8
+  album released (1st)               334691 1230748    1.9    21.6    24.7     3.1   142.7    394.0     54.4
+  album released                     334691 1230748    0.0    15.5    21.2    18.0   139.4    345.9     53.2
+  photosynthesis light reaction (1st)      596 440252    6.8     9.7     0.0    11.3    38.6    472.6     55.3
+  photosynthesis light reaction         596 440252    0.0    10.6     0.8    10.4    49.7    466.3     55.3
+  Napoleon Bonaparte (1st)             6099  38573    2.0     0.7     0.0     6.3    18.8    328.1     43.2
+  Napoleon Bonaparte                   6099  38573    0.0     2.2     0.6    11.4    20.5    295.5     51.0
+  Mount Everest expedition (1st)       1367 223238    1.4     7.7     0.7    12.1    30.6    463.8     51.6
+  Mount Everest expedition             1367 223238    0.0     6.9     0.7     8.8    26.5    454.3     54.9
+  penicillin discovery (1st)            466 110434    4.5     3.2     0.5    10.8    20.8    807.3     82.0
+  penicillin discovery                  466 110434    0.0     2.4     0.0    16.8    20.8    788.3     87.7
+  earthquake tsunami (1st)             5765  47994    0.6     0.6     0.0     4.5    21.1    637.1     77.3
+  earthquake tsunami                   5765  47994    0.0     4.0     0.0     4.9    23.4    602.6     69.0
+  Einstein (1st)                      10792  10642    8.9     0.0     0.0     1.2    19.3    379.3     52.6
+  Einstein                            10792  10642    0.0     1.5     0.0     7.3    13.9    386.3     61.8
+  average (2nd runs)                                  0.0    14.4     8.9     9.1    64.3    552.6     73.7
+  the 20 snippets one by one (2nd runs, average): reading the articles 233.7 ms, wikitext to text 301.9 ms, finding the words 17.0 ms; 909 kB of wikitext
+  (lists: postings read; dict/lists/merge/titles: the stages of a search; search: all of it;
+   snip1by1: the 20 snippets one after another from whole articles, as NABU did;
+   snip||: side by side from the paragraphs with the words, as it does now)
+== build ==
+(2026-11-26 20:04Z, windows/amd64, 8 CPUs)
+enwiki-20261101: 2000 of 883890 bundles, 16446 articles, 158.8 MB of wikitext, on one CPU:
+  reading (decompress, XML)   29.5 s  34.3%
+  wikitext to plain text     39.9 s  46.3%
+  words and counting         16.7 s  19.4%
+  so the whole dump: about 634 min on one CPU, 91 min on 7 (the rest of a build is sorting and writing)
+== snippets ==
+(2026-11-26 20:05Z, windows/amd64, 8 CPUs)
+enwiki-20261101: 600 snippets; from the whole article 15.5 ms each, from the paragraph 2.0 ms each (8× faster)
+  the same snippet 587 times (98%); words marked in both 600
+  some that differ:
+  "capital of Mongolia" in List of World Heritage Sites in Mongolia:
+    whole: … of view of science, conservation, or natural beauty. <mark>Mongolia</mark> ratified the convention on 2 February 1990. <mark>Mongolia</mark> has seven sites on the list. The first site, the Uvs Nuur Basin, was listed in 2003. The most recent site, …
+    paragraph: … of view of science, conservation, or natural beauty. <mark>Mongolia</mark> ratified the convention on 2 February 1990.
+  "first moon landing" in List of fictional astronauts (futuristic exploration of Moon):
+    whole: … other feats of lunar exploration not yet achieved. <mark>Moon</mark> !Name(s) !Appeared in !Program / Mission / Spacecraft !Fictional date | United States: Edward McCauley, Col. Joseph Hale, Maj. (Communications Officer) Renza Hale Billy …
+    paragraph: <mark>Moon</mark> !Name(s) !Appeared in !Program / Mission / Spacecraft !Fictional date | United States: Edward McCauley, Col. Joseph Hale, Maj. (Communications Officer) Renza Hale Billy Williams, Maj. (Navigational Officer) Patrick …
+  "edible wild plants" in Canna (plant):
+    whole: Canna is a genus of flowering <mark>plants</mark> consisting of 10 species known as cannas or canna lilies. It is the only genus in the family Cannaceae. All of the genus&#39;s species are native to the American tropics and were naturalized …
+    paragraph: … bananas, arrowroots, heliconias, and birds of paradise. The <mark>plants</mark> have large foliage, so horticulturists have developed selected forms as large-flowered garden <mark>plants.</mark> Cannas are also used in agriculture as a source of …
+  "broken bone splint" in Rhinoplasty:
+    whole: … History Treatments for the plastic repair of a <mark>broken</mark> nose are first mentioned in the Edwin Smith Papyrus, a transcription of text dated to the Old Kingdom from 3000 to 2500 BCE. The Ebers Papyrus ( 1550 BC), an Ancient …
+    paragraph: History Treatments for the plastic repair of a <mark>broken</mark> nose are first mentioned in the Edwin Smith Papyrus, a transcription of text dated to the Old Kingdom from 3000 to 2500 BCE. The Ebers Papyrus ( 1550 BC), an Ancient …
+  "broken bone splint" in Treatment of equine lameness:
+    whole: … highest possible post-recovery performance. The process of healing <mark>Bone</mark> <mark>Bone</mark> heals by formation of a callus over the defective area. Speed and quality of healing is directly related to the blood supply and fracture stability. …
+    paragraph: <mark>Bone</mark> <mark>Bone</mark> heals by formation of a callus over the defective area. Speed and quality of healing is directly related to the blood supply and fracture stability. Rest is required immediately following injury to reduce movement …
+  "united states army" in 196th Infantry Brigade (United States):
+    whole: … on 24 June 1921 as part of the <mark>United</mark> <mark>States</mark> <mark>Army</mark> Reserve&#39;s 98th Division with the responsibility of training soldiers. World War II During World War II, the 98th initially defended Kauai, Hawaii and Maui, Hawaii, and finally …
+    paragraph: … on 24 June 1921 as part of the <mark>United</mark> <mark>States</mark> <mark>Army</mark> Reserve&#39;s 98th Division with the responsibility of training soldiers.
+  "US army" in National Revolutionary Army:
+    whole: The National Revolutionary <mark>Army</mark> (NRA; ) was the military arm of the Kuomintang (KMT) from 1924 until 1947. The NRA was formed in 1924 from the Cantonese military forces that supported Sun Yat-sen and the KMT. Through assistance …
+    paragraph: The National Revolutionary <mark>Army</mark> (NRA; ) was the military arm of the Kuomintang (KMT) from 1924 until 1947.
+  "village in poland" in Poland, Herkimer County, New York:
+    whole: <mark>Poland</mark> is a <mark>village</mark> in Herkimer County, New York, United States, with a population of 464, as of 2020. <mark>Poland</mark> is on the border shared by the towns of Newport and Russia. The <mark>village</mark> is north of the county seat in Herkimer …
+    paragraph: <mark>Poland</mark> is a <mark>village</mark> in Herkimer County, New York, United States, with a population of 464, as of 2020.
+== ranking ==
+(2026-11-26 20:05Z, windows/amd64, 8 CPUs)
+enwiki-20261101, 2 weights (once / more often): 124 of 300 top-10 results stay in the top 10 (41%)
+    "theory of relativity": now Theory of relativity; Emission theory (relativity); The Theory of Relativity (musical); Criticism of the theory of relativity; Test theories of special relativity; Relativity: The Special and the General Theory; The Einstein Theory of Relativity; Physical theories modified by general relativity; Relativity; Relativity priority dispute | would be Theory of relativity; Relativity; The Theory of Relativity (musical); Molly's Theory of Relativity; Relativity of simultaneity; Poincaré gauge theory; Relativity (play); General relativity; Scalar–tensor theory; Synergetic theory
+    "largest desert": now Desert; List of deserts of Pakistan; List of deserts; Red Desert (Wyoming); Huntington Desert Garden; Black Rock Desert Wilderness; Mount Desert Island; Simpson Desert; Anza-Borrego Desert State Park; List of lakes of the Colorado Desert | would be Desert of Ocute; Desert Center, California; List of lakes of the Colorado Desert; Munga-Thirri–Simpson Desert National Park; Lut Desert; High Desert State Prison (Nevada); Deserts of Australia; List of birds of Yemen; Mountain states; Australian Geographic
+    "invented the telephone": now Telephone; Invention of the telephone; Elisha Gray and Alexander Bell telephone controversy; History of the telephone; Timeline of the telephone; Bell Telephone Company; Reis telephone; Telephone booths in New Zealand; Bell Telephone Laboratories (disambiguation); The Telephone Cases | would be Telephone booths in New Zealand; Timeline of the telephone; Reis telephone; Invention of the telephone; Bell Telephone Company; Elisha Gray and Alexander Bell telephone controversy; History of the telephone; Bell Telephone Laboratories (disambiguation); Timeline of historic inventions; Amos Dolbear
+    "capital of Mongolia": now Capital punishment in Mongolia; Mongolia; Former capitals of Chinese provinces; History of Mongolia; Inner Mongolia; Citizens' Representatives Khurals of Mongolia; Economy of Mongolia; Politics of Mongolia; List of historical cities and towns of Mongolia; Transport in Mongolia | would be Mongolia; List of national parks of Mongolia; Citizens' Representatives Khurals of Mongolia; Cinema of Mongolia; Bank of Mongolia; Mongolia Area; Politics of Mongolia; Economy of Mongolia; Transport in Mongolia; Architecture of Mongolia
+    "boiling point of water": now Boiling water reactor safety systems; Water; Boiling point; Boiling; Boiling water reactor; Boiling-point elevation; Advanced boiling water reactor; Boiling Point (2021 film); Boiling liquid expanding vapor explosion; Properties of water | would be Boiling point; Water; Boiling-point elevation; Boiling; Boiling water reactor safety systems; Water filter; Boiling liquid expanding vapor explosion; Melting point; Freezing-point depression; Water cooling
+    "first moon landing": now Moon landing; Moon; Moon landing conspiracy theories; Third-party evidence for Apollo Moon landings; Moon Landing (album); Moon landing conspiracy theories in popular culture; Moon Landing (music drama); Moon Landing (Modern Family); First Men in the Moon (1964 film); First on the Moon | would be Moon; First on the Moon; First Moon Flights Club; Landing Craft Assault; List of people who have flown to the Moon; Blue Moon Pathfinder Mission 2; Moon Zero Two; A Funny Thing Happened on the Way to the Moon; Of a Fire on the Moon; List of landing ellipses on extraterrestrial bodies
+enwiki-20261101, no weights: 49 of 300 top-10 results stay in the top 10 (16%)
+    "theory of relativity": now Theory of relativity; Emission theory (relativity); The Theory of Relativity (musical); Criticism of the theory of relativity; Test theories of special relativity; Relativity: The Special and the General Theory; The Einstein Theory of Relativity; Physical theories modified by general relativity; Relativity; Relativity priority dispute | would be Theory of relativity; Relativity; Theory; General relativity; Kaluza–Klein theory; M-theory; Quantum field theory; Linguistic relativity; Special relativity; String theory
+    "largest desert": now Desert; List of deserts of Pakistan; List of deserts; Red Desert (Wyoming); Huntington Desert Garden; Black Rock Desert Wilderness; Mount Desert Island; Simpson Desert; Anza-Borrego Desert State Park; List of lakes of the Colorado Desert | would be Cholistan Desert; Great Victoria Desert; Kalahari Desert; Algeria; Amphibian; Alaska; Aldous Huxley; Aardvark; Adobe; Asia
+    "invented the telephone": now Telephone; Invention of the telephone; Elisha Gray and Alexander Bell telephone controversy; History of the telephone; Timeline of the telephone; Bell Telephone Company; Reis telephone; Telephone booths in New Zealand; Bell Telephone Laboratories (disambiguation); The Telephone Cases | would be Telephone; Telephone switchboard; ASCII; Assistive technology; Alphabet; Algorithm; Arabic; Alexander Graham Bell; A. A. Milne; August 13
+    "capital of Mongolia": now Capital punishment in Mongolia; Mongolia; Former capitals of Chinese provinces; History of Mongolia; Inner Mongolia; Citizens' Representatives Khurals of Mongolia; Economy of Mongolia; Politics of Mongolia; List of historical cities and towns of Mongolia; Transport in Mongolia | would be Mongolia; Geography of Mongolia; Politics of Mongolia; Economy of Mongolia; Telecommunications in Mongolia; Transport in Mongolia; Inner Mongolia; Capital punishment by country; Outer Mongolia; Historical capitals of China
+    "boiling point of water": now Boiling water reactor safety systems; Water; Boiling point; Boiling; Boiling water reactor; Boiling-point elevation; Advanced boiling water reactor; Boiling Point (2021 film); Boiling liquid expanding vapor explosion; Properties of water | would be Boiling point; Water; Boiling; Heavy water; Melting point; Water vapor; Alkane; Bitumen; Alkali metal; Astatine
+    "first moon landing": now Moon landing; Moon; Moon landing conspiracy theories; Third-party evidence for Apollo Moon landings; Moon Landing (album); Moon landing conspiracy theories in popular culture; Moon Landing (music drama); Moon Landing (Modern Family); First Men in the Moon (1964 film); First on the Moon | would be Moon; Europa (moon); Amalthea (moon); Titan (moon); Phobos (moon); The Man Who Sold the Moon; Deimos (moon); Apollo; Apollo 11; Apollo 8
+== words ==
+(2026-11-26 20:05Z, windows/amd64, 8 CPUs)
+enwiki-20261101: 11322519 words in the index
+  kind                                    words    in one     postings         room
+  years and numbers (1-4 digits)          11100        0%    123608163     165.8 MB
+  letters and digits mixed               736180       67%     11689274      28.8 MB
+  other scripts                         1077396       62%      4110142      22.6 MB
+  over 15 letters                        292117       71%      1529617       8.0 MB
+  words                                 9205726       51%   1266764586    2142.8 MB
+  years and numbers (1-4 digits), for example: 7040(195)
+  letters and digits mixed, for example: 02ee(4) 084ц(1) 0xff8(1) 10nes(37) 120tr832(1) 130s(573) 14ar(2) 1656a(1) 1842nd(1) 1999et(1) 1f90f(2) 2000qm(1) 20thc(23) 2321m(1) 25l1(1) 290bhp(1) 2mille(1) 30t15(1) 3450th(5) 385kb(1) 3msr(1) 414908n(1) 45rt(1) 4dn(8) 5045e(2) 550s(128) 5h0(2) 6273c(2) 684m(5) 74x640(1)
+  other scripts, for example: βενετοκρατούμενη(1) διαφορικοῦ(1) εῖς(1) κασίδης(7) λιάνης(1) μόσιαλος(1) παρνασσοῦ(1) σέθεν(2) τζαμάλη(1) χερι(1) актуальной(1) ашан(3) бир(19) бяг(1) вкс(6) гаа(1) графу(1) джарилгацький(1) дяволски(1) завершує(1) ивошевић(1) калачеево(1) коалы(2) крило́(1) латвийское(2) мавритания(1) миллиа́рд(1) мішені(1) ниижта(2) оленю(1)
+  over 15 letters, for example: abbegeasterketting(1) annaherungsdebatte(1) anthropophagists(1) archivorosenmann(1) athirshtalaskhmi(1) benutzungsordnung(1) bestshorttermplan(1) bharamannanayaka(1) bissedutorrentneufbridge(1) candoscrupocellaria(1) centrosemiflorum(4) chronophotographique(1) dibutanoylmorphine(2) disarticolazione(1) foretagsekonomiska(2) gehospitaliseerde(1) glaciomorphological(1) hamamatsudaigakumae(1) infratechnologies(1) josecuatrecasasii(1) krishnadwadasamanjari(1) macillebheathain(1) meanderingridgeswide(1) mexicoamericanos(1) nalayirattumoppatu(1) neurophilosopher(10) oxonitridosilicates(1) parlamentariergruppen(1) purushottamanandaji(1) qualifikationsrahmen(3)
+  words, for example: aagesson(3) aaravam(26) abdulmaati(1) abhel(1) abolew(1) absoluo(2) acable(1) accolt(1) achas(21) ackerer(1) acroptilidis(2) acyloxylated(1) adcorp(5) aderson(18) adiwayu(1) adyashakti(6) aensien(1) aetheoptera(4) afghanodesmatid(1) afryka(17) agasson(6) aghadromsillagh(1) agochoric(2) aguallane(1) ahirkapi(17) aibekov(1) aincha(1) aissailly(4) ajisun(1) akasuki(1)
+  commonest section headings (in % of 12544 sampled articles): references 89%, external links 44%, see also 24%, history 13%, notes 6%, career 6%, further reading 4%, personal life 4%, biography 4%, bibliography 3%, early life 3%, reception 3%, description 3%, geography 3%, background 3%, cast 3%, plot 3%, sources 2%, track listing 2%, demographics 2%, early life and education 2%, education 2%, awards 2%, personnel 2%, results 2%, production 2%, honours 2%, discography 1%, charts 1%, gallery 1%, filmography 1%, career statistics 1%, distribution 1%, life 1%, club career 1%, death 1%, population 1%, international career 1%, legacy 1%, critical reception 1%
