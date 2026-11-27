@@ -1092,7 +1092,10 @@ func TestStudyVocab(t *testing.T) {
 				docs++
 				seen := map[string]bool{}
 				prev := ""
-				TokenizeCase(wikitext.PlainText(withoutBoilerplate(p.Text, lang), b.rd.Site()), func(w string, c Case) {
+				TokenizeBreaks(wikitext.PlainText(withoutBoilerplate(p.Text, lang), b.rd.Site()), func(w string, c Case, brk bool) {
+					if brk {
+						prev = ""
+					}
 					if !ix.rules.Keep(w, c) {
 						return
 					}

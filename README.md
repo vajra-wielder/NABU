@@ -648,8 +648,10 @@ unrendered.
   if titles use it now and then ("platinum", "stomach"), common numbers other than years
   are left out (they are found in pairs: "apollo 11", "windows 10"), and so are rare
   words in other scripts in wikis written in Latin letters and rare letter-and-digit
-  codes. Titles are kept compressed (half the room). Simple English: 48.9 MB before
-  these changes, 37.6 MB now.
+  codes. Titles are kept compressed (half the room). A pair needs one word that
+  names something strongly (in titles often: heart, road, apollo) and is never made
+  across the end of a sentence or line, so "early life" (a heading), "first time" or
+  "10 11" are not pairs. Simple English: 48.9 MB before these changes, 36.2 MB now.
 - **Building it** reads every article once: decompressing (about a third of the time),
   turning wikitext into text and splitting it into words. Simple English takes 24 s on
   4 cores (56 s before the regular expressions were replaced by scanners, the XML

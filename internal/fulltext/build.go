@@ -252,9 +252,12 @@ func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules, lan
 		}
 		counts := map[string]int{}
 		titled := map[string]bool{}
-		add := func(w int) func(string, Case) {
+		add := func(w int) func(string, Case, bool) {
 			prev := ""
-			return func(t string, c Case) {
+			return func(t string, c Case, brk bool) {
+				if brk {
+					prev = "" // no pair across the end of a sentence or line
+				}
 				if !rules.Keep(t, c) {
 					return // little words do not part a pair: "bank of England"
 				}
@@ -272,8 +275,8 @@ func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules, lan
 				prev = t
 			}
 		}
-		TokenizeCase(p.Title, add(3)) // title words weigh more
-		TokenizeCase(wikitext.PlainText(withoutBoilerplate(p.Text, lang), site), add(1))
+		TokenizeBreaks(p.Title, add(3)) // title words weigh more
+		TokenizeBreaks(wikitext.PlainText(withoutBoilerplate(p.Text, lang), site), add(1))
 		d := docOut{stream: s, pageID: p.ID, title: p.Title, terms: make([]termTF, 0, len(counts))}
 		var tw []string
 		Tokenize(p.Title, func(w string) { tw = append(tw, w) })

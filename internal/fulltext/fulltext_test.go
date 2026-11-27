@@ -447,3 +447,17 @@ func TestRareNoise(t *testing.T) {
 		}
 	}
 }
+
+// Pairs do not run over the end of a sentence or a line.
+func TestTokenizeBreaks(t *testing.T) {
+	var got []string
+	TokenizeBreaks("World war. Early life\nheart attack (film)", func(w string, _ Case, brk bool) {
+		if brk {
+			got = append(got, "|")
+		}
+		got = append(got, w)
+	})
+	if strings.Join(got, " ") != "world war | early life | heart attack | film" {
+		t.Fatalf("%v", got)
+	}
+}

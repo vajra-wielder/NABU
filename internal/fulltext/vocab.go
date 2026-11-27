@@ -34,6 +34,7 @@ const (
 	minCommon     = 50
 	titleShare    = 0.006  // in titles at least this often per article with the word
 	articleShare  = 0.002  // the same, for a word that is itself the title of an article
+	pairShare     = 0.018  // for a pair, one word must be in titles at least this often
 	phraseMark    = "\xff" // phrase terms start with it: after every word, in byte order
 	minPhraseDocs = 5
 )
@@ -74,11 +75,12 @@ type vocab struct {
 	lang    string
 	class   map[string]wordClass
 	df      map[string]uint32
-	article map[string]bool // one-word titles of articles (not redirects, not disambiguation pages)
+	ratio   map[string]float32 // in titles per article with the word
+	article map[string]bool    // one-word titles of articles (not redirects, not disambiguation pages)
 }
 
 func newVocab(lang string, article map[string]bool) *vocab {
-	return &vocab{lang: lang, class: map[string]wordClass{}, df: map[string]uint32{}, article: article}
+	return &vocab{lang: lang, class: map[string]wordClass{}, df: map[string]uint32{}, ratio: map[string]float32{}, article: article}
 }
 
 // word decides for a word in df >= minCommonDocs articles, titleDocs of
@@ -86,7 +88,8 @@ func newVocab(lang string, article map[string]bool) *vocab {
 // ("vegetables") comes after its singular and is kept with it.
 func (v *vocab) word(t string, df, titleDocs uint32) wordClass {
 	c := classify(t, v.lang, df, titleDocs)
-	if c == general && v.article[t] && float64(titleDocs) >= articleShare*float64(df) {
+	isNumber := strings.Trim(t, "0123456789") == ""
+	if c == general && !isNumber && v.article[t] && float64(titleDocs) >= articleShare*float64(df) {
 		// an article of its own, and in titles now and then: "platinum",
 		// "stomach" (not "official": in titles too seldom for how common)
 		c = naming
@@ -99,7 +102,7 @@ func (v *vocab) word(t string, df, titleDocs uint32) wordClass {
 			}
 		}
 	}
-	v.class[t], v.df[t] = c, df
+	v.class[t], v.df[t], v.ratio[t] = c, df, float32(titleDocs)/float32(df)
 	return c
 }
 
@@ -138,7 +141,19 @@ func (v *vocab) pair(a, b string, df uint32) bool {
 	if !oka || !okb || df < minPhraseDocs || len(a) < 2 || len(b) < 2 {
 		return false
 	}
-	if ca != naming && cb != naming {
+	// One word naming something strongly: in titles at least pairShare
+	// as often as in articles ("heart", "road", "apollo"; not "life",
+	// "time", "people", which also start many titles), or a survival
+	// word ("aid"); and neither a little word of another language ("de
+	// la") nor a number paired with anything less ("10 11", "age 18").
+	if pairLittle[a] || pairLittle[b] {
+		return false
+	}
+	strong := func(w string, c wordClass) bool {
+		return c != general && strings.Trim(w, "0123456789") != "" &&
+			(v.ratio[w] >= pairShare || (v.lang == "en" || v.lang == "simple") && survival[w] && v.ratio[w] >= titleShare)
+	}
+	if !strong(a, ca) && !strong(b, cb) {
 		return false
 	}
 	return 2*df <= v.df[a] && 2*df <= v.df[b]
@@ -306,3 +321,13 @@ func latinScript(lang string) bool {
 	}
 	return false
 }
+
+// pairLittle are little words of other languages, common in English
+// titles ("de la", "von der"): no pair is made of them.
+var pairLittle = func() map[string]bool {
+	m := map[string]bool{}
+	for _, w := range strings.Fields("de la le les el los las del della di da do dos das du des von van der den het al el ibn bin bint san santa st saint mc mac") {
+		m[w] = true
+	}
+	return m
+}()

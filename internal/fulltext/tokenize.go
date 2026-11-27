@@ -75,6 +75,28 @@ func Tokenize(s string, emit func(term string)) {
 
 // TokenizeCase is Tokenize, also telling how each word was written.
 func TokenizeCase(s string, emit func(term string, c Case)) {
+	TokenizeBreaks(s, func(t string, c Case, _ bool) { emit(t, c) })
+}
+
+// isBreak: characters that end a run of words (a sentence, a line, a
+// cell, a bracket), across which two words are not a pair.
+func isBreak(c byte) bool {
+	switch c {
+	case '.', '!', '?', ';', ':', '\n', '(', ')', '[', ']', '|', '"':
+		return true
+	}
+	return false
+}
+
+// TokenizeBreaks is TokenizeCase, also telling whether a break (the end
+// of a sentence or line, a bracket) came between a word and the one before.
+func TokenizeBreaks(s string, emit func(term string, c Case, afterBreak bool)) {
+	brk := false
+	inner := emit
+	emit2 := func(t string, c Case) {
+		inner(t, c, brk)
+		brk = false
+	}
 	word := make([]rune, 0, 32)
 	ascii := true // the word so far is in ASCII: folding is lower-casing
 	var buf [maxTermBytes]byte
@@ -89,10 +111,10 @@ func TokenizeCase(s string, emit func(term string, c Case)) {
 						}
 						buf[i] = byte(r)
 					}
-					emit(string(buf[:len(word)]), caseOf(word))
+					emit2(string(buf[:len(word)]), caseOf(word))
 				}
 			} else if t := dump.Fold(string(word)); len(t) <= maxTermBytes {
-				emit(t, caseOf(word))
+				emit2(t, caseOf(word))
 			}
 		}
 		word = word[:0]
@@ -101,10 +123,10 @@ func TokenizeCase(s string, emit func(term string, c Case)) {
 	flushCJK := func() {
 		switch {
 		case len(cjk) == 1:
-			emit(string(cjk), Lower)
+			emit2(string(cjk), Lower)
 		case len(cjk) > 1:
 			for i := 0; i+1 < len(cjk); i++ {
-				emit(string(cjk[i:i+2]), Lower)
+				emit2(string(cjk[i:i+2]), Lower)
 			}
 		}
 		cjk = cjk[:0]
@@ -126,6 +148,9 @@ func TokenizeCase(s string, emit func(term string, c Case)) {
 		default:
 			flushWord()
 			flushCJK()
+			if r < 0x80 && isBreak(byte(r)) {
+				brk = true
+			}
 		}
 	}
 	flushWord()
