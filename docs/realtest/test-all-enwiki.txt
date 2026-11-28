@@ -1,0 +1,6 @@
+NABU tests on real data, enwiki, 2026-11-28 07:56Z, MINGW64_NT-10.0-26300
+source code at 1043e39 One command for every test on real data; results kept in the source code
+1. unit tests                                FAIL (exit 1)  0m39s
+2. new readers against the old, on real articles PASS           0m46s
+3. realtest (NABU itself)                    PASS           32m07s
+4. studies of the search index               PASS           5m56s

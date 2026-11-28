@@ -1,0 +1,18 @@
+NABU real-data test  2026-11-28 07:57Z  MINGW64_NT-10.0-26300  NABU dev (windows/amd64, go1.24.7)
+drive /c/Users/Dev/Projects/NABU-test  wiki enwiki
+NABU folder: C:\Users\Dev\Projects\NABU-test
+  enwiki  2026-11-01  1 file(s), 22.8 GB: Wikipedia, en, 23139728 pages (19357214 in main namespace), main page "Main Page"
+[prepare] PASS in 0.4 s
+    title index 463M, full-text 1.9G, dumps 23G
+[check] PASS in 1081.0 s
+    enwiki-20261101: all 883890 bundles are intact (checked in 18 min).
+[startup] server answering after 0.7 s
+[titles] 20 requests, 0 failed, median 0.246s, max 0.833s
+[fulltext] 10 requests, 0 failed, median 0.227s, max 0.757s
+[long] 10 requests, 0 failed, median 0.344s, max 0.969s
+[odd] 14 requests, 0 failed, median 0.091s, max 0.929s
+[crawl] 3000 random articles, 0 failed, median 0.044s, max 1.120s, 0 over 2 s
+[failures] 0 total
+[server log] 0 error/panic lines
+[memory] server peak RSS 368 MB
+done. Full logs in /c/Users/Dev/Projects/NABU/docs/realtest/realtest-enwiki
