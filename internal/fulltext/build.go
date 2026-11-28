@@ -65,7 +65,7 @@ type Meta struct {
 	Capital   []string      `json:"capital"`              // little words still indexed when capitalised ("May")
 	Common    []string      `json:"common"`               // the words dropped for being in over 40% of articles
 	General   []string      `json:"general"`              // common words that name nothing, not indexed (vocab.go)
-	Phrases   int           `json:"phrases"`              // pairs of words indexed as one
+	Phrases   int           `json:"phrases"`              // titles of 2 to 4 words indexed as one term
 	Noise     int           `json:"noise"`                // rare words of no use to search, not indexed (vocab.go)
 	TitleDict []byte        `json:"title_dict,omitempty"` // format 4: the dictionary of the compressed titles
 	Postings  int64         `json:"postings"`
@@ -149,7 +149,7 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 	site := rd.Site()
 	lang := Lang(rd.Files.DB, site)
 	rules := NewRules(Stopwords(lang), CapitalNames(lang))
-	phrases := titlePhrases(rd.Index, rules)
+	titles := newTitleSets(rd.Index, rules)
 	total := rd.Index.StreamCount()
 	jobs := make(chan uint32, opt.Workers*2)
 	results := make(chan streamResult, opt.Workers*2)
@@ -159,7 +159,7 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 		go func() {
 			defer wg.Done()
 			for s := range jobs {
-				results <- scanStream(rd, site, s, rules, lang, phrases)
+				results <- scanStream(rd, site, s, rules, lang, titles)
 			}
 		}()
 	}
@@ -240,12 +240,13 @@ func Lang(db string, site *dump.Siteinfo) string {
 	return strings.TrimSuffix(db, "wiki")
 }
 
-func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules, lang string, phrases phraseSet) streamResult {
+func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules, lang string, titles *titleSets) streamResult {
 	pages, err := rd.StreamPages(s)
 	if err != nil {
 		return streamResult{stream: s, err: err}
 	}
 	res := streamResult{stream: s}
+	admitted := map[string]bool{} // words of this bundle indexed or not (a name aside)
 	for _, p := range pages {
 		if p.NS != dump.NSMain || p.Redirect != "" {
 			continue
@@ -253,26 +254,45 @@ func scanStream(rd *dump.Reader, site *dump.Siteinfo, s uint32, rules Rules, lan
 		counts := map[string]int{}
 		titled := map[string]bool{}
 		add := func(w int) func(string, Case, bool) {
-			prev := ""
+			var win []string // the last words, for titles of several words
+			first := true
 			return func(t string, c Case, brk bool) {
 				if brk {
-					prev = "" // no pair across the end of a sentence or line
+					win = win[:0] // none across the end of a sentence or line
 				}
+				afterBreak := brk || first
+				first = false
 				if !rules.Keep(t, c) {
-					return // little words do not part a pair: "bank of England"
+					return // little words do not part a title: "bank of England"
 				}
 				if junk(t) {
-					prev = ""
+					win = win[:0]
 					return
+				}
+				win = append(win, t)
+				if len(win) > maxGram {
+					win = win[1:]
+				}
+				for n := 2; n <= len(win); n++ {
+					g := win[len(win)-n:]
+					if g[0] != g[1] && titles.grams[n].hasHash(gramHash(g)) {
+						counts[gramKey(g)] += w
+					}
+				}
+				if w == 1 && !(c != Lower && !afterBreak) {
+					ok, seen := admitted[t]
+					if !seen {
+						ok = titles.admit(t, Lower, true, lang)
+						admitted[t] = ok
+					}
+					if !ok {
+						return
+					}
 				}
 				counts[t] += w
 				if w > 1 {
 					titled[t] = true
 				}
-				if prev != "" && prev != t && phrases.has(prev, t) {
-					counts[phraseKey(prev, t)] += w
-				}
-				prev = t
 			}
 		}
 		TokenizeBreaks(p.Title, add(3)) // title words weigh more
@@ -578,9 +598,9 @@ func (b *ftsBuilder) write(path string, docsTmp *os.File, meta *Meta, start time
 			continue
 		}
 		if strings.HasPrefix(term, phraseMark) {
-			// A pair of common words, narrowing them down by half.
-			ab := strings.SplitN(term[len(phraseMark):], " ", 2)
-			if len(ab) != 2 || !words.pair(ab[0], ab[1], df) {
+			// A title of several common words, narrowing them down.
+			ws := strings.Split(term[len(phraseMark):], " ")
+			if len(ws) < 2 || !words.gram(ws, df) {
 				continue
 			}
 			meta.Phrases++
@@ -801,5 +821,5 @@ func Estimate(rd *dump.Reader, d time.Duration) (time.Duration, bool) {
 	site := rd.Site()
 	lang := Lang(rd.Files.DB, site)
 	rules := NewRules(Stopwords(lang), CapitalNames(lang))
-	return MeasureBuild(rd.Index, func(s uint32) { scanStream(rd, site, s, rules, lang, phraseSet{}) }, 0, d)
+	return MeasureBuild(rd.Index, func(s uint32) { scanStream(rd, site, s, rules, lang, &titleSets{}) }, 0, d)
 }

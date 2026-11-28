@@ -631,6 +631,17 @@ unrendered.
   that only list sources and links elsewhere (References, External links, Further
   reading... in the main languages) are not indexed, nor the "See also" heading
   itself, nor machine codes ("7cb9e8") and picture sizes ("220px").
+- **Titles make the vocabulary.** A word met in an article is indexed when it is a
+  word of some title (redirects too) or a form of one, a name (written with a capital
+  in the middle of a sentence), a number or a survival word; the rest (words of no
+  title: "including", "however", typing slips, codes, table markup) is left out as it
+  is read. Titles of 2, 3 and 4 words (little words aside: "Bank of England") are
+  indexed as one term where they appear in an article, as long as their words are
+  common enough that searching for them alone would not narrow it down: fewer the
+  longer they are (Simple English: 20,654 of 2 words, 6,831 of 3, 2,091 of 4). A
+  search with one of them ("new york city", "martin luther king") puts the articles
+  that have it first. Basic words ("one", "two", "red", "big") are not searched alone
+  but are part of titles ("red cross", "one direction"). Simple English: 32.3 MB.
 - **Which words are indexed.** Rare words all are: they are the names and terms people
   look for. A word in more than one article in a thousand is kept only if it names
   something: it is in titles often enough (desert, cardiac, Paris), or it is a number,

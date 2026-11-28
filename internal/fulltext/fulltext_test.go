@@ -461,3 +461,40 @@ func TestTokenizeBreaks(t *testing.T) {
 		t.Fatalf("%v", got)
 	}
 }
+
+// A title vocabulary: title words, names written with a capital, numbers
+// and survival words are indexed; other words are not.
+func TestAdmit(t *testing.T) {
+	ts := &titleSets{words: newPhraseSet([]uint64{gramHash([]string{"desert"}), gramHash([]string{"city"})})}
+	for _, c := range []struct {
+		w     string
+		c     Case
+		brk   bool
+		admit bool
+	}{
+		{"desert", Lower, false, true},
+		{"deserts", Lower, false, true}, // a form of a title word
+		{"cities", Lower, false, true},
+		{"however", Lower, false, false},
+		{"however", Capital, true, false},   // capital only for starting a sentence
+		{"bevistock", Capital, false, true}, // a name in the middle of a sentence
+		{"1876", Lower, false, true},
+		{"bleeding", Lower, false, true}, // survival
+		{"colspan", Lower, false, false},
+	} {
+		if got := ts.admit(c.w, c.c, c.brk, "en"); got != c.admit {
+			t.Errorf("admit(%q) = %v", c.w, got)
+		}
+	}
+	if !(&titleSets{}).admit("anything", Lower, false, "en") {
+		t.Error("with no titles, every word")
+	}
+	// Titles of several words are found as one term in an article.
+	g := newPhraseSet([]uint64{gramHash([]string{"new", "york", "city"})})
+	if !g.hasHash(gramHash([]string{"new", "york", "city"})) || g.hasHash(gramHash([]string{"new", "york"})) {
+		t.Fatal("gram set")
+	}
+	if gramKey([]string{"first", "aid"}) != phraseKey("first", "aid") {
+		t.Fatal("pair and gram keys differ")
+	}
+}

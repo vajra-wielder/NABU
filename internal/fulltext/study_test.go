@@ -1072,7 +1072,7 @@ func TestStudyVocab(t *testing.T) {
 		r.f("  kept as forms of kept words: %s", strings.Join(rescued, " "))
 
 		// Pairs, on a sample.
-		phrases := titlePhrases(b.rd.Index, ix.rules)
+		phrases := newTitleSets(b.rd.Index, ix.rules).grams[2]
 		total := b.rd.Index.StreamCount()
 		sample := 1500
 		if sample > total {
@@ -1185,6 +1185,203 @@ func TestStudyTitles(t *testing.T) {
 		was := ix.Sections()["docs"]
 		r.f("%s: article table %s (titles %s); written as format 4: %s (%+.0f%%), a block of %d read in %s",
 			b.files.Key(), mb(was), mb(raw), mb(size), 100*float64(size-was)/float64(was), docBlock, per.Round(time.Microsecond))
+		r.save(b.files.DB)
+	}
+}
+
+// TestStudyTitleVocab studies an index made of what titles name: single
+// words that are in some title (redirects too), and the titles of 2, 3
+// and 4 words found as they are in the articles' text.
+func TestStudyTitleVocab(t *testing.T) {
+	for _, b := range studyBooks(t) {
+		r := &report{t: t, name: "title vocabulary"}
+		ix := b.ix
+		rules := ix.rules
+		// Titles: their words, and their sequences of 2-4 words.
+		words := map[uint64]uint32{} // word hash -> titles with it
+		grams := [5][]uint64{}
+		byLen := map[int]int{}
+		titles := 0
+		b.rd.Index.Each(func(e dump.Entry) bool {
+			if e.NS != dump.NSMain {
+				return true
+			}
+			titles++
+			var ws []string
+			TokenizeCase(e.Title, func(w string, c Case) {
+				if rules.Keep(w, c) && !junk(w) {
+					ws = append(ws, w)
+				}
+			})
+			n := len(ws)
+			if n > 6 {
+				n = 6
+			}
+			byLen[n]++
+			seen := map[string]bool{}
+			for _, w := range ws {
+				if !seen[w] {
+					seen[w] = true
+					words[phraseHash(w, "")]++
+				}
+			}
+			if len(ws) >= 2 && len(ws) <= 4 {
+				grams[len(ws)] = append(grams[len(ws)], gramHash(ws))
+			}
+			return true
+		})
+		var sets [5]phraseSet
+		for n := 2; n <= 4; n++ {
+			sets[n] = newPhraseSet(grams[n])
+		}
+		r.f("%s: %d titles (redirects too); of 1 word %d, 2: %d, 3: %d, 4: %d, 5: %d, 6 or more: %d; %d distinct words in them",
+			b.files.Key(), titles, byLen[1], byLen[2], byLen[3], byLen[4], byLen[5], byLen[6], len(words))
+
+		// The index's words: in a title or not.
+		type agg struct{ terms, posts, bytes int64 }
+		var in, out agg
+		type wd struct {
+			w  string
+			df uint32
+		}
+		var lostCommon []wd
+		var lostSample []string
+		inTitles := func(w string) bool {
+			for _, f := range formsOf(w, ix.Meta.Lang) {
+				if words[phraseHash(f, "")] > 0 {
+					return true
+				}
+			}
+			return false
+		}
+		k := 0
+		allRows(t, ix, func(row dictRow) {
+			if strings.HasPrefix(row.term, phraseMark) {
+				return
+			}
+			a := &out
+			if inTitles(row.term) || classify(row.term, ix.Meta.Lang, row.df, 0) != general {
+				a = &in
+			} else {
+				if row.df >= 20 {
+					lostCommon = append(lostCommon, wd{row.term, row.df})
+				}
+				k++
+				if k%(1+int(ix.Meta.Terms)/3000) == 0 && len(lostSample) < 100 {
+					lostSample = append(lostSample, fmt.Sprintf("%s(%d)", row.term, row.df))
+				}
+			}
+			a.terms++
+			a.posts += int64(row.df)
+			a.bytes += int64(row.size) + int64(len(row.term))/2 + 4
+		})
+		all := in.bytes + out.bytes
+		r.f("  words in a title (or a form of one, a year, a survival word): %d words, %d postings, %s (%.0f%%)", in.terms, in.posts, mb(in.bytes), 100*float64(in.bytes)/float64(all))
+		r.f("  words in no title: %d words, %d postings, %s (%.0f%%): not indexed in a title vocabulary", out.terms, out.posts, mb(out.bytes), 100*float64(out.bytes)/float64(all))
+		sort.Slice(lostCommon, func(i, j int) bool { return lostCommon[i].df > lostCommon[j].df })
+		var l []string
+		for i, w := range lostCommon {
+			if i == 150 {
+				break
+			}
+			l = append(l, fmt.Sprintf("%s(%d)", w.w, w.df))
+		}
+		r.f("  the commonest words in no title (articles): %s", strings.Join(l, " "))
+		r.f("  some words in no title: %s", strings.Join(lostSample, " "))
+
+		// Titles of 2-4 words in the text, on a sample.
+		total := b.rd.Index.StreamCount()
+		sample := 1500
+		if sample > total {
+			sample = total
+		}
+		gdf := [5]map[string]int{{}, {}, map[string]int{}, map[string]int{}, map[string]int{}}
+		docs := 0
+		for i := 0; i < sample; i++ {
+			ps, err := b.rd.StreamPages(uint32(int64(i) * int64(total) / int64(sample)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, p := range ps {
+				if p.NS != dump.NSMain || p.Redirect != "" {
+					continue
+				}
+				docs++
+				seen := map[string]bool{}
+				var win []string
+				TokenizeBreaks(wikitext.PlainText(withoutBoilerplate(p.Text, ix.Meta.Lang), b.rd.Site()), func(w string, c Case, brk bool) {
+					if brk {
+						win = win[:0]
+					}
+					if !rules.Keep(w, c) {
+						return
+					}
+					if junk(w) {
+						win = win[:0]
+						return
+					}
+					win = append(win, w)
+					if len(win) > 4 {
+						win = win[1:]
+					}
+					for n := 2; n <= len(win); n++ {
+						g := win[len(win)-n:]
+						if sets[n].hasHash(gramHash(g)) {
+							key := strings.Join(g, " ")
+							if !seen[key] {
+								seen[key] = true
+								gdf[n][key]++
+							}
+						}
+					}
+				})
+			}
+		}
+		scale := float64(ix.Meta.Docs) / float64(docs)
+		dfOf := func(w string) float64 {
+			if row, ok, _ := ix.lookup(w); ok {
+				return float64(row.df)
+			}
+			return 0
+		}
+		for n := 2; n <= 4; n++ {
+			var allN, narrowN int
+			var allP, narrowP float64
+			type gc struct {
+				g  string
+				df float64
+			}
+			var top []gc
+			for g, c := range gdf[n] {
+				est := float64(c) * scale
+				if c >= 2 {
+					allN++
+					allP += est
+				}
+				min := math.Inf(1)
+				for _, w := range strings.Fields(g) {
+					if d := dfOf(w); d < min {
+						min = d
+					}
+				}
+				if est >= minPhraseDocs && 2*est <= min {
+					narrowN++
+					narrowP += est
+					top = append(top, gc{g, est})
+				}
+			}
+			sort.Slice(top, func(i, j int) bool { return top[i].df > top[j].df })
+			var tl []string
+			for i, x := range top {
+				if i == 40 {
+					break
+				}
+				tl = append(tl, x.g)
+			}
+			r.f("  titles of %d words in the text: %d found in 2+ sampled articles (about %.0f postings, %.1f%% more); narrowing their words by half: %d (%.0f, %.1f%%)",
+				n, allN, allP, 100*allP/float64(ix.Meta.Postings), narrowN, narrowP, 100*narrowP/float64(ix.Meta.Postings))
+			r.f("    the commonest: %s", strings.Join(tl, ", "))
+		}
 		r.save(b.files.DB)
 	}
 }

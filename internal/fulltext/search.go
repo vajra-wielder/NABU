@@ -215,37 +215,52 @@ func (ix *Index) search(q string, offset, limit int, first []Doc) (*Result, erro
 	if len(cands) == 0 {
 		return res, nil
 	}
-	// Pairs of the words indexed as one: the articles that have them
-	// together come first.
-	for i := 0; i+1 < len(seq); i++ {
-		a := seq[i]
-		var rows []dictRow
-		var found string
-		for _, f := range ix.forms(seq[i+1]) {
-			if row, ok, err := ix.lookup(phraseKey(a, f)); err == nil && ok {
-				rows = append(rows, row)
-				if found == "" {
-					found = a + " " + f
+	// Titles of several of the words, indexed as one term: the articles
+	// that have them as they are come first, the longest found first
+	// ("new york city", then not again "new york").
+	covered := make([]bool, len(seq))
+	for n := maxGram; n >= 2; n-- {
+		for i := 0; i+n <= len(seq); i++ {
+			inside := true
+			for k := i; k < i+n; k++ {
+				inside = inside && covered[k]
+			}
+			if inside {
+				continue
+			}
+			g := append([]string(nil), seq[i:i+n]...)
+			var rows []dictRow
+			var found string
+			for _, f := range ix.forms(seq[i+n-1]) {
+				g[n-1] = f
+				if row, ok, err := ix.lookup(gramKey(g)); err == nil && ok {
+					rows = append(rows, row)
+					if found == "" {
+						found = strings.Join(g, " ")
+					}
 				}
 			}
-		}
-		if len(rows) == 0 {
-			continue
-		}
-		list, err := ix.union(rows)
-		if err != nil {
-			return nil, err
-		}
-		res.Phrases = append(res.Phrases, found)
-		res.Marks = append(res.Marks, a, seq[i+1])
-		wt := 2 * idf(len(list))
-		j := 0
-		for k := range cands {
-			for j < len(list) && list[j].doc < cands[k].doc {
-				j++
+			if len(rows) == 0 {
+				continue
 			}
-			if j < len(list) && list[j].doc == cands[k].doc {
-				cands[k].score += wt * tfw(cands[k].doc, list[j].tf)
+			for k := i; k < i+n; k++ {
+				covered[k] = true
+			}
+			list, err := ix.union(rows)
+			if err != nil {
+				return nil, err
+			}
+			res.Phrases = append(res.Phrases, found)
+			res.Marks = append(res.Marks, seq[i:i+n]...)
+			wt := float64(n) * idf(len(list))
+			j := 0
+			for k := range cands {
+				for j < len(list) && list[j].doc < cands[k].doc {
+					j++
+				}
+				if j < len(list) && list[j].doc == cands[k].doc {
+					cands[k].score += wt * tfw(cands[k].doc, list[j].tf)
+				}
 			}
 		}
 	}

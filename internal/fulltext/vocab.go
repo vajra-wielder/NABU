@@ -94,6 +94,11 @@ func (v *vocab) word(t string, df, titleDocs uint32) wordClass {
 		// "stomach" (not "official": in titles too seldom for how common)
 		c = naming
 	}
+	if c != general && (v.lang == "en" || v.lang == "simple") && basicWords[t] {
+		// "one", "two", "red", "big": in many titles, naming nothing by
+		// themselves; still part of pairs and longer titles ("red cross")
+		c = general
+	}
 	if c == general {
 		for _, f := range formsOf(t, v.lang) {
 			if f < t && v.class[f] != general {
@@ -135,6 +140,30 @@ func classify(t, lang string, df, titleDocs uint32) wordClass {
 // least naming something ("first aid", "official language"; not "two
 // years", "early life", "first time"), and the pair must narrow them
 // down by half.
+// gram decides for a title of 2 to 4 words found in df articles: pairs as
+// pair; longer ones need every word common (otherwise its words narrow a
+// search well enough), one naming something strongly, the ends not
+// little words of other languages, and to narrow its words by half.
+func (v *vocab) gram(ws []string, df uint32) bool {
+	if len(ws) == 2 {
+		return v.pair(ws[0], ws[1], df)
+	}
+	if df < minPhraseDocs || pairLittle[ws[0]] || pairLittle[ws[len(ws)-1]] {
+		return false
+	}
+	strong := false
+	for _, w := range ws {
+		c, ok := v.class[w]
+		if !ok || 2*df > v.df[w] {
+			return false
+		}
+		if c != general && strings.Trim(w, "0123456789") != "" && v.ratio[w] >= pairShare {
+			strong = true
+		}
+	}
+	return strong
+}
+
 func (v *vocab) pair(a, b string, df uint32) bool {
 	ca, oka := v.class[a]
 	cb, okb := v.class[b]
@@ -165,7 +194,7 @@ func keepWord(t, lang string, df, titleDocs uint32) bool {
 }
 
 // phraseKey is the term of a pair of words.
-func phraseKey(a, b string) string { return phraseMark + a + " " + b }
+func phraseKey(a, b string) string { return gramKey([]string{a, b}) }
 
 // phraseHash is FNV-1a of "a b", without allocating: it is asked for
 // every pair of words of every article.
@@ -188,6 +217,12 @@ func phraseHash(a, b string) uint64 {
 type phraseSet struct {
 	h     []uint64
 	start []uint32 // 1<<16 + 1 entries
+	// filter has a bit for each hash's low bits: most words and pairs
+	// looked up are in no title, and the filter answers them without
+	// searching (it fits in the processor's cache where the hashes do
+	// not). About 8 bits an entry, at most 16 MB.
+	filter []uint64
+	mask   uint64
 }
 
 func newPhraseSet(hs []uint64) phraseSet {
@@ -206,57 +241,99 @@ func newPhraseSet(hs []uint64) phraseSet {
 		}
 		st[top] = uint32(k)
 	}
-	return phraseSet{u, st}
+	bits := uint64(1 << 12)
+	for bits < uint64(len(u))*8 && bits < 1<<27 {
+		bits <<= 1
+	}
+	f := make([]uint64, bits/64)
+	for _, h := range u {
+		f[(h&(bits-1))>>6] |= 1 << (h & 63)
+	}
+	return phraseSet{h: u, start: st, filter: f, mask: bits - 1}
 }
 
-func (s phraseSet) has(a, b string) bool {
-	if len(s.h) == 0 {
-		return false
+func (s phraseSet) has(a, b string) bool { return s.hasHash(phraseHash(a, b)) }
+
+// titleSets holds what titles name (redirects too): their words, and
+// the titles of 2, 3 and 4 words (little words aside), as hashes.
+type titleSets struct {
+	words phraseSet
+	grams [maxGram + 1]phraseSet
+}
+
+const maxGram = 4
+
+// newTitleSets reads every title of the title index.
+func newTitleSets(ix *dump.Index, rules Rules) *titleSets {
+	ts := &titleSets{}
+	if ix == nil {
+		return ts
 	}
-	h := phraseHash(a, b)
-	lo, hi := int(s.start[h>>48]), int(s.start[h>>48+1])
-	for lo < hi {
-		m := (lo + hi) / 2
-		switch {
-		case s.h[m] == h:
+	var words []uint64
+	var grams [maxGram + 1][]uint64
+	var ws []string
+	ix.Each(func(e dump.Entry) bool {
+		if e.NS != dump.NSMain {
 			return true
-		case s.h[m] < h:
-			lo = m + 1
-		default:
-			hi = m
+		}
+		ws = ws[:0]
+		TokenizeCase(e.Title, func(w string, c Case) {
+			if rules.Keep(w, c) && !junk(w) {
+				ws = append(ws, w)
+			}
+		})
+		for _, w := range ws {
+			words = append(words, gramHash([]string{w}))
+		}
+		if n := len(ws); n >= 2 && n <= maxGram {
+			grams[n] = append(grams[n], gramHash(ws))
+		}
+		return true
+	})
+	ts.words = newPhraseSet(words)
+	for n := 2; n <= maxGram; n++ {
+		ts.grams[n] = newPhraseSet(grams[n])
+	}
+	return ts
+}
+
+// titleWord reports whether w, or a form of it, is a word of a title.
+func (ts *titleSets) titleWord(w, lang string) bool {
+	if ts.words.hasHash(gramHash([]string{w})) {
+		return true
+	}
+	for _, f := range formsOf(w, lang)[1:] {
+		if ts.words.hasHash(gramHash([]string{f})) {
+			return true
 		}
 	}
 	return false
 }
 
-// titlePhrases collects the titles (redirects too) of two words, little
-// words aside.
-func titlePhrases(ix *dump.Index, rules Rules) phraseSet {
-	if ix == nil {
-		return phraseSet{}
-	}
-	var out []uint64
-	ix.Each(func(e dump.Entry) bool {
-		if e.NS != dump.NSMain {
-			return true
-		}
-		var ws [3]string
-		n := 0
-		TokenizeCase(e.Title, func(w string, c Case) {
-			if rules.Keep(w, c) && !junk(w) {
-				if n < 3 {
-					ws[n] = w
-				}
-				n++
-			}
-		})
-		if n == 2 && ws[0] != ws[1] {
-			out = append(out, phraseHash(ws[0], ws[1]))
-		}
+// admit decides whether a word met in an article is indexed: a word of
+// the titles (or a form of one), a name (written with a capital, not just
+// after the end of a sentence), a number, or a survival word. The rest
+// (words of no title: "including", "however", typing slips, codes,
+// "colspan") is left out as it is read. With no titles to go by (tests,
+// an estimate), every word is.
+func (ts *titleSets) admit(w string, c Case, afterBreak bool, lang string) bool {
+	if len(ts.words.h) == 0 {
 		return true
-	})
-	return newPhraseSet(out)
+	}
+	if c != Lower && !afterBreak {
+		return true
+	}
+	if strings.Trim(w, "0123456789") == "" {
+		return true
+	}
+	if ts.titleWord(w, lang) {
+		return true
+	}
+	return (lang == "en" || lang == "simple") && survival[w]
 }
+
+// gramKey is the term of a sequence of words.
+func gramKey(ws []string) string { return phraseMark + strings.Join(ws, " ") }
 
 // isDisambiguation reports whether wikitext is a disambiguation page: a
 // list of the articles a word may mean, not an article about it.
@@ -327,6 +404,54 @@ func latinScript(lang string) bool {
 var pairLittle = func() map[string]bool {
 	m := map[string]bool{}
 	for _, w := range strings.Fields("de la le les el los las del della di da do dos das du des von van der den het al el ibn bin bint san santa st saint mc mac") {
+		m[w] = true
+	}
+	return m
+}()
+
+// gramHash is the hash of a sequence of words, as phraseHash for two.
+func gramHash(ws []string) uint64 {
+	const prime = 1099511628211
+	h := uint64(14695981039346656037)
+	for i, w := range ws {
+		if i > 0 {
+			h = (h ^ ' ') * prime
+		}
+		for k := 0; k < len(w); k++ {
+			h = (h ^ uint64(w[k])) * prime
+		}
+	}
+	return h
+}
+
+func (s phraseSet) hasHash(h uint64) bool {
+	if len(s.h) == 0 || s.filter[(h&s.mask)>>6]&(1<<(h&63)) == 0 {
+		return false
+	}
+	lo, hi := int(s.start[h>>48]), int(s.start[h>>48+1])
+	for lo < hi {
+		m := (lo + hi) / 2
+		switch {
+		case s.h[m] == h:
+			return true
+		case s.h[m] < h:
+			lo = m + 1
+		default:
+			hi = m
+		}
+	}
+	return false
+}
+
+// basicWords are English words common in titles that name nothing on
+// their own: numbers, colours, sizes and the like.
+var basicWords = func() map[string]bool {
+	m := map[string]bool{}
+	for _, w := range strings.Fields(`one two three four five six seven eight nine ten eleven twelve twenty hundred thousand
+		million billion second third fourth fifth next red blue green yellow black white brown grey gray
+		orange pink purple big small large little great good bad best old new young high low long short hot cold
+		day days week year years month time times part side top end way thing things man men woman women boy girl
+		other same own real true full half`) {
 		m[w] = true
 	}
 	return m
