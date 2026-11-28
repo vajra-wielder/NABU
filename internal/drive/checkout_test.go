@@ -18,6 +18,7 @@ func fakeCheckout(t *testing.T) string {
 
 // NABU's source code is never used as a drive: its test folder is.
 func TestNeverTheSourceCode(t *testing.T) {
+	t.Setenv(TestEnv, "") // whatever the computer running the tests has set
 	c := fakeCheckout(t)
 	for _, asked := range []string{c, filepath.Join(c, "internal"), filepath.Join(c, "testdata")} {
 		l := Find(asked, "")

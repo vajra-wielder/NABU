@@ -650,6 +650,13 @@ func slimPair(p Pair, dw *pieceWriter, idxOut string, opt SlimOptions, res *Slim
 				halt()
 				return
 			}
+			// A stop comes first: with both ready, select would pick either.
+			select {
+			case <-opt.Stop:
+				halt()
+				return
+			default:
+			}
 			select {
 			case jobs <- slimJob{n: i, start: s.off, raw: raw, lines: s.lines, last: i == len(streams)-1, bundle: bundleSize}:
 			case <-stop:

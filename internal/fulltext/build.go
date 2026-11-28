@@ -50,6 +50,12 @@ const (
 	FormatVersion = 4
 )
 
+// WordRules counts the changes to which words are indexed (vocab.go): an
+// index built with older rules works, and is built again when asked.
+// 1: general words, pairs; 2: titles make the vocabulary, titles of 2-4
+// words.
+const WordRules = 2
+
 // buildVersion is the format Build writes: FormatVersion, or 2 in tests
 // that check older indexes still work.
 var buildVersion = FormatVersion
@@ -68,6 +74,7 @@ type Meta struct {
 	Phrases   int           `json:"phrases"`              // titles of 2 to 4 words indexed as one term
 	Noise     int           `json:"noise"`                // rare words of no use to search, not indexed (vocab.go)
 	TitleDict []byte        `json:"title_dict,omitempty"` // format 4: the dictionary of the compressed titles
+	Rules     int           `json:"rules,omitempty"`      // the word rules it was built with (WordRules)
 	Postings  int64         `json:"postings"`
 	AvgLen    float64       `json:"avg_len,omitempty"`  // words in an average article (format 3)
 	LensOff   int64         `json:"lens_off,omitempty"` // where the lengths are (format 3)
@@ -217,7 +224,7 @@ func Build(rd *dump.Reader, out, tmpDir string, opt Options) error {
 		return err
 	}
 	b.lang = lang
-	meta := &Meta{Version: buildVersion, Lang: lang, Stopwords: Stopwords(lang), Capital: CapitalNames(lang), Docs: int(b.ndocs), Geo: len(b.geo), Sources: dump.SourcesOf(rd.Files), Built: time.Now().UTC()}
+	meta := &Meta{Rules: WordRules, Version: buildVersion, Lang: lang, Stopwords: Stopwords(lang), Capital: CapitalNames(lang), Docs: int(b.ndocs), Geo: len(b.geo), Sources: dump.SourcesOf(rd.Files), Built: time.Now().UTC()}
 	tmpOut := out + ".tmp"
 	if err := b.write(tmpOut, docsTmp, meta, start); err != nil {
 		os.Remove(tmpOut)

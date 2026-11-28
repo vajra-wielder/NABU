@@ -370,8 +370,9 @@ func (f fakeStreams) StreamBytes(s uint32) int64 { return 100 }
 // The build time is extrapolated from a short sample of the real work.
 func TestMeasureBuild(t *testing.T) {
 	est, ok := MeasureBuild(fakeStreams(2000), func(uint32) { time.Sleep(time.Millisecond) }, 2, 150*time.Millisecond)
-	// 2000 bundles of 1 ms on 2 workers: about 1 s (+5% for writing).
-	if !ok || est < 600*time.Millisecond || est > 2*time.Second {
+	// 2000 bundles of 1 ms on 2 workers: about 1 s (+5% for writing);
+	// Windows sleeps a little longer than asked.
+	if !ok || est < 600*time.Millisecond || est > 5*time.Second {
 		t.Fatalf("estimate %s", est)
 	}
 	if _, ok := MeasureBuild(fakeStreams(0), func(uint32) {}, 2, time.Millisecond); ok {
