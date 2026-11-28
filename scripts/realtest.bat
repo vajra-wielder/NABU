@@ -1,8 +1,7 @@
 @echo off
 rem Runs scripts\realtest.sh in this window, so every step shows here live.
-rem   scripts\realtest.bat ["C:\path\to\Nabu Test system"] [prepare] [check] [serve]
-rem Without a folder it uses NABU_TEST, else the checkout's "Nabu Test system".
-rem Needs Git for Windows.
+rem   scripts\realtest.bat ["C:\path\to\NABU-test"] [prepare] [check] [serve]
+rem Without a folder it uses NABU-test beside the source code (or NABU_TEST). Needs Git for Windows.
 setlocal
 set "BASH="
 for %%G in (git.exe) do if not "%%~$PATH:G"=="" set "BASH=%%~dp$PATH:G..\bin\bash.exe"

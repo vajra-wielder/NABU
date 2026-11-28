@@ -554,20 +554,16 @@ there is one), which Git ignores, so pulls and pushes stay clean. Dumps given wi
 `Nabu Test system/wikipedia/` and run `go run ./cmd/nabu`.
 
 A folder named like `NABU-test` *beside* the checkout (`C:\Projects\NABU` and
-`C:\Projects\NABU-test`) is found by itself: NABU, `scripts/realtest.sh` and the studies
-use it with nothing to set. To keep the test folder anywhere else, set
-`NABU_TEST` to it. Every command run from the source code then keeps everything there:
-dumps, indexes, search, pictures and settings. A real NABU drive or a built package
-ignores `NABU_TEST`, so it never redirects the drive you actually use:
+`C:\Projects\NABU-test`) is found by itself: everything run from the source code keeps
+its data there (dumps, indexes, search, pictures, settings), and the tests on real data
+read it, with nothing to set. `NABU_TEST` points to a test folder anywhere else. A real
+NABU drive or a built package never looks at either, so it never redirects the drive you
+actually use:
 
 ```bat
-set NABU_TEST=C:\Users\you\NABU-test
 go run ./cmd/nabu setup
-scripts\realtest.bat
+scripts\test-all.bat
 ```
-
-(`setx NABU_TEST C:\Users\you\NABU-test` keeps it for every new window; on Mac and Linux,
-`export NABU_TEST=~/NABU-test`.)
 
 To test against real dumps, put a few small ones (for example `simplewiki`, `abwiki`,
 `yiwiki`) in a folder and run:
@@ -678,12 +674,12 @@ unrendered.
   search (or that it redirects to) comes first. A results page takes a few tens of
   milliseconds, nearly all of it reading the 20 articles for their snippets; only the
   paragraphs with the words are turned into text.
-- **Studying a real index.** `NABU_STUDY=<NABU folder> go test ./internal/fulltext -run
-  Study -v -timeout 6h` reports where the room and the time go (sizes of each part,
-  other ways of writing the lists, the time of each stage of a search, how ranking
-  changes) into `docs/realtest/fts-study-<wiki>.txt`; with `NABU_STUDY_REBUILD=1` it
-  also builds the index in the current format beside the one there and compares the
-  two.
+- **Studying a real index.** `scripts/test-all.sh` (`scripts\test-all.bat` on Windows)
+  runs every test on real data: the unit tests, the new readers against the old ones,
+  `realtest` and the studies of the search index (`go test ./internal/fulltext -run
+  Study`: sizes, the stages of a search, snippets, the build, kinds of words, what
+  titles name). Everything is written into `docs/realtest/`, ready to commit, and it
+  offers to upload it.
 - **Collection copies are snapshots.** They don't change when the dump is updated
   (that is the point); use **Refresh copies** to bring them up to date.
 - **Category pages** show their description but not member lists, which aren't in the

@@ -1,19 +1,27 @@
 package fulltext
 
 // A study of real search indexes, to see where the room and the time go.
-// It reads a NABU folder's dumps and indexes and changes nothing there:
+// It reads the test folder's dumps and indexes (NABU-test beside the
+// source code, NABU_TEST or NABU_STUDY elsewhere) and changes nothing there:
 //
-//	NABU_STUDY=C:\path\to\NABU-test go test ./internal/fulltext -run Study -v -timeout 6h
+//	go test ./internal/fulltext -run Study -v -timeout 6h
 //
-// (NABU_TEST works too.) WIKI=enwiki limits it to one wiki. Each part
+// WIKI=enwiki limits it to one wiki. Each part
 // prints what it finds and writes it to docs/realtest/fts-study-<wiki>.txt
 // in the checkout, ready to commit:
 //
-//	TestStudySize    sizes of each part of the index, and what other ways of
-//	                 writing the article lists would take (reads the whole
-//	                 index once: minutes)
-//	TestStudySearch  time of each stage of a search, and of the snippets
-//	TestStudyBuild   where the time of building goes, on a sample of the dump
+//	TestStudySize       sizes of each part of the index, and what other ways
+//	                    of writing the article lists would take (minutes)
+//	TestStudySearch     time of each stage of a search, and of the snippets
+//	TestStudySnippets   snippets from whole articles against from paragraphs
+//	TestStudyBuild      where the time of building goes, on a sample
+//	TestStudyWords      kinds of words and the room each takes; headings
+//	TestStudyTitleVocab what titles name: words in no title, titles of 2-4
+//	                    words in the text
+//	TestStudyNewFormat  builds the index again beside the one there and
+//	                    compares (NABU_STUDY_REBUILD=1; as long as a build)
+//
+// scripts/test-all.sh runs them all with the other tests on real data.
 
 import (
 	"fmt"
@@ -713,63 +721,6 @@ func TestStudySnippets(t *testing.T) {
 	}
 }
 
-// TestStudyRanking shows how much the order of results would change with
-// less said about how often a word is in an article: the top 10 of each
-// query, kept with 4 weights (now), 2 (once / more often) and none.
-func TestStudyRanking(t *testing.T) {
-	for _, b := range studyBooks(t) {
-		r := &report{t: t, name: "ranking"}
-		now := bucketTF
-		top := func(q string) []string {
-			res, err := b.ix.Search(q, 0, 10)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var out []string
-			for _, h := range res.Hits {
-				out = append(out, h.Title)
-			}
-			return out
-		}
-		base := map[string][]string{}
-		for _, q := range studyQueries {
-			base[q] = top(q)
-		}
-		for _, alt := range []struct {
-			name string
-			tf   [4]uint8
-		}{{"2 weights (once / more often)", [4]uint8{1, 3, 3, 3}}, {"no weights", [4]uint8{1, 1, 1, 1}}} {
-			bucketTF = alt.tf
-			var kept, all int
-			var changed []string
-			for _, q := range studyQueries {
-				was := map[string]bool{}
-				for _, t := range base[q] {
-					was[t] = true
-				}
-				got := top(q)
-				same := 0
-				for _, t := range got {
-					if was[t] {
-						same++
-					}
-				}
-				kept += same
-				all += len(base[q])
-				if len(base[q]) > 0 && same < len(base[q]) && len(changed) < 6 {
-					changed = append(changed, fmt.Sprintf("    %q: now %s | would be %s", q, strings.Join(base[q], "; "), strings.Join(got, "; ")))
-				}
-			}
-			bucketTF = now
-			r.f("%s, %s: %d of %d top-10 results stay in the top 10 (%.0f%%)", b.files.Key(), alt.name, kept, all, 100*float64(kept)/float64(all))
-			for _, c := range changed {
-				r.f("%s", c)
-			}
-		}
-		r.save(b.files.DB)
-	}
-}
-
 func tfBits(tf []uint8) int64 {
 	var b int64
 	for _, x := range tf {
@@ -991,205 +942,6 @@ func max64(a, b int64) int64 {
 		return a
 	}
 	return b
-}
-
-// TestStudyVocab shows, on an index as it is, what the rules of vocab.go
-// would do in a new build: the common words left out as general (and
-// the room they take), and the pairs of words that would be indexed
-// (counted on a sample of the articles).
-func TestStudyVocab(t *testing.T) {
-	for _, b := range studyBooks(t) {
-		r := &report{t: t, name: "vocabulary"}
-		ix := b.ix
-		lang := ix.Meta.Lang
-		inTitles := map[string]uint32{}
-		for d := 0; d < ix.Meta.Docs; d++ {
-			doc, err := ix.Doc(uint32(d))
-			if err != nil {
-				t.Fatal(err)
-			}
-			seen := map[string]bool{}
-			Tokenize(doc.Title, func(w string) {
-				if !seen[w] {
-					seen[w] = true
-					inTitles[w]++
-				}
-			})
-		}
-		many := minCommonDocs(ix.Meta.Docs)
-		var all, common, dropBytes int64
-		type gw struct {
-			w  string
-			df uint32
-		}
-		var dropped []gw
-		var keptSample, rescued []string
-		// one-word titles of articles (the study cannot tell disambiguation
-		// pages without reading them: it counts them too)
-		one := map[string]bool{}
-		for d := 0; d < ix.Meta.Docs; d++ {
-			doc, _ := ix.Doc(uint32(d))
-			var tw []string
-			Tokenize(doc.Title, func(w string) { tw = append(tw, w) })
-			if len(tw) == 1 {
-				one[tw[0]] = true
-			}
-		}
-		v := newVocab(lang, one)
-		allRows(t, ix, func(row dictRow) {
-			all += int64(row.size)
-			if row.df < many || strings.HasPrefix(row.term, phraseMark) {
-				return
-			}
-			common++
-			c := v.word(row.term, row.df, inTitles[row.term])
-			if c == kept && classify(row.term, lang, row.df, inTitles[row.term]) == general && len(rescued) < 150 {
-				rescued = append(rescued, row.term)
-			}
-			if c != general {
-				if common%97 == 0 && len(keptSample) < 80 {
-					keptSample = append(keptSample, row.term)
-				}
-				return
-			}
-			dropped = append(dropped, gw{row.term, row.df})
-			dropBytes += int64(row.size)
-		})
-		sort.Slice(dropped, func(i, j int) bool { return dropped[i].df > dropped[j].df })
-		r.f("%s: %d words in %d+ articles; %d of them general (not indexed in a new build), %s of %s of lists (%.1f%%)",
-			b.files.Key(), common, many, len(dropped), mb(dropBytes), mb(all), 100*float64(dropBytes)/float64(all))
-		var line []string
-		for i, d := range dropped {
-			if i == 300 {
-				break
-			}
-			line = append(line, d.w)
-		}
-		r.f("  the commonest general words: %s", strings.Join(line, " "))
-		line = line[:0]
-		for i := len(dropped) - 1; i >= 0 && len(line) < 150; i -= 1 + len(dropped)/150 {
-			line = append(line, dropped[i].w)
-		}
-		r.f("  some rarer general words: %s", strings.Join(line, " "))
-		r.f("  some common words kept: %s", strings.Join(keptSample, " "))
-		r.f("  kept as forms of kept words: %s", strings.Join(rescued, " "))
-
-		// Pairs, on a sample.
-		phrases := newTitleSets(b.rd.Index, ix.rules).grams[2]
-		total := b.rd.Index.StreamCount()
-		sample := 1500
-		if sample > total {
-			sample = total
-		}
-		pairDF := map[string]int{}
-		docs := 0
-		for i := 0; i < sample; i++ {
-			ps, err := b.rd.StreamPages(uint32(int64(i) * int64(total) / int64(sample)))
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, p := range ps {
-				if p.NS != dump.NSMain || p.Redirect != "" {
-					continue
-				}
-				docs++
-				seen := map[string]bool{}
-				prev := ""
-				TokenizeBreaks(wikitext.PlainText(withoutBoilerplate(p.Text, lang), b.rd.Site()), func(w string, c Case, brk bool) {
-					if brk {
-						prev = ""
-					}
-					if !ix.rules.Keep(w, c) {
-						return
-					}
-					if junk(w) {
-						prev = ""
-						return
-					}
-					if prev != "" && prev != w && phrases.has(prev, w) {
-						if k := prev + " " + w; !seen[k] {
-							seen[k] = true
-							pairDF[k]++
-						}
-					}
-					prev = w
-				})
-			}
-		}
-		scale := float64(ix.Meta.Docs) / float64(docs)
-		var kept []gw
-		var posts float64
-		for k, n := range pairDF {
-			ab := strings.SplitN(k, " ", 2)
-			est := float64(n) * scale
-			if v.pair(ab[0], ab[1], uint32(est)) {
-				kept = append(kept, gw{k, uint32(est)})
-				posts += est
-			}
-		}
-		sort.Slice(kept, func(i, j int) bool { return kept[i].df > kept[j].df })
-		line = line[:0]
-		for i, k := range kept {
-			if i == 150 {
-				break
-			}
-			line = append(line, k.w)
-		}
-		r.f("  pairs of words from %d titles: about %d indexed, adding about %.0f postings (%.1f%% more)", len(phrases.h), len(kept), posts, 100*posts/float64(ix.Meta.Postings))
-		r.f("  the commonest: %s", strings.Join(line, ", "))
-		r.save(b.files.DB)
-	}
-}
-
-// TestStudyTitles measures the article table written as format 4 does
-// (titles compressed by blocks with a dictionary of title words) on the
-// index's own titles, and how long a block takes to read back.
-func TestStudyTitles(t *testing.T) {
-	for _, b := range studyBooks(t) {
-		r := &report{t: t, name: "titles"}
-		ix := b.ix
-		tw := titleWords{}
-		var all []Doc
-		var raw int64
-		for d := 0; d < ix.Meta.Docs; d++ {
-			doc, err := ix.Doc(uint32(d))
-			if err != nil {
-				t.Fatal(err)
-			}
-			tw.add(uint32(d), doc.Title)
-			all = append(all, doc)
-			raw += int64(len(doc.Title))
-		}
-		dict := tw.dict()
-		var size int64
-		var blk []byte
-		var sample [][]byte
-		for i := 0; i < len(all); i += docBlock {
-			j := i + docBlock
-			if j > len(all) {
-				j = len(all)
-			}
-			var err error
-			if blk, err = encodeDocBlock(blk[:0], all[i:j], dict); err != nil {
-				t.Fatal(err)
-			}
-			size += int64(len(blk))
-			if (i/docBlock)%97 == 0 && len(sample) < 200 {
-				sample = append(sample, append([]byte(nil), blk...))
-			}
-		}
-		start := time.Now()
-		for _, s := range sample {
-			if _, ok := decodeDocBlock(s, docBlock, true, dict); !ok {
-				t.Fatal("a block does not read back")
-			}
-		}
-		per := time.Since(start) / time.Duration(len(sample))
-		was := ix.Sections()["docs"]
-		r.f("%s: article table %s (titles %s); written as format 4: %s (%+.0f%%), a block of %d read in %s",
-			b.files.Key(), mb(was), mb(raw), mb(size), 100*float64(size-was)/float64(was), docBlock, per.Round(time.Microsecond))
-		r.save(b.files.DB)
-	}
 }
 
 // TestStudyTitleVocab studies an index made of what titles name: single

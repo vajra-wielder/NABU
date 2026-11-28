@@ -16,8 +16,10 @@
 #   CRAWL       random articles to open     (default: 3000)
 #   PORT        port for the test server    (default: 8765)
 #
-# Shows each step live, writes a short report to <folder>/realtest/report.txt
-# (meant to be read whole) and full logs next to it.
+# Shows each step live, and writes a short report (meant to be read whole)
+# with the full logs next to it into the source code, ready to commit:
+# docs/realtest/realtest-<wiki>/report.txt. The program it builds to test
+# stays in the test folder (<folder>/realtest), out of Git.
 set -u
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 if [ $# -gt 0 ] && [ -d "$1" ]; then NABU_DRIVE=$1; shift; fi
@@ -40,8 +42,8 @@ DRIVE=$NABU_DRIVE
 WIKI=${WIKI:-enwiki}
 CRAWL=${CRAWL:-3000}
 PORT=${PORT:-8765}
-OUT=$DRIVE/realtest
-mkdir -p "$OUT"
+OUT=$ROOT/docs/realtest/realtest-$WIKI
+mkdir -p "$OUT" "$DRIVE/realtest"
 REPORT=$OUT/report.txt
 STEPS=${*:-prepare check serve}
 
@@ -50,7 +52,7 @@ if [ -z "${NABU_BIN:-}" ] && [ -n "$WIN" ] && [ -x "$DRIVE/programs/windows/nabu
 	NABU_BIN=$DRIVE/programs/windows/nabu-windows-amd64.exe # test the program on the drive
 fi
 if [ -z "${NABU_BIN:-}" ]; then
-	NABU_BIN=$OUT/nabu${WIN:+.exe}
+	NABU_BIN=$DRIVE/realtest/nabu${WIN:+.exe}
 	GO=go; for g in "$ROOT"/requisites/toolchains/go1.24.7/bin/go "$ROOT"/requisites/toolchains/go1.24.7/bin/go.exe; do [ -x "$g" ] && GO=$g && break; done
 	(cd "$ROOT" && CGO_ENABLED=0 GOTOOLCHAIN=local "$GO" build -o "$NABU_BIN" ./cmd/nabu) || { echo "build failed"; exit 1; }
 fi

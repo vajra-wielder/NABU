@@ -5,7 +5,6 @@ import (
 	"github.com/vajra-wielder/nabu/internal/testfolder"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
@@ -22,7 +21,7 @@ import (
 // NABU_TEST, so the real drive is not affected by it.
 
 // TestFolder is the test folder made in a checkout when it has none.
-const TestFolder = "Nabu Test system"
+const TestFolder = testfolder.Name
 
 // TestEnv names the variable holding a test folder outside the checkout.
 const TestEnv = "NABU_TEST"
@@ -30,10 +29,8 @@ const TestEnv = "NABU_TEST"
 // TestFolderSet returns the folder NABU_TEST names, if it is set.
 func TestFolderSet() string { return testfolder.FromEnv() }
 
-var testFolderRe = regexp.MustCompile(`(?i)^nabu[ _-]*test`)
-
 // IsTestFolder reports whether a folder name is that of a test folder.
-func IsTestFolder(name string) bool { return testFolderRe.MatchString(name) }
+func IsTestFolder(name string) bool { return testfolder.IsName(name) }
 
 // IsCheckout reports whether dir is (the top of) NABU's source code.
 func IsCheckout(dir string) bool {

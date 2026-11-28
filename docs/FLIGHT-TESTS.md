@@ -45,15 +45,20 @@ the drive). Stop it whenever you like (Ctrl+C or close the window) and run it ag
 carries on, and next month it updates. When it finishes it starts NABU, so the pictures
 keep coming in while NABU runs.
 
-## The automatic test (realtest)
+## The automatic tests
 
-From the NABU checkout, with the dumps in the test folder: a folder named like
-**NABU-test** beside the checkout is found by itself (or set `NABU_TEST` to another one):
+From the NABU checkout, with the dumps in the **NABU-test** folder beside it (found by
+itself; `NABU_TEST` points anywhere else), in Command Prompt, PowerShell or Windows
+Terminal (needs Git for Windows):
 
-- Windows, in Command Prompt, PowerShell or Windows Terminal: `scripts\realtest.bat`
-  (needs Git for Windows; runs in that same window).
-- Mac or Linux: `scripts/realtest.sh`
+```bat
+git pull
+scripts\test-all.bat
+```
 
-Each step shows its progress live; the report is in `realtest/report.txt` inside the test folder.
-Give another folder as the first argument, `WIKI=simplewiki` for a smaller wiki,
-or `CRAWL=300` for a shorter run.
+It runs, in order and each with its time: the unit tests, the new readers against the
+old ones on real articles, `realtest` (NABU itself: drive check, searches, 3,000 random
+articles) and the studies of the search index. English takes about an hour. Everything
+lands in `docs/realtest/` (the summary in `test-all-enwiki.txt`), and at the end it
+offers to upload the results (git commit and push). `scripts\realtest.bat` runs the
+real test alone; `set WIKI=simplewiki` first tests another wiki.
