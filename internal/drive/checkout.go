@@ -2,10 +2,10 @@ package drive
 
 import (
 	"bufio"
+	"github.com/vajra-wielder/nabu/internal/testfolder"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 )
 
@@ -28,12 +28,7 @@ const TestFolder = "Nabu Test system"
 const TestEnv = "NABU_TEST"
 
 // TestFolderSet returns the folder NABU_TEST names, if it is set.
-func TestFolderSet() string {
-	if v := strings.TrimSpace(os.Getenv(TestEnv)); v != "" {
-		return abs(strings.Trim(v, `"`))
-	}
-	return ""
-}
+func TestFolderSet() string { return testfolder.FromEnv() }
 
 var testFolderRe = regexp.MustCompile(`(?i)^nabu[ _-]*test`)
 
@@ -70,28 +65,32 @@ func checkoutOf(dir string) string {
 
 // testFolderIn is the checkout's test folder: the one there is (the
 // first by name if several), or TestFolder.
-func testFolderIn(checkout string) string {
-	if t := TestFolderSet(); t != "" {
-		return t
-	}
-	ents, _ := os.ReadDir(checkout)
-	var found []string
-	for _, e := range ents {
-		if e.IsDir() && IsTestFolder(e.Name()) {
-			found = append(found, e.Name())
-		}
-	}
-	sort.Strings(found)
-	if len(found) > 0 {
-		return filepath.Join(checkout, found[0])
-	}
-	return filepath.Join(checkout, TestFolder)
-}
+func testFolderIn(checkout string) string { return testfolder.For(checkout) }
 
 // awayFromSource keeps a NABU folder out of the source code: a root that
 // is in a checkout but not in one of its test folders becomes the
 // checkout's test folder. Moved reports that it did.
 func awayFromSource(root string) (string, bool) {
+	// A test folder (or a folder in one) is used as it is, even with a
+	// copy of the source code in it.
+	for d := abs(root); ; d = filepath.Dir(d) {
+		if testfolder.IsName(filepath.Base(d)) {
+			return root, false
+		}
+		if filepath.Dir(d) == d {
+			break
+		}
+	}
+	if t := testfolder.FromEnv(); t != "" {
+		if rel, err := filepath.Rel(t, abs(root)); err == nil && !strings.HasPrefix(rel, "..") {
+			return root, false // in the test folder NABU_TEST names
+		}
+	}
+	if c := checkoutOf(root); c != "" {
+		if t := testfolder.Beside(c); t != "" {
+			return t, true
+		}
+	}
 	if t := TestFolderSet(); t != "" {
 		if rel, err := filepath.Rel(t, abs(root)); err == nil && !strings.HasPrefix(rel, "..") {
 			return root, false // in the test folder NABU_TEST names

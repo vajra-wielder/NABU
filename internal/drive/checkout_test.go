@@ -102,3 +102,22 @@ func TestTestFolderFromEnv(t *testing.T) {
 		t.Fatalf("--library: %+v", l)
 	}
 }
+
+// A test folder beside the source code is found without NABU_TEST, and
+// used as it is even with a copy of the source code in it.
+func TestTestFolderBeside(t *testing.T) {
+	t.Setenv(TestEnv, "")
+	parent := t.TempDir()
+	c := filepath.Join(parent, "NABU")
+	os.MkdirAll(c, 0o755)
+	os.WriteFile(filepath.Join(c, "go.mod"), []byte("module github.com/vajra-wielder/nabu\n"), 0o644)
+	beside := filepath.Join(parent, "NABU-test")
+	os.MkdirAll(filepath.Join(beside, Wikipedia), 0o755)
+	os.WriteFile(filepath.Join(beside, "go.mod"), []byte("module github.com/vajra-wielder/nabu\n"), 0o644)
+	if l := Find(c, ""); l.Root != beside || !l.Moved {
+		t.Fatalf("from the source code: %s", l.Root)
+	}
+	if l := Find(beside, ""); l.Root != beside || l.Moved {
+		t.Fatalf("the test folder itself: %s", l.Root)
+	}
+}

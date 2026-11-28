@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/vajra-wielder/nabu/internal/dump"
+	"github.com/vajra-wielder/nabu/internal/testfolder"
 	"github.com/vajra-wielder/nabu/internal/wikitext"
 )
 
@@ -40,12 +41,14 @@ type studyBook struct {
 }
 
 func studyBooks(t *testing.T) []studyBook {
+	// NABU_STUDY, else the test folder (NABU-test beside the source code):
+	// studies run when asked for by name (-run Study...).
 	root := os.Getenv("NABU_STUDY")
-	if root == "" {
-		root = os.Getenv("NABU_TEST")
+	if root == "" && testfolder.Asked("Study") {
+		root = testfolder.ForTests()
 	}
 	if root == "" {
-		t.Skip("set NABU_STUDY to a NABU folder with a search index")
+		t.Skip("run with -run Study... (uses the NABU-test folder beside the source code, or NABU_STUDY)")
 	}
 	root = strings.Trim(root, `"`)
 	eds, _ := dump.Scan(filepath.Join(root, "wikipedia"))

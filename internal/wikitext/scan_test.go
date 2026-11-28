@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/vajra-wielder/nabu/internal/dump"
+	"github.com/vajra-wielder/nabu/internal/testfolder"
 )
 
 // The hand-written scanners do what the regular expressions did.
@@ -63,8 +64,13 @@ func TestScannersOnRealArticles(t *testing.T) {
 			dir = filepath.Join(d, "wikipedia")
 		}
 	}
+	if dir == "" && testfolder.Asked("ScannersOnReal") {
+		if f := testfolder.ForTests(); f != "" {
+			dir = filepath.Join(f, "wikipedia")
+		}
+	}
 	if dir == "" {
-		t.Skip("set NABU_REAL_DUMPS")
+		t.Skip("run with -run ScannersOnReal (uses the NABU-test folder), or set NABU_REAL_DUMPS")
 	}
 	eds, _ := dump.Scan(dir)
 	n := 0

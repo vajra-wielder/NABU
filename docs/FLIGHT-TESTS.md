@@ -47,8 +47,8 @@ keep coming in while NABU runs.
 
 ## The automatic test (realtest)
 
-From the NABU checkout, with the dumps in the test folder: the one `NABU_TEST` names
-(`set NABU_TEST=C:\path\to\NABU-test`), else the checkout's **Nabu Test system** folder:
+From the NABU checkout, with the dumps in the test folder: a folder named like
+**NABU-test** beside the checkout is found by itself (or set `NABU_TEST` to another one):
 
 - Windows, in Command Prompt, PowerShell or Windows Terminal: `scripts\realtest.bat`
   (needs Git for Windows; runs in that same window).

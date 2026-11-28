@@ -5,8 +5,8 @@
 #   scripts\realtest.bat [folder] [step...]  the same, from a Windows terminal
 #
 # folder is the NABU folder with the dumps (or set NABU_DRIVE). Without one,
-# the test folder NABU_TEST names is used, else the checkout's own test
-# folder ("Nabu Test system").
+# the test folder NABU_TEST names is used, else a folder named like
+# "NABU-test" beside the checkout, else the checkout's own test folder.
 #
 # Environment:
 #   NABU_BIN    the nabu program            (default: build ./cmd/nabu)
@@ -22,6 +22,12 @@ set -u
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 if [ $# -gt 0 ] && [ -d "$1" ]; then NABU_DRIVE=$1; shift; fi
 [ -z "${NABU_DRIVE:-}" ] && [ -n "${NABU_TEST:-}" ] && NABU_DRIVE=$NABU_TEST
+if [ -z "${NABU_DRIVE:-}" ]; then # a test folder beside the source code (NABU-test)
+	for d in "$(dirname "$ROOT")"/*/; do
+		n=$(basename "$d")
+		if [ "${d%/}" != "$ROOT" ] && echo "$n" | grep -qiE '^nabu[ _-]*test'; then NABU_DRIVE=${d%/}; break; fi
+	done
+fi
 if [ -z "${NABU_DRIVE:-}" ]; then
 	for d in "$ROOT"/*/; do
 		n=$(basename "$d")

@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/vajra-wielder/nabu/internal/testfolder"
 )
 
 // fastPage reads pages as encoding/xml does.
@@ -50,8 +52,13 @@ func TestFastPageSmall(t *testing.T) {
 // On real dumps (NABU_REAL_DUMPS): every page of a sample of bundles.
 func TestFastPageReal(t *testing.T) {
 	dir := os.Getenv("NABU_REAL_DUMPS")
+	if dir == "" && testfolder.Asked("FastPageReal") {
+		if f := testfolder.ForTests(); f != "" {
+			dir = filepath.Join(f, "wikipedia")
+		}
+	}
 	if dir == "" {
-		t.Skip("set NABU_REAL_DUMPS")
+		t.Skip("run with -run FastPageReal (uses the NABU-test folder), or set NABU_REAL_DUMPS")
 	}
 	eds, _ := Scan(dir)
 	for _, f := range eds {

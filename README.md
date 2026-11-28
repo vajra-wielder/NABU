@@ -553,7 +553,9 @@ there is one), which Git ignores, so pulls and pushes stay clean. Dumps given wi
 `--library` are read where they are. Put real dumps for testing in
 `Nabu Test system/wikipedia/` and run `go run ./cmd/nabu`.
 
-To keep the test folder somewhere else (another disk with room for a full dump), set
+A folder named like `NABU-test` *beside* the checkout (`C:\\Projects\\NABU` and
+`C:\\Projects\\NABU-test`) is found by itself: NABU, `scripts/realtest.sh` and the studies
+use it with nothing to set. To keep the test folder anywhere else, set
 `NABU_TEST` to it. Every command run from the source code then keeps everything there:
 dumps, indexes, search, pictures and settings. A real NABU drive or a built package
 ignores `NABU_TEST`, so it never redirects the drive you actually use:
